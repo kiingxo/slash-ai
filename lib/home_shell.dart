@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'features/repo/repo_page.dart';
 import 'features/prompt/prompt_page.dart';
 
+import 'ui/screens/settings_screen.dart';
+
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -17,7 +19,7 @@ class _HomeShellState extends State<HomeShell> {
     PromptPage(),
     Center(child: Text('Review (coming soon)', style: TextStyle(fontSize: 24))),
     Center(child: Text('PRs (coming soon)', style: TextStyle(fontSize: 24))),
-    Center(child: Text('Chat (coming soon)', style: TextStyle(fontSize: 24))),
+    SettingsScreen(),
   ];
 
   @override
@@ -31,7 +33,7 @@ class _HomeShellState extends State<HomeShell> {
           BottomNavigationBarItem(icon: Icon(Icons.edit), label: 'Prompt'),
           BottomNavigationBarItem(icon: Icon(Icons.rule), label: 'Review'),
           BottomNavigationBarItem(icon: Icon(Icons.merge_type), label: 'PRs'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
