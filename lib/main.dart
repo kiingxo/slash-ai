@@ -4,9 +4,39 @@ import 'ui/theme/app_theme.dart';
 import 'features/auth/auth_page.dart';
 import 'home_shell.dart';
 import 'services/secure_storage_service.dart';
+import 'dart:async';
 
 void main() {
   runApp(const ProviderScope(child: SlashApp()));
+}
+
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor:  Color(0xFF000000),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset('assets/slash2.png', width: 120, height: 120),
+            const SizedBox(height: 32),
+            // Text(
+            //   '/slash',
+            //   style: TextStyle(
+            //     color: Colors.white,
+            //     fontSize: 32,
+            //     fontWeight: FontWeight.bold,
+            //     letterSpacing: 2,
+            //   ),
+            // ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class SlashApp extends StatelessWidget {
@@ -26,15 +56,39 @@ class SlashApp extends StatelessWidget {
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       themeMode: ThemeMode.dark,
-      home: FutureBuilder<bool>(
-        future: _hasTokens(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
-          }
-          return snapshot.data! ? const HomeShell() : const AuthPage();
-        },
-      ),
+      home: SplashGate(_hasTokens),
     );
+  }
+}
+
+class SplashGate extends StatefulWidget {
+  final Future<bool> Function() hasTokens;
+  const SplashGate(this.hasTokens, {super.key});
+
+  @override
+  State<SplashGate> createState() => _SplashGateState();
+}
+
+class _SplashGateState extends State<SplashGate> {
+  bool? _hasTokens;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await Future.delayed(const Duration(seconds: 2));
+    final tokens = await widget.hasTokens();
+    if (mounted) setState(() => _hasTokens = tokens);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasTokens == null) {
+      return const SplashScreen();
+    }
+    return _hasTokens! ? const HomeShell() : const AuthPage();
   }
 }

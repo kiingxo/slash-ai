@@ -172,7 +172,9 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('/Slash', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
+                  Center(
+                    child: Image.asset('assets/slash2.png', width: 80, height: 80),
+                  ),
                   const SizedBox(height: 24),
                   if (_isLoading) ...[
                     const SizedBox(height: 16),
