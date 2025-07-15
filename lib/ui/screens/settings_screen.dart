@@ -3,14 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../services/secure_storage_service.dart';
 import '../../features/auth/auth_page.dart';
+import '../../features/repo/repo_controller.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
     final storage = SecureStorageService();
-    await storage.deleteApiKey('gemini_api_key');
-    await storage.deleteApiKey('github_pat');
+    await storage.deleteAll();
+    ref.invalidate(authControllerProvider);
+    ref.invalidate(repoControllerProvider);
     // ignore: use_build_context_synchronously
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthPage()),

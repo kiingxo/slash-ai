@@ -5,6 +5,7 @@ import 'features/auth/auth_page.dart';
 import 'home_shell.dart';
 import 'services/secure_storage_service.dart';
 import 'dart:async';
+import 'package:dio/dio.dart';
 
 void main() {
   runApp(const ProviderScope(child: SlashApp()));
@@ -42,11 +43,29 @@ class SplashScreen extends StatelessWidget {
 class SlashApp extends StatelessWidget {
   const SlashApp({super.key});
 
-  Future<bool> _hasTokens() async {
+  Future<bool> _hasValidTokens() async {
     final storage = SecureStorageService();
     final gemini = await storage.getApiKey('gemini_api_key');
     final github = await storage.getApiKey('github_pat');
-    return gemini != null && gemini.isNotEmpty && github != null && github.isNotEmpty;
+    
+    // Check if both tokens exist and are not empty
+    if (gemini == null || gemini.isEmpty || github == null || github.isEmpty) {
+      return false;
+    }
+    
+    // Test if GitHub token is valid by making a simple API call
+    try {
+      final dio = Dio(BaseOptions(
+        baseUrl: 'https://api.github.com/',
+        headers: {'Authorization': 'token ${github.trim()}'},
+      ));
+      await dio.get('/user');
+      return true;
+    } catch (e) {
+      // Token is invalid, clear it and return false
+      await storage.deleteAll();
+      return false;
+    }
   }
 
   @override
@@ -56,7 +75,7 @@ class SlashApp extends StatelessWidget {
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       themeMode: ThemeMode.dark,
-      home: SplashGate(_hasTokens),
+      home: SplashGate(_hasValidTokens),
     );
   }
 }
