@@ -4,6 +4,7 @@ import 'auth_controller.dart';
 import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
 import '../../home_shell.dart';
+import 'package:dio/dio.dart';
 
 class AuthPage extends ConsumerStatefulWidget {
   const AuthPage({super.key});
@@ -16,6 +17,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   late TextEditingController geminiController;
   late TextEditingController githubController;
   String? successMessage;
+  String? errorMessage;
   bool isValid = false;
 
   @override
@@ -43,10 +45,49 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   }
 
   Future<void> _connect() async {
-    setState(() => successMessage = null);
-    await ref.read(authControllerProvider.notifier).saveGeminiApiKey(geminiController.text);
-    await ref.read(authControllerProvider.notifier).saveGitHubPat(githubController.text);
+    setState(() {
+      successMessage = null;
+      errorMessage = null;
+    });
+    final githubPat = githubController.text.trim();
+    final geminiKey = geminiController.text.trim();
+    // Validate tokens before saving
+    if (githubPat.isEmpty || geminiKey.isEmpty) {
+      setState(() => errorMessage = 'Both API keys are required.');
+      geminiController.clear();
+      githubController.clear();
+      return;
+    }
+    // Validate GitHub token
+    try {
+      final dio = Dio(BaseOptions(
+        baseUrl: 'https://api.github.com/',
+        headers: {'Authorization': 'token $githubPat'},
+      ));
+      await dio.get('/user');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        setState(() => errorMessage = 'Your GitHub token is invalid or expired. Please try again.');
+        geminiController.clear();
+        githubController.clear();
+        return;
+      }
+      setState(() => errorMessage = 'Failed to validate GitHub token: ${e.message}');
+      geminiController.clear();
+      githubController.clear();
+      return;
+    } catch (e) {
+      setState(() => errorMessage = 'Failed to validate tokens: ${e.toString()}');
+      geminiController.clear();
+      githubController.clear();
+      return;
+    }
+    // Save tokens if valid
+    await ref.read(authControllerProvider.notifier).saveGeminiApiKey(geminiKey);
+    await ref.read(authControllerProvider.notifier).saveGitHubPat(githubPat);
     setState(() => successMessage = 'Credentials saved!');
+    geminiController.clear();
+    githubController.clear();
     if (mounted) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const HomeShell()),
@@ -80,6 +121,14 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (errorMessage != null) ...[
+                    Text(
+                      errorMessage!,
+                      style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   const Icon(Icons.lock_outline, size: 48, color: Color(0xFF6366F1)),
                   const SizedBox(height: 24),
                   Text('Connect your APIs', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),

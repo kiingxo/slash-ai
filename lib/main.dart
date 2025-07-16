@@ -43,29 +43,11 @@ class SplashScreen extends StatelessWidget {
 class SlashApp extends StatelessWidget {
   const SlashApp({super.key});
 
-  Future<bool> _hasValidTokens() async {
+  Future<bool> _hasTokens() async {
     final storage = SecureStorageService();
     final gemini = await storage.getApiKey('gemini_api_key');
     final github = await storage.getApiKey('github_pat');
-    
-    // Check if both tokens exist and are not empty
-    if (gemini == null || gemini.isEmpty || github == null || github.isEmpty) {
-      return false;
-    }
-    
-    // Test if GitHub token is valid by making a simple API call
-    try {
-      final dio = Dio(BaseOptions(
-        baseUrl: 'https://api.github.com/',
-        headers: {'Authorization': 'token ${github.trim()}'},
-      ));
-      await dio.get('/user');
-      return true;
-    } catch (e) {
-      // Token is invalid, clear it and return false
-      await storage.deleteAll();
-      return false;
-    }
+    return gemini != null && gemini.isNotEmpty && github != null && github.isNotEmpty;
   }
 
   @override
@@ -75,7 +57,7 @@ class SlashApp extends StatelessWidget {
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       themeMode: ThemeMode.dark,
-      home: SplashGate(_hasValidTokens),
+      home: SplashGate(_hasTokens),
     );
   }
 }
@@ -100,7 +82,9 @@ class _SplashGateState extends State<SplashGate> {
   Future<void> _init() async {
     await Future.delayed(const Duration(seconds: 2));
     final tokens = await widget.hasTokens();
-    if (mounted) setState(() => _hasTokens = tokens);
+    if (mounted) setState(() {
+      _hasTokens = tokens;
+    });
   }
 
   @override
@@ -108,6 +92,8 @@ class _SplashGateState extends State<SplashGate> {
     if (_hasTokens == null) {
       return const SplashScreen();
     }
-    return _hasTokens! ? const HomeShell() : const AuthPage();
+    return _hasTokens!
+        ? const HomeShell()
+        : const AuthPage();
   }
 }
