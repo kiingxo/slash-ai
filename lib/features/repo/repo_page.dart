@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'repo_controller.dart';
 import '../file_browser/file_browser_page.dart';
+import '../../common/widgets/widgets.dart';
 
 class RepoPage extends ConsumerWidget {
   const RepoPage({super.key});
@@ -28,7 +29,7 @@ class RepoPage extends ConsumerWidget {
       body: repoState.isLoading
           ? const Center(child: CircularProgressIndicator())
           : repoState.error != null
-              ? Center(child: Text('Error:  repoState.error!', style: const TextStyle(color: Colors.red)))
+              ? Center(child: Text(friendlyErrorMessage(repoState.error), style: const TextStyle(color: Colors.red)))
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: repoState.repos.length,

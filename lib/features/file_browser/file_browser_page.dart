@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'file_browser_controller.dart';
+import '../../common/widgets/widgets.dart';
 
 class FileBrowserPage extends ConsumerWidget {
   final String owner;
@@ -26,7 +27,7 @@ class FileBrowserPage extends ConsumerWidget {
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : state.error != null
-              ? Center(child: Text('Error: ${state.error!}', style: const TextStyle(color: Colors.red)))
+              ? Center(child: Text(friendlyErrorMessage(state.error), style: const TextStyle(color: Colors.red)))
               : Column(
                   children: [
                     Padding(
@@ -48,38 +49,14 @@ class FileBrowserPage extends ConsumerWidget {
                               onTap: () => controller.enterDir(item.name),
                             );
                           } else {
-                            final isSelected = state.selectedFiles.any((f) => f.path == item.path);
                             return ListTile(
                               leading: const Icon(Icons.insert_drive_file),
                               title: Text(item.name),
-                              trailing: isSelected
-                                  ? IconButton(
-                                      icon: const Icon(Icons.check_circle, color: Colors.green),
-                                      onPressed: () => controller.deselectFile(item),
-                                    )
-                                  : IconButton(
-                                      icon: const Icon(Icons.add_circle_outline),
-                                      onPressed: () => controller.selectFile(item),
-                                    ),
                             );
                           }
                         },
                       ),
                     ),
-                    if (state.selectedFiles.isNotEmpty)
-                      Container(
-                        color: Colors.blue.shade50,
-                        padding: const EdgeInsets.all(8),
-                        child: Wrap(
-                          spacing: 8,
-                          children: state.selectedFiles
-                              .map((f) => Chip(
-                                    label: Text(f.name),
-                                    onDeleted: () => controller.deselectFile(f),
-                                  ))
-                              .toList(),
-                        ),
-                      ),
                   ],
                 ),
     );

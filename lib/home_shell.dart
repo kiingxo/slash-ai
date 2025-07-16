@@ -24,19 +24,130 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Repos'),
-          BottomNavigationBarItem(icon: Icon(Icons.edit), label: 'Prompt'),
-          BottomNavigationBarItem(icon: Icon(Icons.rule), label: 'Review'),
-          BottomNavigationBarItem(icon: Icon(Icons.merge_type), label: 'PRs'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface.withOpacity(0.95),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.10),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _NavBarItem(
+                    icon: Icons.folder,
+                    label: 'Repos',
+                    selected: _selectedIndex == 0,
+                    onTap: () => setState(() => _selectedIndex = 0),
+                    theme: theme,
+                  ),
+                  _NavBarItem(
+                    icon: Icons.edit,
+                    label: 'Prompt',
+                    selected: _selectedIndex == 1,
+                    onTap: () => setState(() => _selectedIndex = 1),
+                    theme: theme,
+                  ),
+                  _NavBarItem(
+                    icon: Icons.rule,
+                    label: 'Review',
+                    selected: _selectedIndex == 2,
+                    onTap: () => setState(() => _selectedIndex = 2),
+                    theme: theme,
+                  ),
+                  _NavBarItem(
+                    icon: Icons.merge_type,
+                    label: 'PRs',
+                    selected: _selectedIndex == 3,
+                    onTap: () => setState(() => _selectedIndex = 3),
+                    theme: theme,
+                  ),
+                  _NavBarItem(
+                    icon: Icons.settings,
+                    label: 'Settings',
+                    selected: _selectedIndex == 4,
+                    onTap: () => setState(() => _selectedIndex = 4),
+                    theme: theme,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavBarItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final ThemeData theme;
+  const _NavBarItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Flexible(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                width: 40,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: selected ? theme.colorScheme.primary.withOpacity(0.12) : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                  fontSize: 12,
+                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

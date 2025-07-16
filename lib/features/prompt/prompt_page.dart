@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
+import '../../common/widgets/widgets.dart';
 
 class PromptPage extends ConsumerStatefulWidget {
   const PromptPage({super.key});
@@ -194,7 +195,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                     const SizedBox(height: 24),
                   ],
                   if (_error != null) ...[
-                    Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                    Text(friendlyErrorMessage(_error), style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                   ],
                   DropdownButton<dynamic>(
