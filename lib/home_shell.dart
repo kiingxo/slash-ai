@@ -137,14 +137,15 @@ class _NavBarItem extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                  fontSize: 12,
-                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
+              if (selected)
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
-              ),
             ],
           ),
         ),

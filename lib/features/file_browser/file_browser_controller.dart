@@ -157,6 +157,37 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
     final newSelected = List<FileItem>.from(state.selectedFiles)..removeWhere((f) => f.path == file.path);
     state = state.copyWith(selectedFiles: newSelected);
   }
+
+  // Recursively list all files in the repo, with depth and file count limits
+  Future<List<FileItem>> listAllFiles({int maxDepth = 5, int maxFiles = 200}) async {
+    final List<FileItem> allFiles = [];
+    Future<void> _recurse(String path, int depth) async {
+      if (depth > maxDepth || allFiles.length > maxFiles) return;
+      final pat = await _storage.getApiKey('github_pat');
+      if (pat == null || pat.isEmpty) throw Exception('GitHub PAT not found');
+      final dio = Dio(BaseOptions(
+        baseUrl: 'https://api.github.com/',
+        headers: {'Authorization': 'token $pat'},
+      ));
+      final endpoint = '/repos/$owner/$repo/contents/${path.isEmpty ? '' : path}';
+      final res = await dio.get(endpoint);
+      final data = res.data;
+      if (data is List) {
+        for (final e in data) {
+          final item = FileItem.fromJson(e);
+          if (item.type == 'file') {
+            allFiles.add(item);
+            if (allFiles.length >= maxFiles) return;
+          } else if (item.type == 'dir') {
+            await _recurse(item.path, depth + 1);
+            if (allFiles.length >= maxFiles) return;
+          }
+        }
+      }
+    }
+    await _recurse('', 0);
+    return allFiles;
+  }
 }
 
 final fileBrowserControllerProvider = StateNotifierProvider.family<FileBrowserController, FileBrowserState, RepoParams>((ref, params) {

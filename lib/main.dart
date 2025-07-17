@@ -22,8 +22,8 @@ class SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('assets/slash2.png', width: 120, height: 120),
-            const SizedBox(height: 32),
+            Image.asset('assets/slash2.png', width: 200, height: 200),
+            const SizedBox(height: 50),
             // Text(
             //   '/slash',
             //   style: TextStyle(
@@ -46,17 +46,21 @@ class SlashApp extends StatelessWidget {
   Future<bool> _hasTokens() async {
     final storage = SecureStorageService();
     final gemini = await storage.getApiKey('gemini_api_key');
+    final openai = await storage.getApiKey('openai_api_key');
     final github = await storage.getApiKey('github_pat');
-    return gemini != null && gemini.isNotEmpty && github != null && github.isNotEmpty;
+    final hasAIKey = (gemini != null && gemini.isNotEmpty) || (openai != null && openai.isNotEmpty);
+    return hasAIKey && github != null && github.isNotEmpty;
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '/slash',
+      
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       themeMode: ThemeMode.dark,
+      debugShowCheckedModeBanner: false,
       home: SplashGate(_hasTokens),
     );
   }
