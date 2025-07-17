@@ -2,36 +2,36 @@
 
 ![Built by BlueprintLabs](https://img.shields.io/badge/built%20by-BlueprintLabs-0057ff?style=flat-square)
 
-🤖 A beautiful, mobile-first Flutter app for managing GitHub repos, powered by Google Gemini 1.5 Flash and OpenAI.
+ð¤ A beautiful, mobile-first Flutter app for managing GitHub repos, powered by Google Gemini and OpenAI.
 
 ## Overview
 
-/slash is a mobile coding assistant for GitHub. It lets you securely connect your GitHub account and OpenAI/Gemini API keys, browse files, create branches, commit changes, open PRs, and review AI-generated code suggestions—all from your phone, with a modern, dark-themed UI.
+/slash is a mobile coding assistant for GitHub. It lets you securely connect your GitHub account and OpenAI/Gemini API keys, browse files, create branches, commit changes, open PRs, and review AI-generated code suggestionsâall from your phone, with a modern, dark-themed UI.
 
 ## Features
 
-- 📱 **Mobile-First UI**: Modern, dark, and responsive design
-- 🔒 **Secure Local Storage**: API keys and tokens stored securely on device
-- 🧠 **AI-Powered Code Suggestions**: Uses Gemini or OpenAI for code changes and PR summaries
-- 🗂️ **File Browser**: Browse, view, and edit files in your GitHub repos
-- 🌿 **Branching & PRs**: Create branches, commit changes, and open pull requests
-- 📝 **Review & Approve**: Review diffs, summaries, and approve or reject AI changes
-- 🔄 **No Backend Required**: All logic runs on-device; no server needed
+- ð± **Mobile-First UI**: Modern, dark, and responsive design
+- ð **Secure Local Storage**: API keys and tokens stored securely on device
+- ð§  **AI-Powered Code Suggestions**: Uses Gemini or OpenAI for code changes and PR summaries
+- ðï¸ **File Browser**: Browse, view, and edit files in your GitHub repos
+- ð¿ **Branching & PRs**: Create branches, commit changes, and open pull requests
+- ð **Review & Approve**: Review diffs, summaries, and approve or reject AI changes
+- ð **No Backend Required**: All logic runs on-device; no server needed
 
 ## Repository Structure
 
 ```
 slash_flutter/
-├── lib/
-│   ├── common/           # Shared providers, services, widgets
-│   ├── features/         # Feature modules (auth, repo, file_browser, review, etc.)
-│   ├── services/         # API service classes (GitHub, Gemini, Secure Storage)
-│   ├── ui/               # UI components, theme, colors
-│   └── main.dart         # App entry point
-├── android/              # Android project files
-├── ios/                  # iOS project files
-├── pubspec.yaml          # Flutter dependencies
-└── README.md             # This file
+âââ lib/
+â   âââ common/           # Shared providers, services, widgets
+â   âââ features/         # Feature modules (auth, repo, file_browser, review, etc.)
+â   âââ services/         # API service classes (GitHub, Gemini, Secure Storage)
+â   âââ ui/               # UI components, theme, colors
+â   âââ main.dart         # App entry point
+âââ android/              # Android project files
+âââ ios/                  # iOS project files
+âââ pubspec.yaml          # Flutter dependencies
+âââ README.md             # This file
 ```
 
 ## Setup Instructions
@@ -69,7 +69,7 @@ flutter run
 
 ## Output & Workflow
 
-- **Prompt-to-PR**: Enter a prompt, review AI-generated code changes, and open a PR—all in-app
+- **Prompt-to-PR**: Enter a prompt, review AI-generated code changes, and open a PRâall in-app
 - **Review Screen**: See a diff, summary, and approve or reject changes
 - **Branching**: PRs are created on new branches named `slash/<timestamp>`
 
@@ -109,4 +109,4 @@ For issues and questions:
 
 ![Built by BlueprintLabs](https://img.shields.io/badge/built%20by-BlueprintLabs-0057ff?style=flat-square)
 
-*Empowering AI developers with mobile-first tools* 🚀
+*Empowering AI developers with mobile
