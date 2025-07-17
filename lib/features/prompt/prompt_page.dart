@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repo/repo_controller.dart';
-import '../review/review_page.dart';
 import '../../services/secure_storage_service.dart';
 import '../../services/gemini_service.dart';
 import '../../services/github_service.dart';
@@ -9,7 +8,27 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
+import '../../ui/components/slash_diff_viewer.dart';
 import '../../common/widgets/widgets.dart';
+import '../../features/auth/auth_controller.dart';
+import '../../services/openai_service.dart';
+
+// Message model for chat
+class ChatMessage {
+  final bool isUser;
+  final String text;
+  final ReviewData? review;
+  ChatMessage({required this.isUser, required this.text, this.review});
+}
+
+// Review data for expandable review bubble
+class ReviewData {
+  final String fileName;
+  final String oldContent;
+  final String newContent;
+  final String summary;
+  ReviewData({required this.fileName, required this.oldContent, required this.newContent, required this.summary});
+}
 
 class PromptPage extends ConsumerStatefulWidget {
   const PromptPage({super.key});
@@ -23,6 +42,11 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   dynamic _selectedRepo;
   bool _isLoading = false;
   String? _error;
+  List<ChatMessage> _messages = [
+    ChatMessage(isUser: false, text: "Hi! I'm /slash 🤖. How can I help you today?"),
+  ];
+  bool _reviewExpanded = false;
+  ReviewData? _pendingReview;
 
   @override
   void initState() {
@@ -37,7 +61,6 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   }
 
   Future<List<Map<String, String>>> _fetchFiles({required String owner, required String repo, required String pat}) async {
-    // Fetch all files in the root directory for MVP
     final res = await http.get(
       Uri.parse('https://api.github.com/repos/$owner/$repo/contents/'),
       headers: {
@@ -45,7 +68,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         'Accept': 'application/vnd.github+json',
       },
     );
-    if (res.statusCode != 200) throw Exception('Failed to fetch files: ${res.body}');
+    if (res.statusCode != 200) throw Exception('Failed to fetch files:  [31m${res.body} [0m');
     final List files = jsonDecode(res.body);
     List<Map<String, String>> fileContents = [];
     for (final file in files) {
@@ -64,79 +87,130 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   Future<void> _handlePromptSubmit() async {
     final prompt = promptController.text.trim();
     if (prompt.isEmpty) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _messages.add(ChatMessage(isUser: true, text: prompt));
+    });
+    promptController.clear();
+    try {
+      print('[PromptPage] Submitting prompt: $prompt');
+      final authState = ref.read(authControllerProvider);
+      final model = authState.model;
+      final geminiKey = authState.geminiApiKey;
+      final openAIApiKey = authState.openAIApiKey;
+      final githubPat = authState.githubPat;
+      print('[PromptPage] Using model: $model');
+      if ((model == 'gemini' && (geminiKey == null || geminiKey.isEmpty)) ||
+          (model == 'openai' && (openAIApiKey == null || openAIApiKey.isEmpty)) ||
+          githubPat == null || githubPat.isEmpty) {
+        print('[PromptPage] Missing API keys');
+        throw Exception('Missing API keys');
+      }
+      final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      dynamic aiService;
+      if (model == 'gemini') {
+        aiService = GeminiService(geminiKey!);
+      } else {
+        aiService = OpenAIService(openAIApiKey!, model: 'gpt-4o');
+      }
+      print('[PromptPage] Calling classifyIntent...');
+      final intent = await aiService.classifyIntent(prompt);
+      print('[PromptPage] Intent: $intent');
+      if (intent == 'code_edit') {
+        final owner = repo['owner']['login'];
+        final repoName = repo['name'];
+        print('[PromptPage] Fetching files for $owner/$repoName');
+        final files = await _fetchFiles(owner: owner, repo: repoName, pat: githubPat);
+        print('[PromptPage] Calling getCodeSuggestion...');
+        final suggestion = await aiService.getCodeSuggestion(prompt: prompt, files: files);
+        final oldContent = files.isNotEmpty ? files[0]['content']! : '';
+        final newContent = suggestion;
+        final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
+        final summary = "Slash's suggestion for \"$prompt\".";
+        final review = ReviewData(fileName: fileName, oldContent: oldContent, newContent: newContent, summary: summary);
+        setState(() {
+          _isLoading = false;
+          _pendingReview = review;
+          _messages.add(ChatMessage(isUser: false, text: summary, review: review));
+          _reviewExpanded = false;
+        });
+      } else if (intent == 'repo_question') {
+        final repoInfo = 'Repo name: ${repo['name']}\nDescription: ${repo['description'] ?? 'No description.'}';
+        final answerPrompt = 'User question: $prompt\nRepo info: $repoInfo\nAnswer the user\'s question about the repo.';
+        print('[PromptPage] Calling getCodeSuggestion for repo_question...');
+        final answer = await aiService.getCodeSuggestion(prompt: answerPrompt, files: const <Map<String, String>>[]);
+        setState(() {
+          _isLoading = false;
+          _messages.add(ChatMessage(isUser: false, text: answer));
+        });
+      } else {
+        final answerPrompt = 'User: $prompt\nYou are /slash, an AI code assistant. Respond conversationally.';
+        print('[PromptPage] Calling getCodeSuggestion for general...');
+        final answer = await aiService.getCodeSuggestion(prompt: answerPrompt, files: const <Map<String, String>>[]);
+        setState(() {
+          _isLoading = false;
+          _messages.add(ChatMessage(isUser: false, text: answer));
+        });
+      }
+    } catch (e, st) {
+      print('[PromptPage] Error: $e');
+      print(st);
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+        _messages.add(ChatMessage(isUser: false, text: e.toString()));
+      });
+    }
+  }
+
+  Future<void> _approveReview(ReviewData review, String prompt) async {
     setState(() { _isLoading = true; _error = null; });
     try {
-      // 1. Get API keys
       final storage = SecureStorageService();
-      final geminiKey = await storage.getApiKey('gemini_api_key');
       final githubPat = await storage.getApiKey('github_pat');
-      if (geminiKey == null || githubPat == null) throw Exception('Missing API keys');
-      // 2. Get repo info
       final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
-      // 3. Fetch files
-      final files = await _fetchFiles(owner: owner, repo: repoName, pat: githubPat);
-      // 4. Call Gemini
-      final gemini = GeminiService(geminiKey);
-      final suggestion = await gemini.getCodeSuggestion(prompt: prompt, files: files);
-      // 5. For MVP, treat suggestion as new content for the first file
-      final oldContent = files.isNotEmpty ? files[0]['content']! : '';
-      final newContent = suggestion;
-      final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
-      final summary = "Slash's suggestion for \"$prompt\".";
-      // 6. Show ReviewPage
-      setState(() { _isLoading = false; });
-      // ignore: use_build_context_synchronously
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ReviewPage(
-            diffs: [FileDiff(fileName: fileName, oldContent: oldContent, newContent: newContent)],
-            summary: summary,
-            onApprove: () async {
-              Navigator.of(context).pop();
-              setState(() { _isLoading = true; _error = null; });
-              try {
-                final github = GitHubService(githubPat);
-                final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
-                // Create branch
-                await github.createBranch(owner: owner, repo: repoName, newBranch: branch);
-                // Commit file
-                await github.commitFile(
-                  owner: owner,
-                  repo: repoName,
-                  branch: branch,
-                  path: fileName,
-                  content: newContent,
-                  message: 'AI: $prompt',
-                );
-                // Open PR
-                final prUrl = await github.openPullRequest(
-                  owner: owner,
-                  repo: repoName,
-                  head: branch,
-                  base: 'main',
-                  title: 'AI: $prompt',
-                  body: summary,
-                );
-                setState(() { _isLoading = false; });
-                // ignore: use_build_context_synchronously
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Pull request created! $prUrl')),
-                );
-              } catch (e) {
-                setState(() { _isLoading = false; _error = e.toString(); });
-              }
-            },
-            onReject: () {
-              Navigator.of(context).pop();
-            },
-          ),
-        ),
+      final github = GitHubService(githubPat!);
+      final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
+      await github.createBranch(owner: owner, repo: repoName, newBranch: branch);
+      await github.commitFile(
+        owner: owner,
+        repo: repoName,
+        branch: branch,
+        path: review.fileName,
+        content: review.newContent,
+        message: 'AI: $prompt',
       );
+      final prUrl = await github.openPullRequest(
+        owner: owner,
+        repo: repoName,
+        head: branch,
+        base: 'main',
+        title: 'AI: $prompt',
+        body: review.summary,
+      );
+      setState(() {
+        _isLoading = false;
+        _messages.add(ChatMessage(isUser: false, text: 'Pull request created! $prUrl'));
+        _pendingReview = null;
+      });
     } catch (e) {
-      setState(() { _isLoading = false; _error = e.toString(); });
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+        _messages.add(ChatMessage(isUser: false, text: friendlyErrorMessage(_error)));
+      });
     }
+  }
+
+  void _rejectReview() {
+    setState(() {
+      _pendingReview = null;
+      _reviewExpanded = false;
+      _messages.add(ChatMessage(isUser: false, text: 'Suggestion rejected.'));
+    });
   }
 
   @override
@@ -151,84 +225,200 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     }
 
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+      appBar: AppBar(
+        title: const Text('/Slash'),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: DropdownButton<dynamic>(
+                value: selectedRepo,
+                isExpanded: true,
+                items: repos.map<DropdownMenuItem<dynamic>>((repo) {
+                  return DropdownMenuItem<dynamic>(
+                    value: repo,
+                    child: Text(repo['full_name'] ?? repo['name']),
+                  );
+                }).toList(),
+                onChanged: (repo) {
+                  setState(() => _selectedRepo = repo);
+                  controller.selectRepo(repo);
+                },
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Image.asset('assets/slash2.png', width: 80, height: 80),
-                  ),
-                  const SizedBox(height: 24),
-                  if (_isLoading) ...[
-                    const SizedBox(height: 16),
-                    Center(
-                      child: Column(
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _messages.length,
+                itemBuilder: (context, idx) {
+                  final msg = _messages[idx];
+                  if (msg.review != null) {
+                    // Review bubble
+                    return _buildReviewBubble(msg.review!, msg.text, idx == _messages.length - 1);
+                  }
+                  return Align(
+                    alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: msg.isUser
+                            ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
+                            : Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: msg.isUser ? [] : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const CircularProgressIndicator(),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Please wait while /slash updates your repo...',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            textAlign: TextAlign.center,
+                          if (!msg.isUser)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8, top: 2),
+                              child: Icon(Icons.android, size: 22, color: Theme.of(context).colorScheme.primary),
+                            ),
+                          Flexible(
+                            child: Text(
+                              msg.text,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: msg.isUser ? Theme.of(context).colorScheme.primary : null,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                  );
+                },
+              ),
+            ),
+            if (_isLoading)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(width: 16),
+                    Text('Working on your request...', style: Theme.of(context).textTheme.bodyMedium),
                   ],
-                  if (_error != null) ...[
-                    Text(friendlyErrorMessage(_error), style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                  ],
-                  DropdownButton<dynamic>(
-                    value: selectedRepo,
-                    isExpanded: true,
-                    items: repos.map<DropdownMenuItem<dynamic>>((repo) {
-                      return DropdownMenuItem<dynamic>(
-                        value: repo,
-                        child: Text(repo['full_name'] ?? repo['name']),
-                      );
-                    }).toList(),
-                    onChanged: (repo) {
-                      setState(() => _selectedRepo = repo);
-                      controller.selectRepo(repo);
-                    },
+                ),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(friendlyErrorMessage(_error ?? ''), style: const TextStyle(color: Colors.red)),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SlashTextField(
+                      controller: promptController,
+                      hint: 'Type a prompt…',
+                      minLines: 1,
+                      maxLines: 4,
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  SlashTextField(
-                    controller: promptController,
-                    hint: 'What do you want to do? (e.g. Add Firebase login to the app)',
-                    minLines: 2,
-                    maxLines: 5,
-                  ),
-                  const SizedBox(height: 24),
-                  SlashButton(
-                    label: 'Submit Prompt',
-onTap: _isLoading ? () {} : () { _handlePromptSubmit(); },
-                    loading: _isLoading,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SlashButton(
+                      label: 'Send',
+                      onTap: _isLoading ? () {} : _handlePromptSubmit,
+                      icon: Icons.send,
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewBubble(ReviewData review, String summary, bool isLast) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.android, size: 22, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _reviewExpanded = !_reviewExpanded);
+                    },
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            summary,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(_reviewExpanded ? Icons.expand_less : Icons.expand_more, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_reviewExpanded && isLast) ...[
+              const SizedBox(height: 12),
+              Text(review.fileName, style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              SlashDiffViewer(oldContent: review.oldContent, newContent: review.newContent),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: SlashButton(
+                      label: 'PR',
+                      onTap: _isLoading ? () {} : () => _approveReview(review, summary),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: SlashButton(
+                      label: 'Reject',
+                      onTap: _isLoading ? () {} : _rejectReview,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );

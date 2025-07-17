@@ -17,48 +17,57 @@ class FileBrowserPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Browse: $repo'),
-        leading: state.pathStack.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: controller.goUp,
-              )
-            : null,
+        leading:
+            state.pathStack.isNotEmpty
+                ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: controller.goUp,
+                )
+                : null,
       ),
-      body: state.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : state.error != null
-              ? Center(child: Text(friendlyErrorMessage(state.error), style: const TextStyle(color: Colors.red)))
-              : Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        state.pathStack.isEmpty ? '/' : '/${state.pathStack.join('/')}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: state.items.length,
-                        itemBuilder: (context, idx) {
-                          final item = state.items[idx];
-                          if (item.type == 'dir') {
-                            return ListTile(
-                              leading: const Icon(Icons.folder),
-                              title: Text(item.name),
-                              onTap: () => controller.enterDir(item.name),
-                            );
-                          } else {
-                            return ListTile(
-                              leading: const Icon(Icons.insert_drive_file),
-                              title: Text(item.name),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  ],
+      body:
+          state.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : state.error != null
+              ? Center(
+                child: Text(
+                  friendlyErrorMessage(state.error),
+                  style: const TextStyle(color: Colors.red),
                 ),
+              )
+              : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      state.pathStack.isEmpty
+                          ? '/'
+                          : '/${state.pathStack.join('/')}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: state.items.length,
+                      itemBuilder: (context, idx) {
+                        final item = state.items[idx];
+                        if (item.type == 'dir') {
+                          return ListTile(
+                            leading: const Icon(Icons.folder),
+                            title: Text(item.name),
+                            onTap: () => controller.enterDir(item.name),
+                          );
+                        } else {
+                          return ListTile(
+                            leading: const Icon(Icons.insert_drive_file),
+                            title: Text(item.name),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
     );
   }
-} 
+}

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'colors.dart';
 import 'typography.dart';
-import 'shadows.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 ThemeData buildAppTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
   return ThemeData(
+    
     brightness: brightness,
     scaffoldBackgroundColor: isDark ? SlashColors.bgDark : SlashColors.bgLight,
     colorScheme: ColorScheme.fromSeed(
@@ -24,7 +23,7 @@ ThemeData buildAppTheme(Brightness brightness) {
       ),
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 0,
       color: isDark ? SlashColors.cardDark : SlashColors.cardLight,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

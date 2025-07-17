@@ -46,7 +46,6 @@ class RepoController extends StateNotifier<RepoState> {
   void selectRepo(dynamic repo) {
     print('Repo selected: owner= repo[\'owner\'][\'login\'] , name= repo[\'name\'] , full object: $repo');
     state = state.copyWith(selectedRepo: repo);
-    // TODO: Navigate to next step (e.g., file browser or prompt input)
   }
 }
 

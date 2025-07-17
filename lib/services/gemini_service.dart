@@ -8,6 +8,7 @@ class GeminiService {
   GeminiService(this.apiKey);
 
   Future<String> getCodeSuggestion({required String prompt, required List<Map<String, String>> files}) async {
+    print('[GeminiService] getCodeSuggestion called with prompt: $prompt');
     final requestBody = {
       'contents': [
         {
@@ -19,17 +20,56 @@ class GeminiService {
       ]
     };
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl?key=$apiKey'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(requestBody),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl?key=$apiKey'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      ).timeout(const Duration(seconds: 30));
+      print('[GeminiService] getCodeSuggestion response status:  [32m${response.statusCode} [0m');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
+      } else {
+        print('[GeminiService] getCodeSuggestion error: ${response.body}');
+        throw Exception('Failed to get suggestion: ${response.body}');
+      }
+    } catch (e) {
+      print('[GeminiService] getCodeSuggestion exception: $e');
+      rethrow;
+    }
+  }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
-    } else {
-      throw Exception('Failed to get suggestion: ${response.body}');
+  Future<String> classifyIntent(String prompt) async {
+    print('[GeminiService] classifyIntent called with prompt: $prompt');
+    final requestBody = {
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': "Classify the following user prompt as one of: [code_edit, repo_question, general]. Only return the label. Prompt: '$prompt'"}
+          ]
+        }
+      ]
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl?key=$apiKey'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      ).timeout(const Duration(seconds: 30));
+      print('[GeminiService] classifyIntent response status:  [32m${response.statusCode} [0m');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['candidates']?[0]?['content']?['parts']?[0]?['text']?.trim() ?? 'general';
+      } else {
+        print('[GeminiService] classifyIntent error: ${response.body}');
+        throw Exception('Failed to classify intent:  [31m${response.body} [0m');
+      }
+    } catch (e) {
+      print('[GeminiService] classifyIntent exception: $e');
+      rethrow;
     }
   }
 

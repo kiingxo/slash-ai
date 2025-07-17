@@ -15,31 +15,41 @@ class AuthPage extends ConsumerStatefulWidget {
 
 class _AuthPageState extends ConsumerState<AuthPage> {
   late TextEditingController geminiController;
+  late TextEditingController openAIController;
   late TextEditingController githubController;
   String? successMessage;
   String? errorMessage;
   bool isValid = false;
+  String model = 'gemini';
 
   @override
   void initState() {
     super.initState();
     final authState = ref.read(authControllerProvider);
     geminiController = TextEditingController(text: authState.geminiApiKey ?? '');
+    openAIController = TextEditingController(text: authState.openAIApiKey ?? '');
     githubController = TextEditingController(text: authState.githubPat ?? '');
     geminiController.addListener(_validate);
+    openAIController.addListener(_validate);
     githubController.addListener(_validate);
+    model = authState.model;
     _validate();
   }
 
   void _validate() {
     setState(() {
-      isValid = geminiController.text.isNotEmpty && githubController.text.isNotEmpty;
+      if (model == 'gemini') {
+        isValid = geminiController.text.isNotEmpty && githubController.text.isNotEmpty;
+      } else {
+        isValid = openAIController.text.isNotEmpty && githubController.text.isNotEmpty;
+      }
     });
   }
 
   @override
   void dispose() {
     geminiController.dispose();
+    openAIController.dispose();
     githubController.dispose();
     super.dispose();
   }
@@ -51,11 +61,10 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     });
     final githubPat = githubController.text.trim();
     final geminiKey = geminiController.text.trim();
+    final openAIKey = openAIController.text.trim();
     // Validate tokens before saving
-    if (githubPat.isEmpty || geminiKey.isEmpty) {
-      setState(() => errorMessage = 'Both API keys are required.');
-      geminiController.clear();
-      githubController.clear();
+    if (githubPat.isEmpty || (model == 'gemini' ? geminiKey.isEmpty : openAIKey.isEmpty)) {
+      setState(() => errorMessage = 'All fields are required.');
       return;
     }
     // Validate GitHub token
@@ -68,25 +77,25 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         setState(() => errorMessage = 'Your GitHub token is invalid or expired. Please try again.');
-        geminiController.clear();
-        githubController.clear();
         return;
       }
       setState(() => errorMessage = 'Failed to validate GitHub token: ${e.message}');
-      geminiController.clear();
-      githubController.clear();
       return;
     } catch (e) {
       setState(() => errorMessage = 'Failed to validate tokens: ${e.toString()}');
-      geminiController.clear();
-      githubController.clear();
       return;
     }
     // Save tokens if valid
-    await ref.read(authControllerProvider.notifier).saveGeminiApiKey(geminiKey);
+    await ref.read(authControllerProvider.notifier).saveModel(model);
+    if (model == 'gemini') {
+      await ref.read(authControllerProvider.notifier).saveGeminiApiKey(geminiKey);
+    } else {
+      await ref.read(authControllerProvider.notifier).saveOpenAIApiKey(openAIKey);
+    }
     await ref.read(authControllerProvider.notifier).saveGitHubPat(githubPat);
     setState(() => successMessage = 'Credentials saved!');
     geminiController.clear();
+    openAIController.clear();
     githubController.clear();
     if (mounted) {
       Navigator.of(context).pushReplacement(
@@ -134,16 +143,46 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   Text('Connect your APIs', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
                   const SizedBox(height: 8),
                   Text(
-                    'Enter your Gemini API key and GitHub Personal Access Token (PAT) to continue.',
+                    'Enter your API key for the selected model and GitHub Personal Access Token (PAT) to continue.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).hintColor),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
-                  SlashTextField(
-                    controller: geminiController,
-                    hint: 'Paste your Gemini API key',
-                    obscure: true,
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Radio<String>(
+                        value: 'gemini',
+                        groupValue: model,
+                        onChanged: (val) {
+                          if (val != null) setState(() { model = val; _validate(); });
+                        },
+                      ),
+                      const Text('Gemini'),
+                      const SizedBox(width: 16),
+                      Radio<String>(
+                        value: 'openai',
+                        groupValue: model,
+                        onChanged: (val) {
+                          if (val != null) setState(() { model = val; _validate(); });
+                        },
+                      ),
+                      const Text('OpenAI'),
+                    ],
                   ),
+                  const SizedBox(height: 16),
+                  if (model == 'gemini')
+                    SlashTextField(
+                      controller: geminiController,
+                      hint: 'Paste your Gemini API key',
+                      obscure: true,
+                    )
+                  else
+                    SlashTextField(
+                      controller: openAIController,
+                      hint: 'Paste your OpenAI API key',
+                      obscure: true,
+                    ),
                   const SizedBox(height: 20),
                   SlashTextField(
                     controller: githubController,
