@@ -12,6 +12,7 @@ import '../../ui/components/slash_diff_viewer.dart';
 import '../../common/widgets/widgets.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../services/openai_service.dart';
+import '../../features/file_browser/file_browser_controller.dart';
 
 // Message model for chat
 class ChatMessage {
@@ -42,13 +43,17 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   dynamic _selectedRepo;
   bool _isLoading = false;
   String? _error;
-  List<ChatMessage> _messages = [
+  final List<ChatMessage> _messages = [
     ChatMessage(isUser: false, text: "Hi! I'm /slash 🤖. How can I help you today?"),
   ];
   bool _reviewExpanded = false;
   ReviewData? _pendingReview;
   String _selectedModel = 'gemini';
   String? _lastIntent;
+  List<FileItem> _repoContextFiles = [];
+  String _searchQuery = '';
+  List<Map<String, dynamic>> _searchResults = [];
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -62,6 +67,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   @override
   void dispose() {
     promptController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -87,6 +93,27 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       }
     }
     return fileContents;
+  }
+
+  Future<void> _addRepoContext() async {
+    setState(() { });
+    try {
+      final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      if (repo == null) throw Exception('No repository selected.');
+      final owner = repo['owner']['login'];
+      final repoName = repo['name'];
+      final params = RepoParams(owner: owner, repo: repoName);
+      final fileBrowserController = ref.read(fileBrowserControllerProvider(params).notifier);
+      final files = await fileBrowserController.listAllFiles();
+      setState(() {
+        _repoContextFiles = files;
+      });
+    } catch (e) {
+      print('Error adding repo context: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to add repo context: $e')),
+      );
+    }
   }
 
   Future<void> _handlePromptSubmit() async {
@@ -125,11 +152,13 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       detectedIntent = intent;
       _lastIntent = intent;
       print('[PromptPage] Intent: $intent');
+      // Use repo context files if present
+      final contextFiles = _repoContextFiles.isNotEmpty ? _repoContextFiles.map((f) => {'name': f.name, 'content': f.content ?? ''}).toList().take(3).toList() : const <Map<String, String>>[];
       if (intent == 'code_edit') {
         final owner = repo['owner']['login'];
         final repoName = repo['name'];
         print('[PromptPage] Fetching files for $owner/$repoName');
-        final files = await _fetchFiles(owner: owner, repo: repoName, pat: githubPat!);
+        final files = contextFiles.isNotEmpty ? contextFiles : await _fetchFiles(owner: owner, repo: repoName, pat: githubPat!);
         print('[PromptPage] Calling getCodeSuggestion...');
         final suggestion = await aiService.getCodeSuggestion(prompt: prompt, files: files);
         final oldContent = files.isNotEmpty ? files[0]['content']! : '';
@@ -144,10 +173,17 @@ class _PromptPageState extends ConsumerState<PromptPage> {
           _reviewExpanded = false;
         });
       } else if (intent == 'repo_question') {
+        if (repo == null) {
+          setState(() {
+            _isLoading = false;
+            _messages.add(ChatMessage(isUser: false, text: "No repository selected. Please select a repository to ask questions about it."));
+          });
+          return;
+        }
         final repoInfo = 'Repo name: ${repo['name']}\nDescription: ${repo['description'] ?? 'No description.'}';
         final answerPrompt = 'User question: $prompt\nRepo info: $repoInfo\nAnswer the user\'s question about the repo.';
         print('[PromptPage] Calling getCodeSuggestion for repo_question...');
-        final answer = await aiService.getCodeSuggestion(prompt: answerPrompt, files: const <Map<String, String>>[]);
+        final answer = await aiService.getCodeSuggestion(prompt: answerPrompt, files: contextFiles);
         setState(() {
           _isLoading = false;
           _messages.add(ChatMessage(isUser: false, text: answer));
@@ -155,7 +191,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       } else {
         final answerPrompt = 'User: $prompt\nYou are /slash, an AI code assistant. Respond conversationally.';
         print('[PromptPage] Calling getCodeSuggestion for general...');
-        final answer = await aiService.getCodeSuggestion(prompt: answerPrompt, files: const <Map<String, String>>[]);
+        final answer = await aiService.getCodeSuggestion(prompt: answerPrompt, files: contextFiles);
         setState(() {
           _isLoading = false;
           _messages.add(ChatMessage(isUser: false, text: answer));
@@ -215,32 +251,32 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   }
 
   Future<void> _approveReview(ReviewData review, String prompt) async {
-    setState(() { _isLoading = true; _error = null; });
-    try {
+              setState(() { _isLoading = true; _error = null; });
+              try {
       final storage = SecureStorageService();
       final githubPat = await storage.getApiKey('github_pat');
       final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
       final github = GitHubService(githubPat!);
-      final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
-      await github.createBranch(owner: owner, repo: repoName, newBranch: branch);
-      await github.commitFile(
-        owner: owner,
-        repo: repoName,
-        branch: branch,
+                final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
+                await github.createBranch(owner: owner, repo: repoName, newBranch: branch);
+                await github.commitFile(
+                  owner: owner,
+                  repo: repoName,
+                  branch: branch,
         path: review.fileName,
         content: review.newContent,
-        message: 'AI: $prompt',
-      );
-      final prUrl = await github.openPullRequest(
-        owner: owner,
-        repo: repoName,
-        head: branch,
-        base: 'main',
-        title: 'AI: $prompt',
+                  message: 'AI: $prompt',
+                );
+                final prUrl = await github.openPullRequest(
+                  owner: owner,
+                  repo: repoName,
+                  head: branch,
+                  base: 'main',
+                  title: 'AI: $prompt',
         body: review.summary,
-      );
+                );
       setState(() {
         _isLoading = false;
         _messages.add(ChatMessage(isUser: false, text: 'Pull request created! $prUrl'));
@@ -260,6 +296,25 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       _pendingReview = null;
       _reviewExpanded = false;
       _messages.add(ChatMessage(isUser: false, text: 'Suggestion rejected.'));
+    });
+  }
+
+  void _searchRepoContextFiles(String query) {
+    final lowerQuery = query.toLowerCase();
+    final results = <Map<String, dynamic>>[];
+    for (final file in _repoContextFiles) {
+      if (file.name.toLowerCase().contains(lowerQuery) || (file.content?.toLowerCase().contains(lowerQuery) ?? false)) {
+        results.add({
+          'path': file.path,
+          'name': file.name,
+          'snippet': file.content != null && file.content!.length > 200
+              ? file.content!.substring(0, 200) + '...'
+              : file.content,
+        });
+    }
+    }
+    setState(() {
+      _searchResults = results;
     });
   }
 
@@ -325,32 +380,32 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 onChanged: (val) {
                   if (val != null) setState(() => _selectedModel = val);
                 },
-                style: Theme.of(context).textTheme.bodyMedium,
+                            style: Theme.of(context).textTheme.bodyMedium,
                 dropdownColor: Theme.of(context).cardColor,
               ),
             ),
-          ),
-        ],
-      ),
+                          ),
+                        ],
+                      ),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: DropdownButton<dynamic>(
-                value: selectedRepo,
-                isExpanded: true,
-                items: repos.map<DropdownMenuItem<dynamic>>((repo) {
-                  return DropdownMenuItem<dynamic>(
-                    value: repo,
-                    child: Text(repo['full_name'] ?? repo['name']),
-                  );
-                }).toList(),
-                onChanged: (repo) {
-                  setState(() => _selectedRepo = repo);
-                  controller.selectRepo(repo);
-                },
-              ),
+                    value: selectedRepo,
+                    isExpanded: true,
+                    items: repos.map<DropdownMenuItem<dynamic>>((repo) {
+                      return DropdownMenuItem<dynamic>(
+                        value: repo,
+                        child: Text(repo['full_name'] ?? repo['name']),
+                      );
+                    }).toList(),
+                    onChanged: (repo) {
+                      setState(() => _selectedRepo = repo);
+                      controller.selectRepo(repo);
+                    },
+                  ),
             ),
             const Divider(height: 1),
             Expanded(
@@ -431,7 +486,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 children: [
                   Expanded(
                     child: SlashTextField(
-                      controller: promptController,
+                    controller: promptController,
                       hint: 'Type a prompt…',
                       minLines: 1,
                       maxLines: 4,
@@ -446,6 +501,33 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                     ),
                   ),
                 ],
+              ),
+            ),
+            // Show repo context summary and file picker
+            if (_repoContextFiles.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Wrap(
+                  spacing: 6,
+                  children: [
+                    const Text('Context:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ..._repoContextFiles.map((f) => Chip(
+                      label: Text(f.name, style: const TextStyle(fontSize: 12)),
+                      onDeleted: () => setState(() => _repoContextFiles.remove(f)),
+                    )),
+                  ],
+                ),
+              ),
+            // Add Repo Context Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SlashButton(
+                  label: 'Add Repo Context',
+                  icon: Icons.folder_open,
+                  onTap: _isLoading ? () {} : () => _showFilePickerModal(context),
+                ),
               ),
             ),
           ],
@@ -529,6 +611,34 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       ),
     );
   }
+
+  void _showFilePickerModal(BuildContext context) async {
+    final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+    if (repo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No repository selected.')),
+      );
+      return;
+    }
+    final owner = repo['owner']['login'];
+    final repoName = repo['name'];
+    final params = RepoParams(owner: owner, repo: repoName);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return _LazyFilePickerModal(
+          params: params,
+          initiallySelected: _repoContextFiles,
+          onSelected: (selected) {
+            setState(() {
+              _repoContextFiles = selected;
+            });
+          },
+        );
+      },
+    );
+  }
 }
 
 // Creative thinking widget (animated ellipsis)
@@ -568,6 +678,181 @@ class _ThinkingWidgetState extends State<_ThinkingWidget> with SingleTickerProvi
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.primary),
         );
       },
+    );
+  }
+}
+
+class _LazyFilePickerModal extends ConsumerStatefulWidget {
+  final RepoParams params;
+  final List<FileItem> initiallySelected;
+  final void Function(List<FileItem>) onSelected;
+  const _LazyFilePickerModal({required this.params, required this.initiallySelected, required this.onSelected});
+  @override
+  ConsumerState<_LazyFilePickerModal> createState() => _LazyFilePickerModalState();
+}
+
+class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
+  late List<FileItem> selected;
+  late List<String> pathStack;
+
+  @override
+  void initState() {
+    super.initState();
+    selected = List<FileItem>.from(widget.initiallySelected);
+    pathStack = [];
+  }
+
+  void _onFileTap(FileItem file, FileBrowserController controller) async {
+    if (selected.any((f) => f.path == file.path)) {
+      setState(() {
+        selected.removeWhere((f) => f.path == file.path);
+      });
+    } else if (selected.length < 3) {
+      await controller.selectFile(file);
+      setState(() {
+        final idx = controller.state.selectedFiles.indexWhere((f) => f.path == file.path);
+        if (idx != -1) {
+          selected.add(controller.state.selectedFiles[idx]);
+        } else {
+          selected.add(file);
+        }
+      });
+    }
+  }
+
+  void _enterDir(String dirName) {
+    setState(() {
+      pathStack.add(dirName);
+    });
+  }
+
+  void _goUp() {
+    if (pathStack.isNotEmpty) {
+      setState(() {
+        pathStack.removeLast();
+      });
+    }
+  }
+
+  String get _currentPath => pathStack.isEmpty ? '' : pathStack.join('/');
+
+  Widget _buildDir(FileBrowserController controller, FileBrowserState state) {
+    if (state.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListView(
+        shrinkWrap: true,
+        physics: const ClampingScrollPhysics(),
+        children: state.items.map((item) {
+          if (item.type == 'dir') {
+            return ListTile(
+              leading: const Icon(Icons.folder, color: Colors.amber),
+              title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+              onTap: () {
+                _enterDir(item.name);
+                controller.fetchDir(_currentPath + (pathStack.isEmpty ? '' : '/')); // fetch new dir
+              },
+            );
+          } else {
+            final isSelected = selected.any((f) => f.path == item.path);
+            return ListTile(
+              leading: const Icon(Icons.insert_drive_file, color: Colors.blueAccent),
+              title: Text(item.name),
+              subtitle: Text(item.path, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              trailing: Checkbox(
+                value: isSelected,
+                onChanged: (_) => _onFileTap(item, controller),
+              ),
+              onTap: () => _onFileTap(item, controller),
+            );
+          }
+        }).toList(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = ref.read(fileBrowserControllerProvider(widget.params).notifier);
+    final state = ref.watch(fileBrowserControllerProvider(widget.params));
+    // Fetch the current directory if needed
+    if (state.pathStack.join('/') != _currentPath) {
+      controller.fetchDir(_currentPath);
+    }
+    final maxHeight = MediaQuery.of(context).size.height * 0.7;
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).dialogBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with back button and breadcrumbs
+            Row(
+              children: [
+                if (pathStack.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Up',
+                    onPressed: _goUp,
+                  ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Text(
+                      pathStack.isEmpty ? '/' : '/${pathStack.join('/')}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text('Select up to 3 files for context', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _buildDir(controller, state),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: SlashButton(
+                    label: 'Done',
+                    icon: Icons.check,
+                    onTap: () {
+                      widget.onSelected(selected);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SlashButton(
+                    label: 'Cancel',
+                    icon: Icons.close,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 } 
