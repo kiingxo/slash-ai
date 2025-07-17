@@ -13,6 +13,8 @@ import '../../common/widgets/widgets.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../services/openai_service.dart';
 import '../../features/file_browser/file_browser_controller.dart';
+import 'package:flutter_code_editor/flutter_code_editor.dart';
+import 'package:highlight/languages/dart.dart';
 
 // Message model for chat
 class ChatMessage {
@@ -167,11 +169,12 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         // 2. Get code-only output for review/commit
         final oldContent = files.isNotEmpty ? files[0]['content']! : '';
         final codeEditPrompt =
-          'You are an AI code assistant. Given the following file content and the user\'s request, return ONLY the new file content after the edit. Do NOT include any explanation, comments, or extra text. Only output the full, edited file content.\n\n' +
+          'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' +
           'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
           'Original content:\n$oldContent\n' +
           'User request: $prompt';
-        final newContent = await aiService.getCodeSuggestion(prompt: codeEditPrompt, files: files);
+        var newContent = await aiService.getCodeSuggestion(prompt: codeEditPrompt, files: files);
+        newContent = stripCodeFences(newContent);
         final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
         final review = ReviewData(fileName: fileName, oldContent: oldContent, newContent: newContent, summary: summary);
         setState(() {
@@ -243,11 +246,12 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       // 2. Get code-only output for review/commit
       final oldContent = files.isNotEmpty ? files[0]['content']! : '';
       final codeEditPrompt =
-        'You are an AI code assistant. Given the following file content and the user\'s request, return ONLY the new file content after the edit. Do NOT include any explanation, comments, or extra text. Only output the full, edited file content.\n\n' +
+        'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' +
         'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
         'Original content:\n$oldContent\n' +
         'User request: $prompt';
-      final newContent = await aiService.getCodeSuggestion(prompt: codeEditPrompt, files: files);
+      var newContent = await aiService.getCodeSuggestion(prompt: codeEditPrompt, files: files);
+      newContent = stripCodeFences(newContent);
       final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
       final review = ReviewData(fileName: fileName, oldContent: oldContent, newContent: newContent, summary: summary);
       setState(() {
@@ -606,19 +610,54 @@ class _PromptPageState extends ConsumerState<PromptPage> {
               SlashDiffViewer(oldContent: review.oldContent, newContent: review.newContent),
               const SizedBox(height: 16),
               Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Expanded(
-                    child: SlashButton(
-                      label: 'PR',
-                      onTap: _isLoading ? () {} : () => _approveReview(review, summary),
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                    tooltip: 'Edit code',
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            final edited = await Navigator.of(context).push<String>(
+                              MaterialPageRoute(
+                                builder: (ctx) => CodeEditorScreen(
+                                  fileName: review.fileName,
+                                  initialCode: review.newContent,
+                                ),
+                              ),
+                            );
+                            if (edited != null) {
+                              setState(() {
+                                // Update the review in the chat message list as well
+                                _pendingReview = ReviewData(
+                                  fileName: review.fileName,
+                                  oldContent: review.oldContent,
+                                  newContent: edited,
+                                  summary: review.summary,
+                                );
+                                // Update the latest ChatMessage with the new review
+                                if (_messages.isNotEmpty && _messages.last.review != null) {
+                                  _messages[_messages.length - 1] = ChatMessage(
+                                    isUser: false,
+                                    text: summary,
+                                    review: _pendingReview,
+                                  );
+                                }
+                              });
+                            }
+                          },
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: SlashButton(
-                      label: 'Reject',
-                      onTap: _isLoading ? () {} : _rejectReview,
-                    ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                    tooltip: 'Approve and PR',
+                    onPressed: _isLoading ? null : () => _approveReview(review, summary),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.cancel, color: Colors.red, size: 28),
+                    tooltip: 'Reject',
+                    onPressed: _isLoading ? null : _rejectReview,
                   ),
                 ],
               ),
@@ -656,6 +695,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       },
     );
   }
+}
+
+// Add this utility function to strip markdown code fences and extra text:
+String stripCodeFences(String input) {
+  final codeFenceRegex = RegExp(r'^```[a-zA-Z0-9]*\n|\n```|```[a-zA-Z0-9]*|```', multiLine: true);
+  var output = input.replaceAll(codeFenceRegex, '');
+  // Remove leading/trailing whitespace
+  output = output.trim();
+  return output;
 }
 
 // Creative thinking widget (animated ellipsis)
@@ -868,6 +916,112 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class CodeEditorScreen extends StatefulWidget {
+  final String fileName;
+  final String initialCode;
+  const CodeEditorScreen({required this.fileName, required this.initialCode, Key? key}) : super(key: key);
+  @override
+  State<CodeEditorScreen> createState() => _CodeEditorScreenState();
+}
+
+class _CodeEditorScreenState extends State<CodeEditorScreen> {
+  late final CodeController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = CodeController(
+      text: widget.initialCode,
+      language: dart,
+      patternMap: {
+        r'\bTODO\b': const TextStyle(backgroundColor: Colors.yellow, color: Colors.black),
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      backgroundColor: const Color(0xFF1e1e1e), // VS Code dark
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF23272e),
+        elevation: 2,
+        title: Row(
+          children: [
+            const Icon(Icons.code, color: Color(0xFF8B5CF6)),
+            const SizedBox(width: 8),
+            Text(
+              widget.fileName,
+              style: const TextStyle(fontFamily: 'FiraMono', fontSize: 16, color: Colors.white),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(_controller.text),
+            icon: const Icon(Icons.save, color: Colors.green),
+            label: const Text('Save', style: TextStyle(color: Colors.green)),
+            style: TextButton.styleFrom(foregroundColor: Colors.green),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.cancel, color: Colors.red),
+            label: const Text('Cancel', style: TextStyle(color: Colors.red)),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          ),
+        ],
+      ),
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 700),
+          margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+          padding: const EdgeInsets.all(0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF23272e),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF333842), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Column(
+              children: [
+                Expanded(
+                  child: CodeTheme(
+                    data: CodeThemeData(),
+                    child: CodeField(
+                      controller: _controller,
+                      textStyle: const TextStyle(fontFamily: 'FiraMono', fontSize: 15, color: Colors.white),
+                      expands: true,
+                      lineNumberStyle: const LineNumberStyle(
+                        textStyle: TextStyle(color: Color(0xFF8B949E), fontSize: 13),
+                      ),
+                      background: Colors.transparent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
