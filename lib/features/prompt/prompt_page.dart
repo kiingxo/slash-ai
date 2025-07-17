@@ -159,12 +159,20 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         final repoName = repo['name'];
         print('[PromptPage] Fetching files for $owner/$repoName');
         final files = contextFiles.isNotEmpty ? contextFiles : await _fetchFiles(owner: owner, repo: repoName, pat: githubPat!);
-        print('[PromptPage] Calling getCodeSuggestion...');
-        final suggestion = await aiService.getCodeSuggestion(prompt: prompt, files: files);
+        // 1. Get summary/explanation for chat bubble
+        final summaryPrompt =
+          "You are an AI code assistant. Summarize the following code change request for the user in a friendly, conversational way. Do NOT include the full code or file content in your response. "
+          "User request: $prompt";
+        final summary = await aiService.getCodeSuggestion(prompt: summaryPrompt, files: files);
+        // 2. Get code-only output for review/commit
         final oldContent = files.isNotEmpty ? files[0]['content']! : '';
-        final newContent = suggestion;
+        final codeEditPrompt =
+          'You are an AI code assistant. Given the following file content and the user\'s request, return ONLY the new file content after the edit. Do NOT include any explanation, comments, or extra text. Only output the full, edited file content.\n\n' +
+          'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
+          'Original content:\n$oldContent\n' +
+          'User request: $prompt';
+        final newContent = await aiService.getCodeSuggestion(prompt: codeEditPrompt, files: files);
         final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
-        final summary = "Slash's suggestion for \"$prompt\".";
         final review = ReviewData(fileName: fileName, oldContent: oldContent, newContent: newContent, summary: summary);
         setState(() {
           _isLoading = false;
@@ -227,11 +235,20 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
       final files = await _fetchFiles(owner: owner, repo: repoName, pat: githubPat!);
-      final suggestion = await aiService.getCodeSuggestion(prompt: prompt, files: files);
+      // 1. Get summary/explanation for chat bubble
+      final summaryPrompt =
+        "You are an AI code assistant. Summarize the following code change request for the user in a friendly, conversational way. Do NOT include the full code or file content in your response. "
+        "User request: $prompt";
+      final summary = await aiService.getCodeSuggestion(prompt: summaryPrompt, files: files);
+      // 2. Get code-only output for review/commit
       final oldContent = files.isNotEmpty ? files[0]['content']! : '';
-      final newContent = suggestion;
+      final codeEditPrompt =
+        'You are an AI code assistant. Given the following file content and the user\'s request, return ONLY the new file content after the edit. Do NOT include any explanation, comments, or extra text. Only output the full, edited file content.\n\n' +
+        'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
+        'Original content:\n$oldContent\n' +
+        'User request: $prompt';
+      final newContent = await aiService.getCodeSuggestion(prompt: codeEditPrompt, files: files);
       final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
-      final summary = "Slash's suggestion for \"$prompt\".";
       final review = ReviewData(fileName: fileName, oldContent: oldContent, newContent: newContent, summary: summary);
       setState(() {
         _isLoading = false;
@@ -267,14 +284,14 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   branch: branch,
         path: review.fileName,
         content: review.newContent,
-                  message: 'AI: $prompt',
+                  message: '/SLASH: $prompt',
                 );
                 final prUrl = await github.openPullRequest(
                   owner: owner,
                   repo: repoName,
                   head: branch,
                   base: 'main',
-                  title: 'AI: $prompt',
+                  title: '/SLASH: $prompt',
         body: review.summary,
                 );
       setState(() {
