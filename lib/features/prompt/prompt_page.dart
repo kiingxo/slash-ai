@@ -47,11 +47,16 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   ];
   bool _reviewExpanded = false;
   ReviewData? _pendingReview;
+  String _selectedModel = 'gemini';
+  String? _lastIntent;
 
   @override
   void initState() {
     super.initState();
     promptController = TextEditingController();
+    // Default to the model in auth state
+    final authState = ref.read(authControllerProvider);
+    _selectedModel = authState.model;
   }
 
   @override
@@ -64,7 +69,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final res = await http.get(
       Uri.parse('https://api.github.com/repos/$owner/$repo/contents/'),
       headers: {
-        'Authorization': 'token $pat',
+        'Authorization': '900token $pat',
         'Accept': 'application/vnd.github+json',
       },
     );
@@ -93,13 +98,14 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       _messages.add(ChatMessage(isUser: true, text: prompt));
     });
     promptController.clear();
+    String? detectedIntent;
     try {
       print('[PromptPage] Submitting prompt: $prompt');
       final authState = ref.read(authControllerProvider);
-      final model = authState.model;
       final geminiKey = authState.geminiApiKey;
       final openAIApiKey = authState.openAIApiKey;
       final githubPat = authState.githubPat;
+      final model = _selectedModel;
       print('[PromptPage] Using model: $model');
       if ((model == 'gemini' && (geminiKey == null || geminiKey.isEmpty)) ||
           (model == 'openai' && (openAIApiKey == null || openAIApiKey.isEmpty)) ||
@@ -116,12 +122,14 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       }
       print('[PromptPage] Calling classifyIntent...');
       final intent = await aiService.classifyIntent(prompt);
+      detectedIntent = intent;
+      _lastIntent = intent;
       print('[PromptPage] Intent: $intent');
       if (intent == 'code_edit') {
         final owner = repo['owner']['login'];
         final repoName = repo['name'];
         print('[PromptPage] Fetching files for $owner/$repoName');
-        final files = await _fetchFiles(owner: owner, repo: repoName, pat: githubPat);
+        final files = await _fetchFiles(owner: owner, repo: repoName, pat: githubPat!);
         print('[PromptPage] Calling getCodeSuggestion...');
         final suggestion = await aiService.getCodeSuggestion(prompt: prompt, files: files);
         final oldContent = files.isNotEmpty ? files[0]['content']! : '';
@@ -159,7 +167,49 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       setState(() {
         _isLoading = false;
         _error = e.toString();
-        _messages.add(ChatMessage(isUser: false, text: e.toString()));
+        _messages.add(ChatMessage(isUser: false, text: friendlyErrorMessage(e.toString())));
+      });
+    }
+  }
+
+  // Add a method to force code edit if user taps override
+  Future<void> _forceCodeEdit(String prompt) async {
+    setState(() { _isLoading = true; });
+    try {
+      final authState = ref.read(authControllerProvider);
+      final geminiKey = authState.geminiApiKey;
+      final openAIApiKey = authState.openAIApiKey;
+      final githubPat = authState.githubPat;
+      final model = _selectedModel;
+      final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      dynamic aiService;
+      if (model == 'gemini') {
+        aiService = GeminiService(geminiKey!);
+      } else {
+        aiService = OpenAIService(openAIApiKey!, model: 'gpt-4o');
+      }
+      final owner = repo['owner']['login'];
+      final repoName = repo['name'];
+      final files = await _fetchFiles(owner: owner, repo: repoName, pat: githubPat!);
+      final suggestion = await aiService.getCodeSuggestion(prompt: prompt, files: files);
+      final oldContent = files.isNotEmpty ? files[0]['content']! : '';
+      final newContent = suggestion;
+      final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
+      final summary = "Slash's suggestion for \"$prompt\".";
+      final review = ReviewData(fileName: fileName, oldContent: oldContent, newContent: newContent, summary: summary);
+      setState(() {
+        _isLoading = false;
+        _pendingReview = review;
+        _messages.add(ChatMessage(isUser: false, text: summary, review: review));
+        _reviewExpanded = false;
+      });
+    } catch (e, st) {
+      print('[PromptPage] Force code edit error: $e');
+      print(st);
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+        _messages.add(ChatMessage(isUser: false, text: friendlyErrorMessage(e.toString())));
       });
     }
   }
@@ -200,7 +250,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       setState(() {
         _isLoading = false;
         _error = e.toString();
-        _messages.add(ChatMessage(isUser: false, text: friendlyErrorMessage(_error)));
+        _messages.add(ChatMessage(isUser: false, text: friendlyErrorMessage(_error ?? '')));
       });
     }
   }
@@ -211,6 +261,39 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       _reviewExpanded = false;
       _messages.add(ChatMessage(isUser: false, text: 'Suggestion rejected.'));
     });
+  }
+
+  Widget _intentTag(String? intent) {
+    if (intent == null) return const SizedBox.shrink();
+    Color color;
+    String label;
+    switch (intent) {
+      case 'code_edit':
+        color = Colors.blueAccent;
+        label = 'Code Edit';
+        break;
+      case 'repo_question':
+        color = Colors.orangeAccent;
+        label = 'Repo Q';
+        break;
+      case 'general':
+      default:
+        color = Colors.green;
+        label = 'General';
+        break;
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        child: Chip(
+          label: Text(label, style: const TextStyle(color: Colors.white)),
+          backgroundColor: color,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        ),
+      ),
+    );
   }
 
   @override
@@ -226,8 +309,28 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('/Slash'),
+        backgroundColor: Colors.black,
+        title: Image.asset('assets/slash2.png', height: 100),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedModel,
+                items: const [
+                  DropdownMenuItem(value: 'gemini', child: Text('Gemini')),
+                  DropdownMenuItem(value: 'openai', child: Text('OpenAI')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedModel = val);
+                },
+                style: Theme.of(context).textTheme.bodyMedium,
+                dropdownColor: Theme.of(context).cardColor,
+              ),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -260,44 +363,52 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                     // Review bubble
                     return _buildReviewBubble(msg.review!, msg.text, idx == _messages.length - 1);
                   }
-                  return Align(
-                    alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: msg.isUser
-                            ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
-                            : Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: msg.isUser ? [] : [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (!msg.isUser)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8, top: 2),
-                              child: Icon(Icons.android, size: 22, color: Theme.of(context).colorScheme.primary),
-                            ),
-                          Flexible(
-                            child: Text(
-                              msg.text,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: msg.isUser ? Theme.of(context).colorScheme.primary : null,
+                  // Show intent tag above the latest agent message
+                  final isLastAgent = !msg.isUser && idx == _messages.lastIndexWhere((m) => !m.isUser);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (isLastAgent) _intentTag(_lastIntent),
+                      Align(
+                        alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: msg.isUser
+                                ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
+                                : Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: msg.isUser ? [] : [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (!msg.isUser)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8, top: 2),
+                                  child: Icon(Icons.android, size: 22, color: Theme.of(context).colorScheme.primary),
+                                ),
+                              Flexible(
+                                child: Text(
+                                  msg.text,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: msg.isUser ? Theme.of(context).colorScheme.primary : null,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   );
                 },
               ),
@@ -305,13 +416,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
             if (_isLoading)
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(width: 16),
-                    Text('Working on your request...', style: Theme.of(context).textTheme.bodyMedium),
-                  ],
+                child: Center(
+                  child: _ThinkingWidget(),
                 ),
               ),
             if (_error != null)
@@ -421,6 +527,47 @@ class _PromptPageState extends ConsumerState<PromptPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// Creative thinking widget (animated ellipsis)
+class _ThinkingWidget extends StatefulWidget {
+  @override
+  State<_ThinkingWidget> createState() => _ThinkingWidgetState();
+}
+
+class _ThinkingWidgetState extends State<_ThinkingWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<int> _dots;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat();
+    _dots = StepTween(begin: 0, end: 3).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _dots,
+      builder: (context, child) {
+        final dots = '.' * _dots.value;
+        return Text(
+          'Thinking$dots',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.primary),
+        );
+      },
     );
   }
 } 

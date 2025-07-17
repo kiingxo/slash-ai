@@ -39,7 +39,7 @@ class OpenAIService {
   }
 
   Future<String> classifyIntent(String prompt) async {
-    final systemPrompt = "Classify the following user prompt as one of: [code_edit, repo_question, general]. Only return the label. Prompt: '$prompt'";
+    final systemPrompt = "You are an expert code assistant. Classify the following user prompt as one of: [code_edit, repo_question, general].\n\n- code_edit: The user wants to change, improve, refactor, add, or fix code, or requests a code-related action.\n- repo_question: The user is asking about the repository, its purpose, files, or structure, but not requesting a code change.\n- general: The user is making small talk, greetings, or asking about you as an agent.\n\nOnly return the label.\nPrompt: '$prompt'";
     final requestBody = {
       'model': model,
       'messages': [
@@ -56,6 +56,7 @@ class OpenAIService {
       },
       body: jsonEncode(requestBody),
     ).timeout(const Duration(seconds: 30));
+    print('[OpenAIService] classifyIntent raw response: ${response.body}');
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['choices']?[0]?['message']?['content']?.trim() ?? 'general';
