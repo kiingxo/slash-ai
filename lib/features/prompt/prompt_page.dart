@@ -30,7 +30,12 @@ class ReviewData {
   final String oldContent;
   final String newContent;
   final String summary;
-  ReviewData({required this.fileName, required this.oldContent, required this.newContent, required this.summary});
+  ReviewData({
+    required this.fileName,
+    required this.oldContent,
+    required this.newContent,
+    required this.summary,
+  });
 }
 
 class PromptPage extends ConsumerStatefulWidget {
@@ -46,7 +51,10 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   bool _isLoading = false;
   String? _error;
   final List<ChatMessage> _messages = [
-    ChatMessage(isUser: false, text: "Hi! I'm /slash 🤖. How can I help you today?"),
+    ChatMessage(
+      isUser: false,
+      text: "Hi! I'm /slash 🤖. How can I help you today?",
+    ),
   ];
   bool _reviewExpanded = false;
   ReviewData? _pendingReview;
@@ -73,7 +81,11 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     super.dispose();
   }
 
-  Future<List<Map<String, String>>> _fetchFiles({required String owner, required String repo, required String pat}) async {
+  Future<List<Map<String, String>>> _fetchFiles({
+    required String owner,
+    required String repo,
+    required String pat,
+  }) async {
     final res = await http.get(
       Uri.parse('https://api.github.com/repos/$owner/$repo/contents/'),
       headers: {
@@ -81,14 +93,13 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         'Accept': 'application/vnd.github+json',
       },
     );
-    if (res.statusCode != 200) throw Exception('Failed to fetch files:  [31m${res.body} [0m');
+    if (res.statusCode != 200)
+      throw Exception('Failed to fetch files:  [31m${res.body} [0m');
     final List files = jsonDecode(res.body);
     List<Map<String, String>> fileContents = [];
     for (final file in files) {
       if (file['type'] == 'file') {
-        final fileRes = await http.get(
-          Uri.parse(file['download_url']),
-        );
+        final fileRes = await http.get(Uri.parse(file['download_url']));
         if (fileRes.statusCode == 200) {
           fileContents.add({'name': file['name'], 'content': fileRes.body});
         }
@@ -98,23 +109,26 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   }
 
   Future<void> _addRepoContext() async {
-    setState(() { });
+    setState(() {});
     try {
-      final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      final repo =
+          _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
       if (repo == null) throw Exception('No repository selected.');
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
       final params = RepoParams(owner: owner, repo: repoName);
-      final fileBrowserController = ref.read(fileBrowserControllerProvider(params).notifier);
+      final fileBrowserController = ref.read(
+        fileBrowserControllerProvider(params).notifier,
+      );
       final files = await fileBrowserController.listAllFiles();
       setState(() {
         _repoContextFiles = files;
       });
     } catch (e) {
       print('Error adding repo context: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add repo context: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to add repo context: $e')));
     }
   }
 
@@ -137,12 +151,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       final model = _selectedModel;
       print('[PromptPage] Using model: $model');
       if ((model == 'gemini' && (geminiKey == null || geminiKey.isEmpty)) ||
-          (model == 'openai' && (openAIApiKey == null || openAIApiKey.isEmpty)) ||
-          githubPat == null || githubPat.isEmpty) {
+          (model == 'openai' &&
+              (openAIApiKey == null || openAIApiKey.isEmpty)) ||
+          githubPat == null ||
+          githubPat.isEmpty) {
         print('[PromptPage] Missing API keys');
         throw Exception('Missing API keys');
       }
-      final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      final repo =
+          _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
       dynamic aiService;
       if (model == 'gemini') {
         aiService = GeminiService(geminiKey!);
@@ -155,54 +172,96 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       _lastIntent = intent;
       print('[PromptPage] Intent: $intent');
       // Use repo context files if present
-      final contextFiles = _repoContextFiles.isNotEmpty ? _repoContextFiles.map((f) => {'name': f.name, 'content': f.content ?? ''}).toList().take(3).toList() : const <Map<String, String>>[];
+      final contextFiles =
+          _repoContextFiles.isNotEmpty
+              ? _repoContextFiles
+                  .map((f) => {'name': f.name, 'content': f.content ?? ''})
+                  .toList()
+                  .take(3)
+                  .toList()
+              : const <Map<String, String>>[];
       if (intent == 'code_edit') {
         final owner = repo['owner']['login'];
         final repoName = repo['name'];
         print('[PromptPage] Fetching files for $owner/$repoName');
-        final files = contextFiles.isNotEmpty ? contextFiles : await _fetchFiles(owner: owner, repo: repoName, pat: githubPat!);
+        final files =
+            contextFiles.isNotEmpty
+                ? contextFiles
+                : await _fetchFiles(
+                  owner: owner,
+                  repo: repoName,
+                  pat: githubPat!,
+                );
         // 1. Get summary/explanation for chat bubble
         final summaryPrompt =
-          "You are an AI code assistant. Summarize the following code change request for the user in a friendly, conversational way. Do NOT include the full code or file content in your response. "
-          "User request: $prompt";
-        final summary = await aiService.getCodeSuggestion(prompt: summaryPrompt, files: files);
+            "You are an AI code assistant. Summarize the following code change request for the user in a friendly, conversational way. Do NOT include the full code or file content in your response. "
+            "User request: $prompt";
+        final summary = await aiService.getCodeSuggestion(
+          prompt: summaryPrompt,
+          files: files,
+        );
         // 2. Get code-only output for review/commit
         final oldContent = files.isNotEmpty ? files[0]['content']! : '';
         final codeEditPrompt =
-          'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' +
-          'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
-          'Original content:\n$oldContent\n' +
-          'User request: $prompt';
-        var newContent = await aiService.getCodeSuggestion(prompt: codeEditPrompt, files: files);
+            'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' +
+            'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
+            'Original content:\n$oldContent\n' +
+            'User request: $prompt';
+        var newContent = await aiService.getCodeSuggestion(
+          prompt: codeEditPrompt,
+          files: files,
+        );
         newContent = stripCodeFences(newContent);
         final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
-        final review = ReviewData(fileName: fileName, oldContent: oldContent, newContent: newContent, summary: summary);
+        final review = ReviewData(
+          fileName: fileName,
+          oldContent: oldContent,
+          newContent: newContent,
+          summary: summary,
+        );
         setState(() {
           _isLoading = false;
           _pendingReview = review;
-          _messages.add(ChatMessage(isUser: false, text: summary, review: review));
+          _messages.add(
+            ChatMessage(isUser: false, text: summary, review: review),
+          );
           _reviewExpanded = false;
         });
       } else if (intent == 'repo_question') {
         if (repo == null) {
           setState(() {
             _isLoading = false;
-            _messages.add(ChatMessage(isUser: false, text: "No repository selected. Please select a repository to ask questions about it."));
+            _messages.add(
+              ChatMessage(
+                isUser: false,
+                text:
+                    "No repository selected. Please select a repository to ask questions about it.",
+              ),
+            );
           });
           return;
         }
-        final repoInfo = 'Repo name: ${repo['name']}\nDescription: ${repo['description'] ?? 'No description.'}';
-        final answerPrompt = 'User question: $prompt\nRepo info: $repoInfo\nAnswer the user\'s question about the repo.';
+        final repoInfo =
+            'Repo name: ${repo['name']}\nDescription: ${repo['description'] ?? 'No description.'}';
+        final answerPrompt =
+            'User question: $prompt\nRepo info: $repoInfo\nAnswer the user\'s question about the repo.';
         print('[PromptPage] Calling getCodeSuggestion for repo_question...');
-        final answer = await aiService.getCodeSuggestion(prompt: answerPrompt, files: contextFiles);
+        final answer = await aiService.getCodeSuggestion(
+          prompt: answerPrompt,
+          files: contextFiles,
+        );
         setState(() {
           _isLoading = false;
           _messages.add(ChatMessage(isUser: false, text: answer));
         });
       } else {
-        final answerPrompt = 'User: $prompt\nYou are /slash, an AI code assistant. Respond conversationally.';
+        final answerPrompt =
+            'User: $prompt\nYou are /slash, an AI code assistant. Respond conversationally.';
         print('[PromptPage] Calling getCodeSuggestion for general...');
-        final answer = await aiService.getCodeSuggestion(prompt: answerPrompt, files: contextFiles);
+        final answer = await aiService.getCodeSuggestion(
+          prompt: answerPrompt,
+          files: contextFiles,
+        );
         setState(() {
           _isLoading = false;
           _messages.add(ChatMessage(isUser: false, text: answer));
@@ -214,21 +273,26 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       setState(() {
         _isLoading = false;
         _error = e.toString();
-        _messages.add(ChatMessage(isUser: false, text: friendlyErrorMessage(e.toString())));
+        _messages.add(
+          ChatMessage(isUser: false, text: friendlyErrorMessage(e.toString())),
+        );
       });
     }
   }
 
   // Add a method to force code edit if user taps override
   Future<void> _forceCodeEdit(String prompt) async {
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+    });
     try {
       final authState = ref.read(authControllerProvider);
       final geminiKey = authState.geminiApiKey;
       final openAIApiKey = authState.openAIApiKey;
       final githubPat = authState.githubPat;
       final model = _selectedModel;
-      final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      final repo =
+          _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
       dynamic aiService;
       if (model == 'gemini') {
         aiService = GeminiService(geminiKey!);
@@ -237,27 +301,44 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       }
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
-      final files = await _fetchFiles(owner: owner, repo: repoName, pat: githubPat!);
+      final files = await _fetchFiles(
+        owner: owner,
+        repo: repoName,
+        pat: githubPat!,
+      );
       // 1. Get summary/explanation for chat bubble
       final summaryPrompt =
-        "You are an AI code assistant. Summarize the following code change request for the user in a friendly, conversational way. Do NOT include the full code or file content in your response. "
-        "User request: $prompt";
-      final summary = await aiService.getCodeSuggestion(prompt: summaryPrompt, files: files);
+          "You are an AI code assistant. Summarize the following code change request for the user in a friendly, conversational way. Do NOT include the full code or file content in your response. "
+          "User request: $prompt";
+      final summary = await aiService.getCodeSuggestion(
+        prompt: summaryPrompt,
+        files: files,
+      );
       // 2. Get code-only output for review/commit
       final oldContent = files.isNotEmpty ? files[0]['content']! : '';
       final codeEditPrompt =
-        'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' +
-        'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
-        'Original content:\n$oldContent\n' +
-        'User request: $prompt';
-      var newContent = await aiService.getCodeSuggestion(prompt: codeEditPrompt, files: files);
+          'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' +
+          'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
+          'Original content:\n$oldContent\n' +
+          'User request: $prompt';
+      var newContent = await aiService.getCodeSuggestion(
+        prompt: codeEditPrompt,
+        files: files,
+      );
       newContent = stripCodeFences(newContent);
       final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
-      final review = ReviewData(fileName: fileName, oldContent: oldContent, newContent: newContent, summary: summary);
+      final review = ReviewData(
+        fileName: fileName,
+        oldContent: oldContent,
+        newContent: newContent,
+        summary: summary,
+      );
       setState(() {
         _isLoading = false;
         _pendingReview = review;
-        _messages.add(ChatMessage(isUser: false, text: summary, review: review));
+        _messages.add(
+          ChatMessage(isUser: false, text: summary, review: review),
+        );
         _reviewExpanded = false;
       });
     } catch (e, st) {
@@ -266,48 +347,62 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       setState(() {
         _isLoading = false;
         _error = e.toString();
-        _messages.add(ChatMessage(isUser: false, text: friendlyErrorMessage(e.toString())));
+        _messages.add(
+          ChatMessage(isUser: false, text: friendlyErrorMessage(e.toString())),
+        );
       });
     }
   }
 
   Future<void> _approveReview(ReviewData review, String prompt) async {
-              setState(() { _isLoading = true; _error = null; });
-              try {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
       final storage = SecureStorageService();
       final githubPat = await storage.getApiKey('github_pat');
-      final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      final repo =
+          _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
       final github = GitHubService(githubPat!);
-                final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
-                await github.createBranch(owner: owner, repo: repoName, newBranch: branch);
-                await github.commitFile(
-                  owner: owner,
-                  repo: repoName,
-                  branch: branch,
+      final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
+      await github.createBranch(
+        owner: owner,
+        repo: repoName,
+        newBranch: branch,
+      );
+      await github.commitFile(
+        owner: owner,
+        repo: repoName,
+        branch: branch,
         path: review.fileName,
         content: review.newContent,
-                  message: '/SLASH: $prompt',
-                );
-                final prUrl = await github.openPullRequest(
-                  owner: owner,
-                  repo: repoName,
-                  head: branch,
-                  base: 'main',
-                  title: '/SLASH: $prompt',
+        message: '/SLASH: $prompt',
+      );
+      final prUrl = await github.openPullRequest(
+        owner: owner,
+        repo: repoName,
+        head: branch,
+        base: 'main',
+        title: '/SLASH: $prompt',
         body: review.summary,
-                );
+      );
       setState(() {
         _isLoading = false;
-        _messages.add(ChatMessage(isUser: false, text: 'Pull request created! $prUrl'));
+        _messages.add(
+          ChatMessage(isUser: false, text: 'Pull request created! $prUrl'),
+        );
         _pendingReview = null;
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
         _error = e.toString();
-        _messages.add(ChatMessage(isUser: false, text: friendlyErrorMessage(_error ?? '')));
+        _messages.add(
+          ChatMessage(isUser: false, text: friendlyErrorMessage(_error ?? '')),
+        );
       });
     }
   }
@@ -324,15 +419,17 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final lowerQuery = query.toLowerCase();
     final results = <Map<String, dynamic>>[];
     for (final file in _repoContextFiles) {
-      if (file.name.toLowerCase().contains(lowerQuery) || (file.content?.toLowerCase().contains(lowerQuery) ?? false)) {
+      if (file.name.toLowerCase().contains(lowerQuery) ||
+          (file.content?.toLowerCase().contains(lowerQuery) ?? false)) {
         results.add({
           'path': file.path,
           'name': file.name,
-          'snippet': file.content != null && file.content!.length > 200
-              ? file.content!.substring(0, 200) + '...'
-              : file.content,
+          'snippet':
+              file.content != null && file.content!.length > 200
+                  ? file.content!.substring(0, 200) + '...'
+                  : file.content,
         });
-    }
+      }
     }
     setState(() {
       _searchResults = results;
@@ -377,10 +474,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final repoState = ref.watch(repoControllerProvider);
     final controller = ref.read(repoControllerProvider.notifier);
     final repos = repoState.repos;
-    final selectedRepo = _selectedRepo ?? repoState.selectedRepo ?? (repos.isNotEmpty ? repos[0] : null);
+    final selectedRepo =
+        _selectedRepo ??
+        repoState.selectedRepo ??
+        (repos.isNotEmpty ? repos[0] : null);
 
     if (repos.isEmpty) {
-      return Center(child: Text('No repositories found.', style: TextStyle(fontSize: 18)));
+      return Center(
+        child: Text('No repositories found.', style: TextStyle(fontSize: 18)),
+      );
     }
 
     return Scaffold(
@@ -401,32 +503,33 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 onChanged: (val) {
                   if (val != null) setState(() => _selectedModel = val);
                 },
-                            style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium,
                 dropdownColor: Theme.of(context).cardColor,
               ),
             ),
-                          ),
-                        ],
-                      ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: DropdownButton<dynamic>(
-                    value: selectedRepo,
-                    isExpanded: true,
-                    items: repos.map<DropdownMenuItem<dynamic>>((repo) {
+                value: selectedRepo,
+                isExpanded: true,
+                items:
+                    repos.map<DropdownMenuItem<dynamic>>((repo) {
                       return DropdownMenuItem<dynamic>(
                         value: repo,
                         child: Text(repo['full_name'] ?? repo['name']),
                       );
                     }).toList(),
-                    onChanged: (repo) {
-                      setState(() => _selectedRepo = repo);
-                      controller.selectRepo(repo);
-                    },
-                  ),
+                onChanged: (repo) {
+                  setState(() => _selectedRepo = repo);
+                  controller.selectRepo(repo);
+                },
+              ),
             ),
             const Divider(height: 1),
             Expanded(
@@ -437,31 +540,46 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   final msg = _messages[idx];
                   if (msg.review != null) {
                     // Review bubble
-                    return _buildReviewBubble(msg.review!, msg.text, idx == _messages.length - 1);
+                    return _buildReviewBubble(
+                      msg.review!,
+                      msg.text,
+                      idx == _messages.length - 1,
+                    );
                   }
                   // Show intent tag above the latest agent message
-                  final isLastAgent = !msg.isUser && idx == _messages.lastIndexWhere((m) => !m.isUser);
+                  final isLastAgent =
+                      !msg.isUser &&
+                      idx == _messages.lastIndexWhere((m) => !m.isUser);
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (isLastAgent) _intentTag(_lastIntent),
                       Align(
-                        alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
+                        alignment:
+                            msg.isUser
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 6),
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: msg.isUser
-                                ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
-                                : Theme.of(context).colorScheme.surface,
+                            color:
+                                msg.isUser
+                                    ? Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withOpacity(0.12)
+                                    : Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(16),
-                            boxShadow: msg.isUser ? [] : [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
+                            boxShadow:
+                                msg.isUser
+                                    ? []
+                                    : [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.04),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -469,14 +587,29 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                             children: [
                               if (!msg.isUser)
                                 Padding(
-                                  padding: const EdgeInsets.only(right: 8, top: 2),
-                                  child: Icon(Icons.android, size: 22, color: Theme.of(context).colorScheme.primary),
+                                  padding: const EdgeInsets.only(
+                                    right: 8,
+                                    top: 2,
+                                  ),
+                                  child: Icon(
+                                    Icons.android,
+                                    size: 22,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
                                 ),
                               Flexible(
                                 child: Text(
                                   msg.text,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: msg.isUser ? Theme.of(context).colorScheme.primary : null,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.bodyMedium?.copyWith(
+                                    color:
+                                        msg.isUser
+                                            ? Theme.of(
+                                              context,
+                                            ).colorScheme.primary
+                                            : null,
                                   ),
                                 ),
                               ),
@@ -492,14 +625,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
             if (_isLoading)
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: Center(
-                  child: _ThinkingWidget(),
-                ),
+                child: Center(child: _ThinkingWidget()),
               ),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(friendlyErrorMessage(_error ?? ''), style: const TextStyle(color: Colors.red)),
+                child: Text(
+                  friendlyErrorMessage(_error ?? ''),
+                  style: const TextStyle(color: Colors.red),
+                ),
               ),
             Padding(
               padding: const EdgeInsets.all(16),
@@ -507,7 +641,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 children: [
                   Expanded(
                     child: SlashTextField(
-                    controller: promptController,
+                      controller: promptController,
                       hint: 'Type a prompt…',
                       minLines: 1,
                       maxLines: 4,
@@ -527,15 +661,27 @@ class _PromptPageState extends ConsumerState<PromptPage> {
             // Show repo context summary and file picker
             if (_repoContextFiles.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 child: Wrap(
                   spacing: 6,
                   children: [
-                    const Text('Context:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ..._repoContextFiles.map((f) => Chip(
-                      label: Text(f.name, style: const TextStyle(fontSize: 12)),
-                      onDeleted: () => setState(() => _repoContextFiles.remove(f)),
-                    )),
+                    const Text(
+                      'Context:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    ..._repoContextFiles.map(
+                      (f) => Chip(
+                        label: Text(
+                          f.name,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onDeleted:
+                            () => setState(() => _repoContextFiles.remove(f)),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -547,7 +693,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 child: SlashButton(
                   label: 'Add Repo Context',
                   icon: Icons.folder_open,
-                  onTap: _isLoading ? () {} : () => _showFilePickerModal(context),
+                  onTap:
+                      _isLoading ? () {} : () => _showFilePickerModal(context),
                 ),
               ),
             ),
@@ -580,7 +727,11 @@ class _PromptPageState extends ConsumerState<PromptPage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.android, size: 22, color: Theme.of(context).colorScheme.primary),
+                Icon(
+                  Icons.android,
+                  size: 22,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: GestureDetector(
@@ -596,7 +747,12 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Icon(_reviewExpanded ? Icons.expand_less : Icons.expand_more, size: 20),
+                        Icon(
+                          _reviewExpanded
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 20,
+                        ),
                       ],
                     ),
                   ),
@@ -605,9 +761,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
             ),
             if (_reviewExpanded && isLast) ...[
               const SizedBox(height: 12),
-              Text(review.fileName, style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                review.fileName,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               const SizedBox(height: 8),
-              SlashDiffViewer(oldContent: review.oldContent, newContent: review.newContent),
+              SlashDiffViewer(
+                oldContent: review.oldContent,
+                newContent: review.newContent,
+              ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -615,43 +777,56 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blueAccent),
                     tooltip: 'Edit code',
-                    onPressed: _isLoading
-                        ? null
-                        : () async {
-                            final edited = await Navigator.of(context).push<String>(
-                              MaterialPageRoute(
-                                builder: (ctx) => CodeEditorScreen(
-                                  fileName: review.fileName,
-                                  initialCode: review.newContent,
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : () async {
+                              final edited = await Navigator.of(
+                                context,
+                              ).push<String>(
+                                MaterialPageRoute(
+                                  builder:
+                                      (ctx) => CodeEditorScreen(
+                                        fileName: review.fileName,
+                                        initialCode: review.newContent,
+                                      ),
                                 ),
-                              ),
-                            );
-                            if (edited != null) {
-                              setState(() {
-                                // Update the review in the chat message list as well
-                                _pendingReview = ReviewData(
-                                  fileName: review.fileName,
-                                  oldContent: review.oldContent,
-                                  newContent: edited,
-                                  summary: review.summary,
-                                );
-                                // Update the latest ChatMessage with the new review
-                                if (_messages.isNotEmpty && _messages.last.review != null) {
-                                  _messages[_messages.length - 1] = ChatMessage(
-                                    isUser: false,
-                                    text: summary,
-                                    review: _pendingReview,
+                              );
+                              if (edited != null) {
+                                setState(() {
+                                  // Update the review in the chat message list as well
+                                  _pendingReview = ReviewData(
+                                    fileName: review.fileName,
+                                    oldContent: review.oldContent,
+                                    newContent: edited,
+                                    summary: review.summary,
                                   );
-                                }
-                              });
-                            }
-                          },
+                                  // Update the latest ChatMessage with the new review
+                                  if (_messages.isNotEmpty &&
+                                      _messages.last.review != null) {
+                                    _messages[_messages.length -
+                                        1] = ChatMessage(
+                                      isUser: false,
+                                      text: summary,
+                                      review: _pendingReview,
+                                    );
+                                  }
+                                });
+                              }
+                            },
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                    icon: const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 28,
+                    ),
                     tooltip: 'Approve and PR',
-                    onPressed: _isLoading ? null : () => _approveReview(review, summary),
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : () => _approveReview(review, summary),
                   ),
                   const SizedBox(width: 8),
                   IconButton(
@@ -671,9 +846,9 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   void _showFilePickerModal(BuildContext context) async {
     final repo = _selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
     if (repo == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No repository selected.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No repository selected.')));
       return;
     }
     final owner = repo['owner']['login'];
@@ -699,7 +874,10 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
 // Add this utility function to strip markdown code fences and extra text:
 String stripCodeFences(String input) {
-  final codeFenceRegex = RegExp(r'^```[a-zA-Z0-9]*\n|\n```|```[a-zA-Z0-9]*|```', multiLine: true);
+  final codeFenceRegex = RegExp(
+    r'^```[a-zA-Z0-9]*\n|\n```|```[a-zA-Z0-9]*|```',
+    multiLine: true,
+  );
   var output = input.replaceAll(codeFenceRegex, '');
   // Remove leading/trailing whitespace
   output = output.trim();
@@ -712,7 +890,8 @@ class _ThinkingWidget extends StatefulWidget {
   State<_ThinkingWidget> createState() => _ThinkingWidgetState();
 }
 
-class _ThinkingWidgetState extends State<_ThinkingWidget> with SingleTickerProviderStateMixin {
+class _ThinkingWidgetState extends State<_ThinkingWidget>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<int> _dots;
 
@@ -740,7 +919,10 @@ class _ThinkingWidgetState extends State<_ThinkingWidget> with SingleTickerProvi
         final dots = '.' * _dots.value;
         return Text(
           'Thinking$dots',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.primary),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontStyle: FontStyle.italic,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         );
       },
     );
@@ -751,9 +933,14 @@ class _LazyFilePickerModal extends ConsumerStatefulWidget {
   final RepoParams params;
   final List<FileItem> initiallySelected;
   final void Function(List<FileItem>) onSelected;
-  const _LazyFilePickerModal({required this.params, required this.initiallySelected, required this.onSelected});
+  const _LazyFilePickerModal({
+    required this.params,
+    required this.initiallySelected,
+    required this.onSelected,
+  });
   @override
-  ConsumerState<_LazyFilePickerModal> createState() => _LazyFilePickerModalState();
+  ConsumerState<_LazyFilePickerModal> createState() =>
+      _LazyFilePickerModalState();
 }
 
 class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
@@ -775,7 +962,9 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
     } else if (selected.length < 3) {
       await controller.selectFile(file);
       setState(() {
-        final idx = controller.state.selectedFiles.indexWhere((f) => f.path == file.path);
+        final idx = controller.state.selectedFiles.indexWhere(
+          (f) => f.path == file.path,
+        );
         if (idx != -1) {
           selected.add(controller.state.selectedFiles[idx]);
         } else {
@@ -812,37 +1001,51 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
       child: ListView(
         shrinkWrap: true,
         physics: const ClampingScrollPhysics(),
-        children: state.items.map((item) {
-          if (item.type == 'dir') {
-            return ListTile(
-              leading: const Icon(Icons.folder, color: Colors.amber),
-              title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-              onTap: () {
-                _enterDir(item.name);
-                controller.fetchDir(_currentPath + (pathStack.isEmpty ? '' : '/')); // fetch new dir
-              },
-            );
-          } else {
-            final isSelected = selected.any((f) => f.path == item.path);
-            return ListTile(
-              leading: const Icon(Icons.insert_drive_file, color: Colors.blueAccent),
-              title: Text(item.name),
-              subtitle: Text(item.path, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              trailing: Checkbox(
-                value: isSelected,
-                onChanged: (_) => _onFileTap(item, controller),
-              ),
-              onTap: () => _onFileTap(item, controller),
-            );
-          }
-        }).toList(),
+        children:
+            state.items.map((item) {
+              if (item.type == 'dir') {
+                return ListTile(
+                  leading: const Icon(Icons.folder, color: Colors.amber),
+                  title: Text(
+                    item.name,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () {
+                    _enterDir(item.name);
+                    controller.fetchDir(
+                      _currentPath + (pathStack.isEmpty ? '' : '/'),
+                    ); // fetch new dir
+                  },
+                );
+              } else {
+                final isSelected = selected.any((f) => f.path == item.path);
+                return ListTile(
+                  leading: const Icon(
+                    Icons.insert_drive_file,
+                    color: Colors.blueAccent,
+                  ),
+                  title: Text(item.name),
+                  subtitle: Text(
+                    item.path,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                  trailing: Checkbox(
+                    value: isSelected,
+                    onChanged: (_) => _onFileTap(item, controller),
+                  ),
+                  onTap: () => _onFileTap(item, controller),
+                );
+              }
+            }).toList(),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.read(fileBrowserControllerProvider(widget.params).notifier);
+    final controller = ref.read(
+      fileBrowserControllerProvider(widget.params).notifier,
+    );
     final state = ref.watch(fileBrowserControllerProvider(widget.params));
     // Fetch the current directory if needed
     if (state.pathStack.join('/') != _currentPath) {
@@ -874,7 +1077,10 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
                     scrollDirection: Axis.horizontal,
                     child: Text(
                       pathStack.isEmpty ? '/' : '/${pathStack.join('/')}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -887,11 +1093,12 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text('Select up to 3 files for context', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _buildDir(controller, state),
+            const Text(
+              'Select up to 3 files for context',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 8),
+            Expanded(child: _buildDir(controller, state)),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -925,7 +1132,11 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
 class CodeEditorScreen extends StatefulWidget {
   final String fileName;
   final String initialCode;
-  const CodeEditorScreen({required this.fileName, required this.initialCode, Key? key}) : super(key: key);
+  const CodeEditorScreen({
+    required this.fileName,
+    required this.initialCode,
+    Key? key,
+  }) : super(key: key);
   @override
   State<CodeEditorScreen> createState() => _CodeEditorScreenState();
 }
@@ -940,7 +1151,10 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       text: widget.initialCode,
       language: dart,
       patternMap: {
-        r'\bTODO\b': const TextStyle(backgroundColor: Colors.yellow, color: Colors.black),
+        r'\bTODO\b': const TextStyle(
+          backgroundColor: Colors.yellow,
+          color: Colors.black,
+        ),
       },
     );
   }
@@ -953,34 +1167,46 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC);
+    final editorBg = isDark ? const Color(0xFF23232A) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF333842) : Colors.grey[300]!;
+    final gutterColor = isDark ? const Color(0xFF23232A) : Colors.grey[200]!;
+    final lineNumberColor =
+        isDark ? const Color(0xFF8B949E) : Colors.grey[600]!;
     return Scaffold(
-      backgroundColor: const Color(0xFF1e1e1e), // VS Code dark
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF23272e),
-        elevation: 2,
+        backgroundColor: editorBg,
+        elevation: 1,
         title: Row(
           children: [
             const Icon(Icons.code, color: Color(0xFF8B5CF6)),
             const SizedBox(width: 8),
-            Text(
-              widget.fileName,
-              style: const TextStyle(fontFamily: 'FiraMono', fontSize: 16, color: Colors.white),
+            Flexible(
+              child: Text(
+                widget.fileName,
+                style: const TextStyle(
+                  fontFamily: 'Fira Mono',
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton.icon(
+          IconButton(
+            icon: const Icon(Icons.check_circle, color: Colors.green, size: 26),
+            tooltip: 'Save',
             onPressed: () => Navigator.of(context).pop(_controller.text),
-            icon: const Icon(Icons.save, color: Colors.green),
-            label: const Text('Save', style: TextStyle(color: Colors.green)),
-            style: TextButton.styleFrom(foregroundColor: Colors.green),
           ),
-          TextButton.icon(
+          IconButton(
+            icon: const Icon(Icons.cancel, color: Colors.red, size: 26),
+            tooltip: 'Cancel',
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.cancel, color: Colors.red),
-            label: const Text('Cancel', style: TextStyle(color: Colors.red)),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
           ),
         ],
       ),
@@ -988,11 +1214,10 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 700),
           margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
-          padding: const EdgeInsets.all(0),
           decoration: BoxDecoration(
-            color: const Color(0xFF23272e),
+            color: editorBg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF333842), width: 1.5),
+            border: Border.all(color: borderColor, width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.18),
@@ -1002,28 +1227,34 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            child: Column(
-              children: [
-                Expanded(
-                  child: CodeTheme(
-                    data: CodeThemeData(),
-                    child: CodeField(
-                      controller: _controller,
-                      textStyle: const TextStyle(fontFamily: 'FiraMono', fontSize: 15, color: Colors.white),
-                      expands: true,
-                      lineNumberStyle: const LineNumberStyle(
-                        textStyle: TextStyle(color: Color(0xFF8B949E), fontSize: 13),
-                      ),
-                      background: Colors.transparent,
-                    ),
-                  ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: CodeTheme(
+              data: CodeThemeData(),
+              child: CodeField(
+                controller: _controller,
+                textStyle: const TextStyle(
+                  fontFamily: 'Fira Mono',
+                  fontSize: 15,
+                  color: Colors.white,
                 ),
-              ],
+                expands: true,
+                lineNumberStyle: LineNumberStyle(
+                  width: 32,
+                  textAlign: TextAlign.right,
+                  textStyle: TextStyle(
+                    color: lineNumberColor,
+                    fontSize: 12,
+                    fontFamily: 'Fira Mono',
+                  ),
+                  background: gutterColor,
+                  margin: 6.0,
+                ),
+                background: Colors.transparent,
+              ),
             ),
           ),
         ),
       ),
     );
   }
-} 
+}
