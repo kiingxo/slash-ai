@@ -13,7 +13,6 @@ class SettingsScreen extends ConsumerWidget {
     await storage.deleteAll();
     ref.invalidate(authControllerProvider);
     ref.invalidate(repoControllerProvider);
-    // ignore: use_build_context_synchronously
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthPage()),
       (route) => false,
@@ -28,6 +27,7 @@ class SettingsScreen extends ConsumerWidget {
       if (value.length <= 6) return '*' * value.length;
       return value.substring(0, 3) + '***' + value.substring(value.length - 3);
     }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (authState.isLoading) {
       return Scaffold(
         appBar: AppBar(title: const Text('Settings')),
@@ -35,131 +35,243 @@ class SettingsScreen extends ConsumerWidget {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF23232A) : Colors.white,
+        elevation: 1,
+        title: Row(
           children: [
-            Text('AI Model', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Radio<String>(
-                  value: 'gemini',
-                  groupValue: authState.model,
-                  onChanged: (val) {
-                    if (val != null) ref.read(authControllerProvider.notifier).saveModel(val);
-                  },
-                ),
-                const Text('Gemini'),
-                const SizedBox(width: 16),
-                Radio<String>(
-                  value: 'openai',
-                  groupValue: authState.model,
-                  onChanged: (val) {
-                    if (val != null) ref.read(authControllerProvider.notifier).saveModel(val);
-                  },
-                ),
-                const Text('OpenAI'),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (authState.model == 'gemini') ...[
-              Text('Gemini API Key', style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      obscureText: true,
-                      controller: TextEditingController(text: authState.geminiApiKey ?? ''),
-                      decoration: const InputDecoration(hintText: 'Enter Gemini API Key'),
-                      onSubmitted: (val) {
-                        ref.read(authControllerProvider.notifier).saveGeminiApiKey(val.trim());
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Save Gemini key from field
-                      // (handled by onSubmitted)
-                    },
-                    child: const Text('Save'),
-                  ),
-                ],
-              ),
-            ] else ...[
-              Text('OpenAI API Key', style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      obscureText: true,
-                      controller: TextEditingController(text: authState.openAIApiKey ?? ''),
-                      decoration: const InputDecoration(hintText: 'Enter OpenAI API Key'),
-                      onSubmitted: (val) {
-                        ref.read(authControllerProvider.notifier).saveOpenAIApiKey(val.trim());
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Save OpenAI key from field
-                      // (handled by onSubmitted)
-                    },
-                    child: const Text('Save'),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 24),
-            Text('API Key Status', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Text('Gemini Key: '),
-                Text(mask(authState.geminiApiKey), style: const TextStyle(fontFamily: 'monospace')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('OpenAI Key: '),
-                Text(mask(authState.openAIApiKey), style: const TextStyle(fontFamily: 'monospace')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('GitHub PAT: '),
-                Text(mask(authState.githubPat), style: const TextStyle(fontFamily: 'monospace')),
-              ],
-            ),
-            const SizedBox(height: 24),
-            if ((authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty) &&
-                (authState.openAIApiKey == null || authState.openAIApiKey!.isEmpty) &&
-                (authState.githubPat == null || authState.githubPat!.isEmpty))
-              Text('No API keys found. Please log in again.', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            Expanded(child: Container()),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.logout),
-                label: const Text('Clear Tokens / Logout'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(48),
-                ),
-                onPressed: () => _logout(context, ref),
-              ),
-            ),
+            Image.asset('assets/slash2.png', height: 36),
+            const SizedBox(width: 12),
+            const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(24.0),
+        children: [
+          // Friendly header
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Text(
+              'Configure your AI provider, API keys, and GitHub access. Your credentials are stored securely on your device.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black87),
+            ),
+          ),
+          // AI Model Card
+          Card(
+            color: isDark ? const Color(0xFF23232A) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.memory, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text('AI Provider', style: Theme.of(context).textTheme.titleMedium),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Radio<String>(
+                        value: 'gemini',
+                        groupValue: authState.model,
+                        onChanged: (val) {
+                          if (val != null) ref.read(authControllerProvider.notifier).saveModel(val);
+                        },
+                      ),
+                      Image.asset('assets/slash.png', height: 24),
+                      const SizedBox(width: 6),
+                      const Text('Gemini'),
+                      const SizedBox(width: 24),
+                      Radio<String>(
+                        value: 'openai',
+                        groupValue: authState.model,
+                        onChanged: (val) {
+                          if (val != null) ref.read(authControllerProvider.notifier).saveModel(val);
+                        },
+                      ),
+                      Icon(Icons.bolt, color: Colors.amber[700]),
+                      const SizedBox(width: 6),
+                      const Text('OpenAI'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // API Key Card
+          Card(
+            color: isDark ? const Color(0xFF23232A) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.vpn_key, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text('API Keys', style: Theme.of(context).textTheme.titleMedium),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (authState.model == 'gemini') ...[
+                    Row(
+                      children: [
+                        Image.asset('assets/slash.png', height: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            obscureText: true,
+                            controller: TextEditingController(text: authState.geminiApiKey ?? ''),
+                            decoration: const InputDecoration(hintText: 'Enter Gemini API Key'),
+                            onSubmitted: (val) {
+                              ref.read(authControllerProvider.notifier).saveGeminiApiKey(val.trim());
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {},
+                          child: const Text('Save'),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Icon(Icons.bolt, color: Colors.amber[700]),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            obscureText: true,
+                            controller: TextEditingController(text: authState.openAIApiKey ?? ''),
+                            decoration: const InputDecoration(hintText: 'Enter OpenAI API Key'),
+                            onSubmitted: (val) {
+                              ref.read(authControllerProvider.notifier).saveOpenAIApiKey(val.trim());
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {},
+                          child: const Text('Save'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Icon(Icons.lock, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          obscureText: true,
+                          controller: TextEditingController(text: authState.githubPat ?? ''),
+                          decoration: const InputDecoration(hintText: 'Enter GitHub PAT'),
+                          onSubmitted: (val) {
+                            ref.read(authControllerProvider.notifier).saveGitHubPat(val.trim());
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {},
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Status Card
+          Card(
+            color: isDark ? const Color(0xFF23232A) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text('Key Status', style: Theme.of(context).textTheme.titleMedium),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Image.asset('assets/slash.png', height: 18),
+                      const SizedBox(width: 8),
+                      const Text('Gemini Key:'),
+                      const SizedBox(width: 8),
+                      Text(mask(authState.geminiApiKey), style: const TextStyle(fontFamily: 'monospace')),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.bolt, color: Colors.amber[700], size: 18),
+                      const SizedBox(width: 8),
+                      const Text('OpenAI Key:'),
+                      const SizedBox(width: 8),
+                      Text(mask(authState.openAIApiKey), style: const TextStyle(fontFamily: 'monospace')),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.lock, color: Colors.grey, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('GitHub PAT:'),
+                      const SizedBox(width: 8),
+                      Text(mask(authState.githubPat), style: const TextStyle(fontFamily: 'monospace')),
+                    ],
+                  ),
+                  if ((authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty) &&
+                      (authState.openAIApiKey == null || authState.openAIApiKey!.isEmpty) &&
+                      (authState.githubPat == null || authState.githubPat!.isEmpty))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text('No API keys found. Please log in again.', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Logout
+          Center(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.logout),
+              label: const Text('Clear Tokens / Logout'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(220, 48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                elevation: 0,
+              ),
+              onPressed: () => _logout(context, ref),
+            ),
+          ),
+        ],
       ),
     );
   }
