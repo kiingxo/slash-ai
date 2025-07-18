@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'features/repo/repo_page.dart';
 import 'features/prompt/prompt_page.dart';
+import 'features/prompt/code_screen.dart';
 
 import 'ui/screens/settings_screen.dart';
 
@@ -17,7 +18,7 @@ class _HomeShellState extends State<HomeShell> {
   static final List<Widget> _pages = <Widget>[
     RepoPage(),
     PromptPage(),
-    Center(child: Text('Review (coming soon)', style: TextStyle(fontSize: 24))),
+    CodeScreen(),
     Center(child: Text('PRs (coming soon)', style: TextStyle(fontSize: 24))),
     SettingsScreen(),
   ];
@@ -56,15 +57,15 @@ class _HomeShellState extends State<HomeShell> {
                     theme: theme,
                   ),
                   _NavBarItem(
-                    icon: Icons.edit,
+                    assetIcon: 'assets/slash2.png',
                     label: 'Prompt',
                     selected: _selectedIndex == 1,
                     onTap: () => setState(() => _selectedIndex = 1),
                     theme: theme,
                   ),
                   _NavBarItem(
-                    icon: Icons.rule,
-                    label: 'Review',
+                    icon: Icons.code,
+                    label: 'Code',
                     selected: _selectedIndex == 2,
                     onTap: () => setState(() => _selectedIndex = 2),
                     theme: theme,
@@ -94,13 +95,15 @@ class _HomeShellState extends State<HomeShell> {
 }
 
 class _NavBarItem extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? assetIcon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
   final ThemeData theme;
   const _NavBarItem({
-    required this.icon,
+    this.icon,
+    this.assetIcon,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -130,14 +133,24 @@ class _NavBarItem extends StatelessWidget {
                   color: selected ? theme.colorScheme.primary.withOpacity(0.12) : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  size: 24,
-                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
-                ),
+                child: assetIcon != null
+                    ? Center(
+                        child: Image.asset(
+                          assetIcon!,
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.contain,
+                          color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      )
+                    : Icon(
+                        icon,
+                        size: 24,
+                        color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
+                      ),
               ),
               const SizedBox(height: 2),
-              if (selected)
+              if (selected && assetIcon == null)
                 Text(
                   label,
                   style: TextStyle(
