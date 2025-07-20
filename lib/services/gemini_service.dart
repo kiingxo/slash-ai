@@ -21,18 +21,18 @@ class GeminiService {
     };
 
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl?key=$apiKey'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(requestBody),
+    final response = await http.post(
+      Uri.parse('$_baseUrl?key=$apiKey'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(requestBody),
       ).timeout(const Duration(seconds: 30));
       print('[GeminiService] getCodeSuggestion response status:  [32m${response.statusCode} [0m');
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
-      } else {
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
+    } else {
         print('[GeminiService] getCodeSuggestion error: ${response.body}');
-        throw Exception('Failed to get suggestion: ${response.body}');
+      throw Exception('Failed to get suggestion: ${response.body}');
       }
     } catch (e) {
       print('[GeminiService] getCodeSuggestion exception: $e');

@@ -39,7 +39,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   void _validate() {
     setState(() {
       if (model == 'gemini') {
-        isValid = geminiController.text.isNotEmpty && githubController.text.isNotEmpty;
+      isValid = geminiController.text.isNotEmpty && githubController.text.isNotEmpty;
       } else {
         isValid = openAIController.text.isNotEmpty && githubController.text.isNotEmpty;
       }
@@ -88,7 +88,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     // Save tokens if valid
     await ref.read(authControllerProvider.notifier).saveModel(model);
     if (model == 'gemini') {
-      await ref.read(authControllerProvider.notifier).saveGeminiApiKey(geminiKey);
+    await ref.read(authControllerProvider.notifier).saveGeminiApiKey(geminiKey);
     } else {
       await ref.read(authControllerProvider.notifier).saveOpenAIApiKey(openAIKey);
     }
@@ -172,17 +172,17 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   ),
                   const SizedBox(height: 16),
                   if (model == 'gemini')
-                    SlashTextField(
-                      controller: geminiController,
-                      hint: 'Paste your Gemini API key',
-                      obscure: true,
+                  SlashTextField(
+                    controller: geminiController,
+                    hint: 'Paste your Gemini API key',
+                    obscure: true,
                     )
                   else
                     SlashTextField(
                       controller: openAIController,
                       hint: 'Paste your OpenAI API key',
                       obscure: true,
-                    ),
+                  ),
                   const SizedBox(height: 20),
                   SlashTextField(
                     controller: githubController,

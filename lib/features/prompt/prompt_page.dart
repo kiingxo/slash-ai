@@ -331,7 +331,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         fileName: fileName,
         oldContent: oldContent,
         newContent: newContent,
-        summary: summary,
+            summary: summary,
       );
       setState(() {
         _isLoading = false;
@@ -359,7 +359,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       _isLoading = true;
       _error = null;
     });
-    try {
+              try {
       final storage = SecureStorageService();
       final githubPat = await storage.getApiKey('github_pat');
       final repo =
@@ -367,33 +367,33 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
       final github = GitHubService(githubPat!);
-      final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
+                final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
       await github.createBranch(
         owner: owner,
         repo: repoName,
         newBranch: branch,
       );
-      await github.commitFile(
-        owner: owner,
-        repo: repoName,
-        branch: branch,
+                await github.commitFile(
+                  owner: owner,
+                  repo: repoName,
+                  branch: branch,
         path: review.fileName,
         content: review.newContent,
         message: '/SLASH: $prompt',
-      );
-      final prUrl = await github.openPullRequest(
-        owner: owner,
-        repo: repoName,
-        head: branch,
-        base: 'main',
+                );
+                final prUrl = await github.openPullRequest(
+                  owner: owner,
+                  repo: repoName,
+                  head: branch,
+                  base: 'main',
         title: '/SLASH: $prompt',
         body: review.summary,
-      );
+                );
       setState(() {
         _isLoading = false;
         _messages.add(
           ChatMessage(isUser: false, text: 'Pull request created! $prUrl'),
-        );
+                );
         _pendingReview = null;
       });
     } catch (e) {
@@ -429,7 +429,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   ? file.content!.substring(0, 200) + '...'
                   : file.content,
         });
-      }
+    }
     }
     setState(() {
       _searchResults = results;
@@ -503,21 +503,21 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 onChanged: (val) {
                   if (val != null) setState(() => _selectedModel = val);
                 },
-                style: Theme.of(context).textTheme.bodyMedium,
+                            style: Theme.of(context).textTheme.bodyMedium,
                 dropdownColor: Theme.of(context).cardColor,
               ),
             ),
-          ),
-        ],
-      ),
+                          ),
+                        ],
+                      ),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: DropdownButton<dynamic>(
-                value: selectedRepo,
-                isExpanded: true,
+                    value: selectedRepo,
+                    isExpanded: true,
                 items:
                     repos.map<DropdownMenuItem<dynamic>>((repo) {
                       return DropdownMenuItem<dynamic>(
@@ -525,11 +525,11 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                         child: Text(repo['full_name'] ?? repo['name']),
                       );
                     }).toList(),
-                onChanged: (repo) {
-                  setState(() => _selectedRepo = repo);
-                  controller.selectRepo(repo);
-                },
-              ),
+                    onChanged: (repo) {
+                      setState(() => _selectedRepo = repo);
+                      controller.selectRepo(repo);
+                    },
+                  ),
             ),
             const Divider(height: 1),
             Expanded(
@@ -641,7 +641,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 children: [
                   Expanded(
                     child: SlashTextField(
-                      controller: promptController,
+                    controller: promptController,
                       hint: 'Type a prompt…',
                       minLines: 1,
                       maxLines: 4,
@@ -1257,4 +1257,4 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       ),
     );
   }
-}
+} 

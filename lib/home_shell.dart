@@ -144,10 +144,10 @@ class _NavBarItem extends StatelessWidget {
                         ),
                       )
                     : Icon(
-                        icon,
-                        size: 24,
-                        color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
-                      ),
+                  icon,
+                  size: 24,
+                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
+                ),
               ),
               const SizedBox(height: 2),
               if (selected && assetIcon == null)
