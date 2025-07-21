@@ -14,6 +14,11 @@
 - 🔒 **Secure Local Storage**: API keys and tokens stored securely on device
 - 🧠 **AI-Powered Code Suggestions**: Uses Gemini or OpenAI for code changes and PR summaries
 - 🗂️ **File Browser**: Browse, view, and edit files in your GitHub repos
+- 🔀 **Branch Switching**: Pick and switch between any branch in any repo, with a mobile-friendly floating action button and scrollable branch picker.
+- 📝 **Mobile Code Editor**: Edit files and AI-suggested code directly in-app, with syntax highlighting and a clean, line-number-free interface.
+- 🚀 **Commit & Push**: Commit and push changes to any branch, with a commit message dialog, all from your phone.
+- 🤖 **AI-to-Manual Edit Flow**: Instantly jump from AI code suggestions to manual editing in the main code editor tab, with a clear user prompt.
+- ⚡ **Smooth Startup & Navigation**: Splash screen waits for all data to load, and the app always starts on the Prompt screen for a seamless experience.
 - 🌿 **Branching & PRs**: Create branches, commit changes, and open pull requests
 - 📝 **Review & Approve**: Review diffs, summaries, and approve or reject AI changes
 - 🔄 **No Backend Required**: All logic runs on-device; no server needed
@@ -76,10 +81,11 @@ flutter run
 ## Example Workflow
 
 1. Connect your APIs
-2. Select a repo
+2. Select a repo and branch
 3. Enter a prompt (e.g., "Add dark mode toggle")
 4. Review the AI's suggestion and diff
 5. Approve to create a branch, commit, and open a PR
+6. Or tap "edit" to manually tweak the code in the editor, then commit & push
 
 ## Troubleshooting
 
@@ -108,5 +114,3 @@ For issues and questions:
 ---
 
 ![Built by BlueprintLabs](https://img.shields.io/badge/built%20by-BlueprintLabs-0057ff?style=flat-square)
-
-*Empowering AI developers with mobile-first tools* 🚀
