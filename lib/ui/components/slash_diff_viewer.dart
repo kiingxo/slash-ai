@@ -22,8 +22,8 @@ class SlashDiffViewer extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
             Row(
               children: [
                 Icon(Icons.remove_circle, color: oldText, size: 18),
@@ -32,12 +32,12 @@ class SlashDiffViewer extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: oldBg,
-                borderRadius: BorderRadius.circular(8),
-              ),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: oldBg,
+            borderRadius: BorderRadius.circular(8),
+          ),
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
               child: _buildCodeBlock(oldContent, oldText, isDark),
             ),
@@ -50,12 +50,12 @@ class SlashDiffViewer extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: newBg,
-                borderRadius: BorderRadius.circular(8),
-              ),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: newBg,
+            borderRadius: BorderRadius.circular(8),
+          ),
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
               child: _buildCodeBlock(newContent, newText, isDark),
             ),
@@ -96,16 +96,16 @@ class SlashDiffViewer extends StatelessWidget {
                       ),
                       Flexible(
                         fit: FlexFit.loose,
-                        child: Text(
+          child: Text(
                           lines[i],
-                          style: TextStyle(
-                            fontFamily: 'Fira Mono',
-                            fontSize: 13,
+            style: TextStyle(
+              fontFamily: 'Fira Mono',
+              fontSize: 13,
                             color: textColor,
-                          ),
-                        ),
-                      ),
-                    ],
+            ),
+          ),
+        ),
+      ],
                   ),
               ],
             ),

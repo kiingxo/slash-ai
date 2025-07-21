@@ -61,9 +61,13 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   String _selectedModel = 'gemini';
   String? _lastIntent;
   List<FileItem> _repoContextFiles = [];
-  String _searchQuery = '';
+  final String _searchQuery = '';
   List<Map<String, dynamic>> _searchResults = [];
   final TextEditingController _searchController = TextEditingController();
+
+  // Add branch state
+  List<String> _branches = [];
+  String? _selectedBranch;
 
   @override
   void initState() {
@@ -86,15 +90,20 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     required String repo,
     required String pat,
   }) async {
+    final branch = _selectedBranch;
+    final url = branch != null
+        ? 'https://api.github.com/repos/$owner/$repo/contents/?ref=$branch'
+        : 'https://api.github.com/repos/$owner/$repo/contents/';
     final res = await http.get(
-      Uri.parse('https://api.github.com/repos/$owner/$repo/contents/'),
+      Uri.parse(url),
       headers: {
         'Authorization': '900token $pat',
         'Accept': 'application/vnd.github+json',
       },
     );
-    if (res.statusCode != 200)
+    if (res.statusCode != 200) {
       throw Exception('Failed to fetch files:  [31m${res.body} [0m');
+    }
     final List files = jsonDecode(res.body);
     List<Map<String, String>> fileContents = [];
     for (final file in files) {
@@ -190,7 +199,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 : await _fetchFiles(
                   owner: owner,
                   repo: repoName,
-                  pat: githubPat!,
+                  pat: githubPat,
                 );
         // 1. Get summary/explanation for chat bubble
         final summaryPrompt =
@@ -203,8 +212,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         // 2. Get code-only output for review/commit
         final oldContent = files.isNotEmpty ? files[0]['content']! : '';
         final codeEditPrompt =
-            'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' +
-            'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
+            'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' 'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
             'Original content:\n$oldContent\n' +
             'User request: $prompt';
         var newContent = await aiService.getCodeSuggestion(
@@ -317,8 +325,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       // 2. Get code-only output for review/commit
       final oldContent = files.isNotEmpty ? files[0]['content']! : '';
       final codeEditPrompt =
-          'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' +
-          'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
+          'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' 'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
           'Original content:\n$oldContent\n' +
           'User request: $prompt';
       var newContent = await aiService.getCodeSuggestion(
@@ -331,7 +338,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         fileName: fileName,
         oldContent: oldContent,
         newContent: newContent,
-        summary: summary,
+            summary: summary,
       );
       setState(() {
         _isLoading = false;
@@ -359,7 +366,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       _isLoading = true;
       _error = null;
     });
-    try {
+              try {
       final storage = SecureStorageService();
       final githubPat = await storage.getApiKey('github_pat');
       final repo =
@@ -367,16 +374,18 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
       final github = GitHubService(githubPat!);
-      final branch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
+      final baseBranch = _selectedBranch ?? 'main';
+      final newBranch = 'slash/${DateTime.now().millisecondsSinceEpoch}';
       await github.createBranch(
         owner: owner,
         repo: repoName,
-        newBranch: branch,
+        newBranch: newBranch,
+        baseBranch: baseBranch,
       );
       await github.commitFile(
         owner: owner,
         repo: repoName,
-        branch: branch,
+        branch: newBranch,
         path: review.fileName,
         content: review.newContent,
         message: '/SLASH: $prompt',
@@ -384,8 +393,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       final prUrl = await github.openPullRequest(
         owner: owner,
         repo: repoName,
-        head: branch,
-        base: 'main',
+        head: newBranch,
+        base: baseBranch,
         title: '/SLASH: $prompt',
         body: review.summary,
       );
@@ -393,7 +402,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         _isLoading = false;
         _messages.add(
           ChatMessage(isUser: false, text: 'Pull request created! $prUrl'),
-        );
+                );
         _pendingReview = null;
       });
     } catch (e) {
@@ -426,14 +435,31 @@ class _PromptPageState extends ConsumerState<PromptPage> {
           'name': file.name,
           'snippet':
               file.content != null && file.content!.length > 200
-                  ? file.content!.substring(0, 200) + '...'
+                  ? '${file.content!.substring(0, 200)}...'
                   : file.content,
         });
-      }
+    }
     }
     setState(() {
       _searchResults = results;
     });
+  }
+
+  Future<void> _fetchBranchesForRepo(dynamic repo) async {
+    if (repo == null) return;
+    setState(() { _branches = []; _selectedBranch = null; });
+    try {
+      final storage = SecureStorageService();
+      final pat = await storage.getApiKey('github_pat');
+      final github = GitHubService(pat!);
+      final branches = await github.fetchBranches(owner: repo['owner']['login'], repo: repo['name']);
+      setState(() {
+        _branches = branches;
+        _selectedBranch = branches.contains('main') ? 'main' : (branches.isNotEmpty ? branches[0] : null);
+      });
+    } catch (e) {
+      setState(() { _branches = []; _selectedBranch = null; });
+    }
   }
 
   Widget _intentTag(String? intent) {
@@ -503,32 +529,50 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 onChanged: (val) {
                   if (val != null) setState(() => _selectedModel = val);
                 },
-                style: Theme.of(context).textTheme.bodyMedium,
+                            style: Theme.of(context).textTheme.bodyMedium,
                 dropdownColor: Theme.of(context).cardColor,
               ),
             ),
-          ),
-        ],
-      ),
+                          ),
+                        ],
+                      ),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: DropdownButton<dynamic>(
-                value: selectedRepo,
-                isExpanded: true,
-                items:
-                    repos.map<DropdownMenuItem<dynamic>>((repo) {
-                      return DropdownMenuItem<dynamic>(
-                        value: repo,
-                        child: Text(repo['full_name'] ?? repo['name']),
-                      );
-                    }).toList(),
-                onChanged: (repo) {
-                  setState(() => _selectedRepo = repo);
-                  controller.selectRepo(repo);
-                },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButton<dynamic>(
+                      value: selectedRepo,
+                      isExpanded: true,
+                      items: repos.map<DropdownMenuItem<dynamic>>((repo) {
+                        return DropdownMenuItem<dynamic>(
+                          value: repo,
+                          child: Text(repo['full_name'] ?? repo['name']),
+                        );
+                      }).toList(),
+                      onChanged: (repo) {
+                        setState(() => _selectedRepo = repo);
+                        controller.selectRepo(repo);
+                        _fetchBranchesForRepo(repo);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  if (_branches.isNotEmpty)
+                    DropdownButton<String>(
+                      value: _selectedBranch,
+                      items: _branches.map((branch) => DropdownMenuItem<String>(
+                        value: branch,
+                        child: Text(branch),
+                      )).toList(),
+                      onChanged: (branch) {
+                        setState(() { _selectedBranch = branch; });
+                      },
+                    ),
+                ],
               ),
             ),
             const Divider(height: 1),
@@ -641,7 +685,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 children: [
                   Expanded(
                     child: SlashTextField(
-                      controller: promptController,
+                    controller: promptController,
                       hint: 'Type a prompt…',
                       minLines: 1,
                       maxLines: 4,
@@ -1135,8 +1179,8 @@ class CodeEditorScreen extends StatefulWidget {
   const CodeEditorScreen({
     required this.fileName,
     required this.initialCode,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
   @override
   State<CodeEditorScreen> createState() => _CodeEditorScreenState();
 }
@@ -1257,4 +1301,4 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       ),
     );
   }
-}
+} 

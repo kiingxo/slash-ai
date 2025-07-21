@@ -12,12 +12,18 @@ class RepoPage extends ConsumerWidget {
     final repoState = ref.watch(repoControllerProvider);
     final controller = ref.read(repoControllerProvider.notifier);
 
-    void _onRepoTap(dynamic repo) {
+    void onRepoTap(dynamic repo) {
+      // Try to get selected branch from repoState if available
+      String? selectedBranch;
+      if (repoState.selectedRepo != null && repoState.selectedRepo['name'] == repo['name']) {
+        selectedBranch = repoState.selectedRepo['branch'];
+      }
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => FileBrowserPage(
             owner: repo['owner']['login'],
             repo: repo['name'],
+            branch: selectedBranch,
           ),
         ),
       );
@@ -75,7 +81,7 @@ class RepoPage extends ConsumerWidget {
                               )
                             : null,
                         trailing: const Icon(Icons.chevron_right_rounded, size: 28),
-                        onTap: () => _onRepoTap(repo),
+                        onTap: () => onRepoTap(repo),
                       ),
                     );
                   },

@@ -25,7 +25,7 @@ class SettingsScreen extends ConsumerWidget {
     String mask(String? value) {
       if (value == null || value.isEmpty) return 'Not set';
       if (value.length <= 6) return '*' * value.length;
-      return value.substring(0, 3) + '***' + value.substring(value.length - 3);
+      return '${value.substring(0, 3)}***${value.substring(value.length - 3)}';
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (authState.isLoading) {
@@ -203,9 +203,9 @@ class SettingsScreen extends ConsumerWidget {
             elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
                   Row(
                     children: [
                       Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
@@ -213,19 +213,19 @@ class SettingsScreen extends ConsumerWidget {
                       Text('Key Status', style: Theme.of(context).textTheme.titleMedium),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
+            const SizedBox(height: 16),
+            Row(
+              children: [
                       Image.asset('assets/slash.png', height: 18),
                       const SizedBox(width: 8),
                       const Text('Gemini Key:'),
                       const SizedBox(width: 8),
-                      Text(mask(authState.geminiApiKey), style: const TextStyle(fontFamily: 'monospace')),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
+                Text(mask(authState.geminiApiKey), style: const TextStyle(fontFamily: 'monospace')),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
                       Icon(Icons.bolt, color: Colors.amber[700], size: 18),
                       const SizedBox(width: 8),
                       const Text('OpenAI Key:'),
@@ -240,12 +240,12 @@ class SettingsScreen extends ConsumerWidget {
                       const SizedBox(width: 8),
                       const Text('GitHub PAT:'),
                       const SizedBox(width: 8),
-                      Text(mask(authState.githubPat), style: const TextStyle(fontFamily: 'monospace')),
-                    ],
-                  ),
-                  if ((authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty) &&
+                Text(mask(authState.githubPat), style: const TextStyle(fontFamily: 'monospace')),
+              ],
+            ),
+            if ((authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty) &&
                       (authState.openAIApiKey == null || authState.openAIApiKey!.isEmpty) &&
-                      (authState.githubPat == null || authState.githubPat!.isEmpty))
+                (authState.githubPat == null || authState.githubPat!.isEmpty))
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
                       child: Text('No API keys found. Please log in again.', style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -257,21 +257,21 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           // Logout
           Center(
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.logout),
-              label: const Text('Clear Tokens / Logout'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-                foregroundColor: Colors.white,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.logout),
+                label: const Text('Clear Tokens / Logout'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Colors.white,
                 minimumSize: const Size(220, 48),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 elevation: 0,
+                ),
+                onPressed: () => _logout(context, ref),
               ),
-              onPressed: () => _logout(context, ref),
             ),
-          ),
-        ],
+          ],
       ),
     );
   }

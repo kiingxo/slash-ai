@@ -91,4 +91,19 @@ class GitHubService {
     final data = jsonDecode(res.body);
     return data['html_url'] as String;
   }
+
+  Future<List<String>> fetchBranches({
+    required String owner,
+    required String repo,
+  }) async {
+    final res = await http.get(
+      Uri.parse('https://api.github.com/repos/$owner/$repo/branches'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to fetch branches: ${res.body}');
+    }
+    final List branches = jsonDecode(res.body);
+    return branches.map<String>((b) => b['name'] as String).toList();
+  }
 } 
