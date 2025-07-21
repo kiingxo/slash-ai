@@ -10,9 +10,7 @@ class OpenAIService {
 
   Future<String> getCodeSuggestion({required String prompt, required List<Map<String, String>> files}) async {
     final systemPrompt = files.isNotEmpty
-        ? 'You are an expert code assistant. User prompt: $prompt\nRelevant files:\n' +
-            files.map((f) => 'File: ${f['name']}\n${f['content']}\n---').join('\n') +
-            '\nSuggest minimal, high-quality code changes. Output only the code diff and a short summary.'
+        ? 'You are an expert code assistant. User prompt: $prompt\nRelevant files:\n${files.map((f) => 'File: ${f['name']}\n${f['content']}\n---').join('\n')}\nSuggest minimal, high-quality code changes. Output only the code diff and a short summary.'
         : 'You are an expert code assistant. User prompt: $prompt';
     final requestBody = {
       'model': model,

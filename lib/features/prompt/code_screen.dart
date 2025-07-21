@@ -5,6 +5,8 @@ import '../file_browser/file_browser_controller.dart';
 import '../../ui/screens/settings_screen.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:highlight/languages/dart.dart';
+import '../../services/secure_storage_service.dart';
+import '../../services/github_service.dart';
 
 class CodeScreen extends ConsumerStatefulWidget {
   const CodeScreen({super.key});
@@ -20,11 +22,33 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
   bool _isLoading = false;
   late CodeController _codeController;
   bool _sidebarExpanded = false;
+  
+  // Add branch state
+  List<String> _branches = [];
+  String? _selectedBranch;
+  bool _isCommitting = false;
 
   @override
   void initState() {
     super.initState();
     _codeController = CodeController(text: '', language: dart);
+  }
+
+  Future<void> _fetchBranchesForRepo(dynamic repo) async {
+    if (repo == null) return;
+    setState(() { _branches = []; _selectedBranch = null; });
+    try {
+      final storage = SecureStorageService();
+      final pat = await storage.getApiKey('github_pat');
+      final github = GitHubService(pat!);
+      final branches = await github.fetchBranches(owner: repo['owner']['login'], repo: repo['name']);
+      setState(() {
+        _branches = branches;
+        _selectedBranch = branches.contains('main') ? 'main' : (branches.isNotEmpty ? branches[0] : null);
+      });
+    } catch (e) {
+      setState(() { _branches = []; _selectedBranch = null; });
+    }
   }
 
   @override
@@ -68,6 +92,59 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     }
   }
 
+  Future<void> _commitAndPushFile() async {
+    if (_selectedFilePath == null || _fileContent == null || _selectedRepo == null || _selectedBranch == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No file selected or missing branch/repo.')));
+      return;
+    }
+    final commitMessage = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        String msg = '';
+        return AlertDialog(
+          title: const Text('Commit Message'),
+          content: TextField(
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Enter commit message'),
+            onChanged: (val) => msg = val,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(msg),
+              child: const Text('Commit'),
+            ),
+          ],
+        );
+      },
+    );
+    if (commitMessage == null || commitMessage.trim().isEmpty) return;
+    setState(() { _isCommitting = true; });
+    try {
+      final storage = SecureStorageService();
+      final pat = await storage.getApiKey('github_pat');
+      final github = GitHubService(pat!);
+      final owner = _selectedRepo['owner']['login'];
+      final repoName = _selectedRepo['name'];
+      await github.commitFile(
+        owner: owner,
+        repo: repoName,
+        branch: _selectedBranch!,
+        path: _selectedFilePath!,
+        content: _fileContent!,
+        message: commitMessage,
+      );
+      setState(() { _isCommitting = false; });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commit & push successful!')));
+    } catch (e) {
+      setState(() { _isCommitting = false; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Commit failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repoState = ref.watch(repoControllerProvider);
@@ -75,42 +152,56 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     final selectedRepo = _selectedRepo ?? repoState.selectedRepo ?? (repos.isNotEmpty ? repos[0] : null);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final params = selectedRepo != null ? RepoParams(owner: selectedRepo['owner']['login'], repo: selectedRepo['name']) : null;
+    final params = selectedRepo != null ? RepoParams(owner: selectedRepo['owner']['login'], repo: selectedRepo['name'], branch: _selectedBranch) : null;
     final fileBrowserState = params != null ? ref.watch(fileBrowserControllerProvider(params)) : null;
-    final Widget _emptyTitle = const SizedBox.shrink();
+    final Widget emptyTitle = const SizedBox.shrink();
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF23232A) : Colors.white,
         elevation: 1,
-        title: Row(
-          children: [
-            const Icon(Icons.code, color: Color(0xFF8B5CF6)),
-            const SizedBox(width: 12),
-            Text('Code Editor', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 24),
-            if (repos.isNotEmpty)
-              DropdownButton<dynamic>(
-                value: selectedRepo,
-                items: repos.map<DropdownMenuItem<dynamic>>((repo) {
-                  return DropdownMenuItem<dynamic>(
-                    value: repo,
-                    child: Text(repo['full_name'] ?? repo['name']),
-                  );
-                }).toList(),
-                onChanged: (repo) {
-                  setState(() {
-                    _selectedRepo = repo;
-                    _selectedFilePath = null;
-                    _fileContent = null;
-                  });
-                },
-                style: theme.textTheme.bodyMedium,
-                dropdownColor: theme.cardColor,
-              ),
-          ],
+        title: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              const Icon(Icons.code, color: Color(0xFF8B5CF6)),
+              const SizedBox(width: 12),
+              Text('Code Editor', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(width: 24),
+              if (repos.isNotEmpty)
+                DropdownButton<dynamic>(
+                  value: selectedRepo,
+                  items: repos.map<DropdownMenuItem<dynamic>>((repo) {
+                    return DropdownMenuItem<dynamic>(
+                      value: repo,
+                      child: Text(repo['full_name'] ?? repo['name']),
+                    );
+                  }).toList(),
+                  onChanged: (repo) {
+                    setState(() {
+                      _selectedRepo = repo;
+                      _selectedFilePath = null;
+                      _fileContent = null;
+                    });
+                    _fetchBranchesForRepo(repo);
+                  },
+                  style: theme.textTheme.bodyMedium,
+                  dropdownColor: theme.cardColor,
+                ),
+              const SizedBox(width: 12),
+              // Branch dropdown removed from AppBar for mobile FAB UX
+            ],
+          ),
         ),
       ),
+      floatingActionButton: (_branches.isNotEmpty && selectedRepo != null)
+          ? FloatingActionButton(
+              heroTag: 'branch_fab',
+              child: Icon(Icons.alt_route),
+              tooltip: 'Switch Branch',
+              onPressed: () => _showBranchPicker(context),
+            )
+          : null,
       body: Row(
         children: [
           // File browser sidebar
@@ -141,6 +232,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                               child: const CircularProgressIndicator(),
                             )
                           : ListView(
+                              shrinkWrap: true,
                               children: fileBrowserState.items.map((item) {
                                 if (_sidebarExpanded) {
                                   // Expanded: ListTile with icon and name
@@ -235,13 +327,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                               controller: _codeController,
                               textStyle: const TextStyle(fontFamily: 'Fira Mono', fontSize: 15, color: Colors.white),
                               expands: true,
-                              lineNumberStyle: LineNumberStyle(
-                                width: 32,
-                                textAlign: TextAlign.right,
-                                textStyle: TextStyle(color: isDark ? const Color(0xFF8B949E) : Colors.grey[600]!, fontSize: 12, fontFamily: 'Fira Mono'),
-                                background: isDark ? const Color(0xFF23232A) : Colors.grey[200]!,
-                                margin: 6.0,
-                              ),
+                              gutterStyle: GutterStyle.none,
                               background: Colors.transparent,
                             ),
                           ),
@@ -256,36 +342,31 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                         ),
                         child: Row(
                           children: [
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.save),
-                              label: const Text('Save'),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.save, size: 16),
+                              label: const Text('Save', style: TextStyle(fontSize: 13)),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(32, 32),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              ),
                               onPressed: () {
                                 // TODO: Save logic (stage changes)
                               },
                             ),
-                            const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.upload),
-                              label: const Text('Commit & Push'),
-                              onPressed: () {
-                                // TODO: Commit & push logic
-                              },
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.upload, size: 16),
+                              label: _isCommitting
+                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Text('Commit & Push', style: TextStyle(fontSize: 13)),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(32, 32),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              ),
+                              onPressed: _isCommitting ? null : _commitAndPushFile,
                             ),
                             const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.merge_type),
-                              label: const Text('Open PR'),
-                              onPressed: () {
-                                // TODO: Open PR logic
-                              },
-                            ),
-                            const Spacer(),
-                            TextButton(
-                              child: const Text('Discard Changes', style: TextStyle(color: Colors.red)),
-                              onPressed: () {
-                                // TODO: Discard logic
-                              },
-                            ),
+                           
                           ],
                         ),
                       ),
@@ -294,6 +375,61 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showBranchPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final maxHeight = MediaQuery.of(context).size.height * 0.6;
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: maxHeight,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text('Switch Branch', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _branches.length,
+                    itemBuilder: (context, index) {
+                      final branch = _branches[index];
+                      return ListTile(
+                        leading: branch == _selectedBranch
+                            ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
+                            : null,
+                        title: Text(branch, style: TextStyle(fontWeight: branch == _selectedBranch ? FontWeight.bold : FontWeight.normal)),
+                        onTap: () {
+                          setState(() {
+                            _selectedBranch = branch;
+                            _selectedFilePath = null;
+                            _fileContent = null;
+                          });
+                          // Optionally trigger a file browser refresh
+                          final repo = _selectedRepo ?? (_branches.isNotEmpty ? _selectedRepo : null);
+                          if (repo != null) {
+                            final params = RepoParams(owner: repo['owner']['login'], repo: repo['name'], branch: branch);
+                            ref.read(fileBrowserControllerProvider(params).notifier).fetchDir();
+                          }
+                          Navigator.of(context).pop();
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 } 

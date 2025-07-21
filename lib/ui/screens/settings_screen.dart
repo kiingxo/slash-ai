@@ -25,7 +25,7 @@ class SettingsScreen extends ConsumerWidget {
     String mask(String? value) {
       if (value == null || value.isEmpty) return 'Not set';
       if (value.length <= 6) return '*' * value.length;
-      return value.substring(0, 3) + '***' + value.substring(value.length - 3);
+      return '${value.substring(0, 3)}***${value.substring(value.length - 3)}';
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (authState.isLoading) {

@@ -6,7 +6,8 @@ import '../../services/secure_storage_service.dart';
 class RepoParams {
   final String owner;
   final String repo;
-  const RepoParams({required this.owner, required this.repo});
+  final String? branch;
+  const RepoParams({required this.owner, required this.repo, this.branch});
 
   @override
   bool operator ==(Object other) =>
@@ -68,14 +69,15 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
   final SecureStorageService _storage;
   final String owner;
   final String repo;
-  FileBrowserController(this._storage, {required this.owner, required this.repo}) : super(FileBrowserState()) {
+  final String? branch;
+  FileBrowserController(this._storage, {required this.owner, required this.repo, this.branch}) : super(FileBrowserState()) {
     fetchDir();
   }
 
   String get currentPath => state.pathStack.isEmpty ? '' : state.pathStack.join('/');
 
   Future<void> fetchDir([String? path]) async {
-    print('FileBrowser: fetchDir called for owner=$owner, repo=$repo, path=${path ?? currentPath}');
+    print('FileBrowser: fetchDir called for owner=$owner, repo=$repo, branch=$branch, path=${path ?? currentPath}');
     state = state.copyWith(isLoading: true, error: null);
     try {
       final pat = await _storage.getApiKey('github_pat');
@@ -84,7 +86,7 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
         baseUrl: 'https://api.github.com/',
         headers: {'Authorization': 'token $pat'},
       ));
-      final endpoint = '/repos/$owner/$repo/contents/${path ?? currentPath}';
+      final endpoint = '/repos/$owner/$repo/contents/${path ?? currentPath}${branch != null ? '?ref=$branch' : ''}';
       print('FileBrowser: GET $endpoint');
       final res = await dio.get(endpoint);
       final data = res.data;
@@ -130,7 +132,8 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
           baseUrl: 'https://api.github.com/',
           headers: {'Authorization': 'token $pat'},
         ));
-        final res = await dio.get('/repos/$owner/$repo/contents/${file.path}');
+        final branchQuery = branch != null ? '?ref=$branch' : '';
+        final res = await dio.get('/repos/$owner/$repo/contents/${file.path}$branchQuery');
         final content = res.data['content'];
         final decoded = String.fromCharCodes(
           base64Decode(content.replaceAll('\n', '')),
@@ -142,7 +145,9 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
           content: decoded,
         );
         final newSelected = List<FileItem>.from(state.selectedFiles)..add(updatedFile);
-        state = state.copyWith(selectedFiles: newSelected);
+        // Also update the items list so the file browser and code editor see the new content
+        final newItems = state.items.map((f) => f.path == file.path ? updatedFile : f).toList();
+        state = state.copyWith(selectedFiles: newSelected, items: newItems);
       } catch (e, st) {
         print('File select error: $e\n$st');
         state = state.copyWith(error: e.toString());
@@ -161,7 +166,7 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
   // Recursively list all files in the repo, with depth and file count limits
   Future<List<FileItem>> listAllFiles({int maxDepth = 5, int maxFiles = 200}) async {
     final List<FileItem> allFiles = [];
-    Future<void> _recurse(String path, int depth) async {
+    Future<void> recurse(String path, int depth) async {
       if (depth > maxDepth || allFiles.length > maxFiles) return;
       final pat = await _storage.getApiKey('github_pat');
       if (pat == null || pat.isEmpty) throw Exception('GitHub PAT not found');
@@ -179,13 +184,13 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
             allFiles.add(item);
             if (allFiles.length >= maxFiles) return;
           } else if (item.type == 'dir') {
-            await _recurse(item.path, depth + 1);
+            await recurse(item.path, depth + 1);
             if (allFiles.length >= maxFiles) return;
           }
         }
       }
     }
-    await _recurse('', 0);
+    await recurse('', 0);
     return allFiles;
   }
 }
@@ -195,5 +200,6 @@ final fileBrowserControllerProvider = StateNotifierProvider.family<FileBrowserCo
     SecureStorageService(),
     owner: params.owner,
     repo: params.repo,
+    branch: params.branch,
   );
 }); 

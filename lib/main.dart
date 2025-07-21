@@ -86,9 +86,11 @@ class _SplashGateState extends State<SplashGate> {
   Future<void> _init() async {
     await Future.delayed(const Duration(seconds: 2));
     final tokens = await widget.hasTokens();
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _hasTokens = tokens;
     });
+    }
   }
 
   @override

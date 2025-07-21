@@ -6,11 +6,12 @@ import '../../common/widgets/widgets.dart';
 class FileBrowserPage extends ConsumerWidget {
   final String owner;
   final String repo;
-  const FileBrowserPage({super.key, required this.owner, required this.repo});
+  final String? branch;
+  const FileBrowserPage({super.key, required this.owner, required this.repo, this.branch});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final params = RepoParams(owner: owner, repo: repo);
+    final params = RepoParams(owner: owner, repo: repo, branch: branch);
     final state = ref.watch(fileBrowserControllerProvider(params));
     final controller = ref.read(fileBrowserControllerProvider(params).notifier);
 
