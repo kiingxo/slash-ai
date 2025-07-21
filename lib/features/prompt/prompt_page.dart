@@ -508,6 +508,9 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         repoState.selectedRepo ??
         (repos.isNotEmpty ? repos[0] : null);
 
+    if (repoState.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (repos.isEmpty) {
       return Center(
         child: Text('No repositories found.', style: TextStyle(fontSize: 18)),

@@ -6,33 +6,29 @@ import 'home_shell.dart';
 import 'services/secure_storage_service.dart';
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'features/repo/repo_controller.dart';
 
 void main() {
   runApp(const ProviderScope(child: SlashApp()));
 }
 
 class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
+  final bool showLoader;
+  const SplashScreen({super.key, this.showLoader = false});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:  Color(0xFF000000),
+      backgroundColor: Color(0xFF000000),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset('assets/slash2.png', width: 200, height: 200),
             const SizedBox(height: 50),
-            // Text(
-            //   '/slash',
-            //   style: TextStyle(
-            //     color: Colors.white,
-            //     fontSize: 32,
-            //     fontWeight: FontWeight.bold,
-            //     letterSpacing: 2,
-            //   ),
-            // ),
+            if (showLoader)
+              const CircularProgressIndicator(),
           ],
         ),
       ),
@@ -76,6 +72,7 @@ class SplashGate extends StatefulWidget {
 
 class _SplashGateState extends State<SplashGate> {
   bool? _hasTokens;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -84,19 +81,26 @@ class _SplashGateState extends State<SplashGate> {
   }
 
   Future<void> _init() async {
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 1));
     final tokens = await widget.hasTokens();
+    if (tokens) {
+      // Wait for repos to load
+      final container = ProviderScope.containerOf(context, listen: false);
+      final repoController = container.read(repoControllerProvider.notifier);
+      await repoController.whenLoaded;
+    }
     if (mounted) {
       setState(() {
-      _hasTokens = tokens;
-    });
+        _hasTokens = tokens;
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_hasTokens == null) {
-      return const SplashScreen();
+    if (_isLoading) {
+      return const SplashScreen(showLoader: true);
     }
     return _hasTokens!
         ? const HomeShell()

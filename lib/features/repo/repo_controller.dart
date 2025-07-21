@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../services/secure_storage_service.dart';
+import 'dart:async';
 
 class RepoState {
   final bool isLoading;
@@ -19,6 +20,8 @@ class RepoState {
 
 class RepoController extends StateNotifier<RepoState> {
   final SecureStorageService _storage;
+  final Completer<void> _loaded = Completer<void>();
+  Future<void> get whenLoaded => _loaded.future;
   RepoController(this._storage) : super(RepoState()) {
     fetchRepos();
   }
@@ -37,9 +40,11 @@ class RepoController extends StateNotifier<RepoState> {
       final res = await dio.get('/user/repos');
       print('Repos fetched:  res.data.length repos');
       state = state.copyWith(isLoading: false, repos: res.data);
+      if (!_loaded.isCompleted) _loaded.complete();
     } catch (e) {
       print('Error fetching repos: $e');
       state = state.copyWith(isLoading: false, error: e.toString());
+      if (!_loaded.isCompleted) _loaded.complete();
     }
   }
 
