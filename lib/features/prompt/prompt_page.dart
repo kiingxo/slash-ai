@@ -15,6 +15,9 @@ import '../../services/openai_service.dart';
 import '../../features/file_browser/file_browser_controller.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:highlight/languages/dart.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'code_screen.dart';
+final tabIndexProvider = StateProvider<int>((ref) => 1); // 1 = prompt, 2 = code
 
 // Message model for chat
 class ChatMessage {
@@ -821,43 +824,37 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blueAccent),
                     tooltip: 'Edit code',
-                    onPressed:
-                        _isLoading
-                            ? null
-                            : () async {
-                              final edited = await Navigator.of(
-                                context,
-                              ).push<String>(
-                                MaterialPageRoute(
-                                  builder:
-                                      (ctx) => CodeEditorScreen(
-                                        fileName: review.fileName,
-                                        initialCode: review.newContent,
-                                      ),
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Manual Edit'),
+                                content: const Text(
+                                  'You will be routed to the code editor to manually edit the AI\'s output.\n\nAfter editing, tap the green check to save your changes.',
                                 ),
-                              );
-                              if (edited != null) {
-                                setState(() {
-                                  // Update the review in the chat message list as well
-                                  _pendingReview = ReviewData(
-                                    fileName: review.fileName,
-                                    oldContent: review.oldContent,
-                                    newContent: edited,
-                                    summary: review.summary,
-                                  );
-                                  // Update the latest ChatMessage with the new review
-                                  if (_messages.isNotEmpty &&
-                                      _messages.last.review != null) {
-                                    _messages[_messages.length -
-                                        1] = ChatMessage(
-                                      isUser: false,
-                                      text: summary,
-                                      review: _pendingReview,
-                                    );
-                                  }
-                                });
-                              }
-                            },
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.of(ctx).pop(true),
+                                    child: const Text('Continue'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm != true) return;
+                            // Set the external edit request and switch to code tab
+                            final container = ProviderScope.containerOf(context, listen: false);
+                            container.read(externalEditRequestProvider.notifier).state = ExternalEditRequest(
+                              fileName: review.fileName,
+                              code: review.newContent,
+                            );
+                            container.read(tabIndexProvider.notifier).state = 2; // Switch to code tab
+                          },
                   ),
                   const SizedBox(width: 8),
                   IconButton(

@@ -8,6 +8,15 @@ import 'package:highlight/languages/dart.dart';
 import '../../services/secure_storage_service.dart';
 import '../../services/github_service.dart';
 
+// Provider for external edit requests
+final externalEditRequestProvider = StateProvider<ExternalEditRequest?>((ref) => null);
+
+class ExternalEditRequest {
+  final String fileName;
+  final String code;
+  ExternalEditRequest({required this.fileName, required this.code});
+}
+
 class CodeScreen extends ConsumerStatefulWidget {
   const CodeScreen({super.key});
 
@@ -32,6 +41,24 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
   void initState() {
     super.initState();
     _codeController = CodeController(text: '', language: dart);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen for external edit requests
+    final req = ref.read(externalEditRequestProvider);
+    if (req != null) {
+      setState(() {
+        _selectedFilePath = req.fileName;
+        _fileContent = req.code;
+        _codeController.text = req.code;
+      });
+      // Clear the request after handling
+      Future.microtask(() {
+        ref.read(externalEditRequestProvider.notifier).state = null;
+      });
+    }
   }
 
   Future<void> _fetchBranchesForRepo(dynamic repo) async {
