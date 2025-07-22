@@ -224,7 +224,9 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
           IconButton(
             icon: const Icon(Icons.keyboard_hide),
             tooltip: 'Hide Keyboard',
-            onPressed: () => FocusScope.of(context).unfocus(),
+            onPressed: (){
+               FocusScope.of(context).unfocus();
+            },
           ),
         ],
       ),

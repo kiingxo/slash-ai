@@ -17,6 +17,7 @@ import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:highlight/languages/dart.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'code_screen.dart';
+
 final tabIndexProvider = StateProvider<int>((ref) => 1); // 1 = prompt, 2 = code
 
 // Message model for chat
@@ -56,7 +57,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   final List<ChatMessage> _messages = [
     ChatMessage(
       isUser: false,
-      text: "Hi! I'm /slash 🤖. How can I help you today?",
+      text: "Hi! I'm /slash. How can I help you today?",
     ),
   ];
   bool _reviewExpanded = false;
@@ -94,9 +95,10 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     required String pat,
   }) async {
     final branch = _selectedBranch;
-    final url = branch != null
-        ? 'https://api.github.com/repos/$owner/$repo/contents/?ref=$branch'
-        : 'https//api.github.com/repos/$owner/$repo/contents';
+    final url =
+        branch != null
+            ? 'https://api.github.com/repos/$owner/$repo/contents/?ref=$branch'
+            : 'https//api.github.com/repos/$owner/$repo/contents';
     final res = await http.get(
       Uri.parse(url),
       headers: {
@@ -215,7 +217,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         // 2. Get code-only output for review/commit
         final oldContent = files.isNotEmpty ? files[0]['content']! : '';
         final codeEditPrompt =
-            'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' 'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
+            'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n'
+                'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
             'Original content:\n$oldContent\n' +
             'User request: $prompt';
         var newContent = await aiService.getCodeSuggestion(
@@ -328,7 +331,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       // 2. Get code-only output for review/commit
       final oldContent = files.isNotEmpty ? files[0]['content']! : '';
       final codeEditPrompt =
-          'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n' 'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
+          'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n'
+              'File: ${files.isNotEmpty ? files[0]['name']! : 'unknown.dart'}\n' +
           'Original content:\n$oldContent\n' +
           'User request: $prompt';
       var newContent = await aiService.getCodeSuggestion(
@@ -341,7 +345,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         fileName: fileName,
         oldContent: oldContent,
         newContent: newContent,
-            summary: summary,
+        summary: summary,
       );
       setState(() {
         _isLoading = false;
@@ -369,7 +373,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       _isLoading = true;
       _error = null;
     });
-              try {
+    try {
       final storage = SecureStorageService();
       final githubPat = await storage.getApiKey('github_pat');
       final repo =
@@ -405,7 +409,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         _isLoading = false;
         _messages.add(
           ChatMessage(isUser: false, text: 'Pull request created! $prUrl'),
-                );
+        );
         _pendingReview = null;
       });
     } catch (e) {
@@ -441,7 +445,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   ? '${file.content!.substring(0, 200)}...'
                   : file.content,
         });
-    }
+      }
     }
     setState(() {
       _searchResults = results;
@@ -450,18 +454,30 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
   Future<void> _fetchBranchesForRepo(dynamic repo) async {
     if (repo == null) return;
-    setState(() { _branches = []; _selectedBranch = null; });
+    setState(() {
+      _branches = [];
+      _selectedBranch = null;
+    });
     try {
       final storage = SecureStorageService();
       final pat = await storage.getApiKey('github_pat');
       final github = GitHubService(pat!);
-      final branches = await github.fetchBranches(owner: repo['owner']['login'], repo: repo['name']);
+      final branches = await github.fetchBranches(
+        owner: repo['owner']['login'],
+        repo: repo['name'],
+      );
       setState(() {
         _branches = branches;
-        _selectedBranch = branches.contains('main') ? 'main' : (branches.isNotEmpty ? branches[0] : null);
+        _selectedBranch =
+            branches.contains('main')
+                ? 'main'
+                : (branches.isNotEmpty ? branches[0] : null);
       });
     } catch (e) {
-      setState(() { _branches = []; _selectedBranch = null; });
+      setState(() {
+        _branches = [];
+        _selectedBranch = null;
+      });
     }
   }
 
@@ -535,13 +551,13 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 onChanged: (val) {
                   if (val != null) setState(() => _selectedModel = val);
                 },
-                            style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium,
                 dropdownColor: Theme.of(context).cardColor,
               ),
             ),
-                          ),
-                        ],
-                      ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -553,12 +569,13 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                     child: DropdownButton<dynamic>(
                       value: selectedRepo,
                       isExpanded: true,
-                      items: repos.map<DropdownMenuItem<dynamic>>((repo) {
-                        return DropdownMenuItem<dynamic>(
-                          value: repo,
-                          child: Text(repo['full_name'] ?? repo['name']),
-                        );
-                      }).toList(),
+                      items:
+                          repos.map<DropdownMenuItem<dynamic>>((repo) {
+                            return DropdownMenuItem<dynamic>(
+                              value: repo,
+                              child: Text(repo['full_name'] ?? repo['name']),
+                            );
+                          }).toList(),
                       onChanged: (repo) {
                         setState(() => _selectedRepo = repo);
                         controller.selectRepo(repo);
@@ -570,12 +587,19 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   if (_branches.isNotEmpty)
                     DropdownButton<String>(
                       value: _selectedBranch,
-                      items: _branches.map((branch) => DropdownMenuItem<String>(
-                        value: branch,
-                        child: Text(branch),
-                      )).toList(),
+                      items:
+                          _branches
+                              .map(
+                                (branch) => DropdownMenuItem<String>(
+                                  value: branch,
+                                  child: Text(branch),
+                                ),
+                              )
+                              .toList(),
                       onChanged: (branch) {
-                        setState(() { _selectedBranch = branch; });
+                        setState(() {
+                          _selectedBranch = branch;
+                        });
                       },
                     ),
                 ],
@@ -641,11 +665,13 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                                     right: 8,
                                     top: 2,
                                   ),
-                                  child: Icon(
-                                    Icons.android,
-                                    size: 22,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
+                                  child: Text(
+                                    '🤖',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                    ),
                                   ),
                                 ),
                               Flexible(
@@ -691,7 +717,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 children: [
                   Expanded(
                     child: SlashTextField(
-                    controller: promptController,
+                      controller: promptController,
                       hint: 'Type a prompt…',
                       minLines: 1,
                       maxLines: 4,
@@ -827,37 +853,48 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blueAccent),
                     tooltip: 'Edit code',
-                    onPressed: _isLoading
-                        ? null
-                        : () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Manual Edit'),
-                                content: const Text(
-                                  'You will be routed to the code editor to manually edit the AI\'s output.\n\nAfter editing, tap the green check to save your changes.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () => Navigator.of(ctx).pop(true),
-                                    child: const Text('Continue'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm != true) return;
-                            // Set the external edit request and switch to code tab
-                            final container = ProviderScope.containerOf(context, listen: false);
-                            container.read(externalEditRequestProvider.notifier).state = ExternalEditRequest(
-                              fileName: review.fileName,
-                              code: review.newContent,
-                            );
-                            container.read(tabIndexProvider.notifier).state = 2; // Switch to code tab
-                          },
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder:
+                                    (ctx) => AlertDialog(
+                                      title: const Text('Manual Edit'),
+                                      content: const Text(
+                                        'You will be routed to the code editor to manually edit the AI\'s output.\n\nAfter editing, tap the green check to save your changes.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed:
+                                              () =>
+                                                  Navigator.of(ctx).pop(false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed:
+                                              () => Navigator.of(ctx).pop(true),
+                                          child: const Text('Continue'),
+                                        ),
+                                      ],
+                                    ),
+                              );
+                              if (confirm != true) return;
+                              // Set the external edit request and switch to code tab
+                              final container = ProviderScope.containerOf(
+                                context,
+                                listen: false,
+                              );
+                              container
+                                  .read(externalEditRequestProvider.notifier)
+                                  .state = ExternalEditRequest(
+                                fileName: review.fileName,
+                                code: review.newContent,
+                              );
+                              container.read(tabIndexProvider.notifier).state =
+                                  2; // Switch to code tab
+                            },
                   ),
                   const SizedBox(width: 8),
                   IconButton(
@@ -1301,4 +1338,4 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       ),
     );
   }
-} 
+}
