@@ -9,7 +9,9 @@ import '../../services/secure_storage_service.dart';
 import '../../services/github_service.dart';
 
 // Provider for external edit requests
-final externalEditRequestProvider = StateProvider<ExternalEditRequest?>((ref) => null);
+final externalEditRequestProvider = StateProvider<ExternalEditRequest?>(
+  (ref) => null,
+);
 
 class ExternalEditRequest {
   final String fileName;
@@ -31,7 +33,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
   bool _isLoading = false;
   late CodeController _codeController;
   bool _sidebarExpanded = false;
-  
+
   // Add branch state
   List<String> _branches = [];
   String? _selectedBranch;
@@ -63,18 +65,30 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
 
   Future<void> _fetchBranchesForRepo(dynamic repo) async {
     if (repo == null) return;
-    setState(() { _branches = []; _selectedBranch = null; });
+    setState(() {
+      _branches = [];
+      _selectedBranch = null;
+    });
     try {
       final storage = SecureStorageService();
       final pat = await storage.getApiKey('github_pat');
       final github = GitHubService(pat!);
-      final branches = await github.fetchBranches(owner: repo['owner']['login'], repo: repo['name']);
+      final branches = await github.fetchBranches(
+        owner: repo['owner']['login'],
+        repo: repo['name'],
+      );
       setState(() {
         _branches = branches;
-        _selectedBranch = branches.contains('main') ? 'main' : (branches.isNotEmpty ? branches[0] : null);
+        _selectedBranch =
+            branches.contains('main')
+                ? 'main'
+                : (branches.isNotEmpty ? branches[0] : null);
       });
     } catch (e) {
-      setState(() { _branches = []; _selectedBranch = null; });
+      setState(() {
+        _branches = [];
+        _selectedBranch = null;
+      });
     }
   }
 
@@ -86,11 +100,14 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
 
   Future<void> _loadFile(String path, RepoParams params) async {
     setState(() => _isLoading = true);
-    final fileBrowserController = ref.read(fileBrowserControllerProvider(params).notifier);
+    final fileBrowserController = ref.read(
+      fileBrowserControllerProvider(params).notifier,
+    );
     final state = ref.read(fileBrowserControllerProvider(params));
-    final file = state.items.where((f) => f.path == path).isNotEmpty
-        ? state.items.firstWhere((f) => f.path == path)
-        : null;
+    final file =
+        state.items.where((f) => f.path == path).isNotEmpty
+            ? state.items.firstWhere((f) => f.path == path)
+            : null;
     if (file != null && file.content != null) {
       setState(() {
         _selectedFilePath = path;
@@ -103,9 +120,10 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
       await fileBrowserController.selectFile(file);
       // Get the updated file from state
       final updatedState = ref.read(fileBrowserControllerProvider(params));
-      final updatedFile = updatedState.items.where((f) => f.path == path).isNotEmpty
-          ? updatedState.items.firstWhere((f) => f.path == path)
-          : null;
+      final updatedFile =
+          updatedState.items.where((f) => f.path == path).isNotEmpty
+              ? updatedState.items.firstWhere((f) => f.path == path)
+              : null;
       setState(() {
         _selectedFilePath = path;
         _fileContent = updatedFile?.content ?? '';
@@ -120,8 +138,15 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
   }
 
   Future<void> _commitAndPushFile() async {
-    if (_selectedFilePath == null || _fileContent == null || _selectedRepo == null || _selectedBranch == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No file selected or missing branch/repo.')));
+    if (_selectedFilePath == null ||
+        _fileContent == null ||
+        _selectedRepo == null ||
+        _selectedBranch == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No file selected or missing branch/repo.'),
+        ),
+      );
       return;
     }
     final commitMessage = await showDialog<String>(
@@ -149,7 +174,9 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
       },
     );
     if (commitMessage == null || commitMessage.trim().isEmpty) return;
-    setState(() { _isCommitting = true; });
+    setState(() {
+      _isCommitting = true;
+    });
     try {
       final storage = SecureStorageService();
       final pat = await storage.getApiKey('github_pat');
@@ -164,11 +191,19 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         content: _fileContent!,
         message: commitMessage,
       );
-      setState(() { _isCommitting = false; });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commit & push successful!')));
+      setState(() {
+        _isCommitting = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Commit & push successful!')),
+      );
     } catch (e) {
-      setState(() { _isCommitting = false; });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Commit failed: $e')));
+      setState(() {
+        _isCommitting = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Commit failed: $e')));
     }
   }
 
@@ -176,14 +211,28 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
   Widget build(BuildContext context) {
     final repoState = ref.watch(repoControllerProvider);
     final repos = repoState.repos;
-    final selectedRepo = _selectedRepo ?? repoState.selectedRepo ?? (repos.isNotEmpty ? repos[0] : null);
+    final selectedRepo =
+        _selectedRepo ??
+        repoState.selectedRepo ??
+        (repos.isNotEmpty ? repos[0] : null);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final params = selectedRepo != null ? RepoParams(owner: selectedRepo['owner']['login'], repo: selectedRepo['name'], branch: _selectedBranch) : null;
-    final fileBrowserState = params != null ? ref.watch(fileBrowserControllerProvider(params)) : null;
+    final params =
+        selectedRepo != null
+            ? RepoParams(
+              owner: selectedRepo['owner']['login'],
+              repo: selectedRepo['name'],
+              branch: _selectedBranch,
+            )
+            : null;
+    final fileBrowserState =
+        params != null
+            ? ref.watch(fileBrowserControllerProvider(params))
+            : null;
     final Widget emptyTitle = const SizedBox.shrink();
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
+      backgroundColor:
+          isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF23232A) : Colors.white,
         elevation: 1,
@@ -193,17 +242,21 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
             children: [
               const Icon(Icons.code, color: Color(0xFF8B5CF6)),
               const SizedBox(width: 12),
-              Text('Code Editor', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'Code Editor',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(width: 24),
               if (repos.isNotEmpty)
                 DropdownButton<dynamic>(
                   value: selectedRepo,
-                  items: repos.map<DropdownMenuItem<dynamic>>((repo) {
-                    return DropdownMenuItem<dynamic>(
-                      value: repo,
-                      child: Text(repo['full_name'] ?? repo['name']),
-                    );
-                  }).toList(),
+                  items:
+                      repos.map<DropdownMenuItem<dynamic>>((repo) {
+                        return DropdownMenuItem<dynamic>(
+                          value: repo,
+                          child: Text(repo['full_name'] ?? repo['name']),
+                        );
+                      }).toList(),
                   onChanged: (repo) {
                     setState(() {
                       _selectedRepo = repo;
@@ -220,24 +273,17 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
             ],
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.keyboard_hide),
-            tooltip: 'Hide Keyboard',
-            onPressed: (){
-               FocusScope.of(context).unfocus();
-            },
-          ),
-        ],
+        actions: [],
       ),
-      floatingActionButton: (_branches.isNotEmpty && selectedRepo != null)
-          ? FloatingActionButton(
-              heroTag: 'branch_fab',
-              child: Icon(Icons.alt_route),
-              tooltip: 'Switch Branch',
-              onPressed: () => _showBranchPicker(context),
-            )
-          : null,
+      floatingActionButton:
+          (_branches.isNotEmpty && selectedRepo != null)
+              ? FloatingActionButton(
+                heroTag: 'branch_fab',
+                child: Icon(Icons.alt_route),
+                tooltip: 'Switch Branch',
+                onPressed: () => _showBranchPicker(context),
+              )
+              : null,
       body: Row(
         children: [
           // File browser sidebar
@@ -251,181 +297,284 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: IconButton(
-                    icon: Icon(_sidebarExpanded ? Icons.chevron_left : Icons.chevron_right, size: 22),
+                    icon: Icon(
+                      _sidebarExpanded
+                          ? Icons.chevron_left
+                          : Icons.chevron_right,
+                      size: 22,
+                    ),
                     tooltip: _sidebarExpanded ? 'Collapse' : 'Expand',
-                    onPressed: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
+                    onPressed:
+                        () => setState(
+                          () => _sidebarExpanded = !_sidebarExpanded,
+                        ),
                   ),
                 ),
                 Expanded(
-                  child: params == null
-                      ? Container(
-                          alignment: Alignment.center,
-                          child: const Text('No repo selected'),
-                        )
-                      : fileBrowserState == null || fileBrowserState.isLoading
+                  child:
+                      params == null
                           ? Container(
-                              alignment: Alignment.center,
-                              child: const CircularProgressIndicator(),
-                            )
+                            alignment: Alignment.center,
+                            child: const Text('No repo selected'),
+                          )
+                          : fileBrowserState == null ||
+                              fileBrowserState.isLoading
+                          ? Container(
+                            alignment: Alignment.center,
+                            child: const CircularProgressIndicator(),
+                          )
                           : Column(
-                              children: [
-                                if (fileBrowserState.pathStack.isNotEmpty)
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: IconButton(
-                                      icon: const Icon(Icons.arrow_back),
-                                      tooltip: 'Up',
-                                      onPressed: () {
-                                        ref.read(fileBrowserControllerProvider(params).notifier).goUp();
-                                      },
-                                    ),
+                            children: [
+                              if (fileBrowserState.pathStack.isNotEmpty)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.arrow_back),
+                                    tooltip: 'Up',
+                                    onPressed: () {
+                                      ref
+                                          .read(
+                                            fileBrowserControllerProvider(
+                                              params,
+                                            ).notifier,
+                                          )
+                                          .goUp();
+                                    },
                                   ),
-                                Expanded(
-                                  child: ListView(
-                                    shrinkWrap: true,
-                                    children: fileBrowserState.items.map((item) {
-                                      if (_sidebarExpanded) {
-                                    
-                                        return ListTile(
-                                          dense: true,
-                                          leading: Icon(
-                                            item.type == 'dir' ? Icons.folder : Icons.insert_drive_file,
-                                            color: item.type == 'dir' ? Colors.amber : Colors.blueAccent,
-                                          ),
-                                          
-                                          title: Text(
-                                            item.name,
-                                            style: item.type == 'dir'
-                                                ? const TextStyle(fontWeight: FontWeight.w500)
-                                                : null,
-                                          ),
-                                          selected: _selectedFilePath == item.path,
-                                          onTap: () {
-                                            if (item.type == 'dir') {
-                                              ref.read(fileBrowserControllerProvider(params).notifier).enterDir(item.name);
-                                            } else {
-                                              _loadFile(item.path, params);
-                                            }
-                                          },
-                                        );
-                                      } else {
-                                        // Collapsed: icon only, custom Container
-                                        return Container(
-                                          width: 48,
-                                          height: 40,
-                                          alignment: Alignment.center,
-                                          margin: const EdgeInsets.symmetric(vertical: 2),
-                                          child: InkWell(
-                                            borderRadius: BorderRadius.circular(8),
+                                ),
+                              Expanded(
+                                child: ListView(
+                                  shrinkWrap: true,
+                                  children:
+                                      fileBrowserState.items.map((item) {
+                                        if (_sidebarExpanded) {
+                                          return ListTile(
+                                            dense: true,
+                                            leading: Icon(
+                                              item.type == 'dir'
+                                                  ? Icons.folder
+                                                  : Icons.insert_drive_file,
+                                              color:
+                                                  item.type == 'dir'
+                                                      ? Colors.amber
+                                                      : Colors.blueAccent,
+                                            ),
+
+                                            title: Text(
+                                              item.name,
+                                              style:
+                                                  item.type == 'dir'
+                                                      ? const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      )
+                                                      : null,
+                                            ),
+                                            selected:
+                                                _selectedFilePath == item.path,
                                             onTap: () {
                                               if (item.type == 'dir') {
-                                                ref.read(fileBrowserControllerProvider(params).notifier).enterDir(item.name);
+                                                ref
+                                                    .read(
+                                                      fileBrowserControllerProvider(
+                                                        params,
+                                                      ).notifier,
+                                                    )
+                                                    .enterDir(item.name);
                                               } else {
                                                 _loadFile(item.path, params);
                                               }
                                             },
-                                            child: Icon(
-                                              item.type == 'dir' ? Icons.folder : Icons.insert_drive_file,
-                                              color: item.type == 'dir' ? Colors.amber : Colors.blueAccent,
+                                          );
+                                        } else {
+                                          // Collapsed: icon only, custom Container
+                                          return Container(
+                                            width: 48,
+                                            height: 40,
+                                            alignment: Alignment.center,
+                                            margin: const EdgeInsets.symmetric(
+                                              vertical: 2,
                                             ),
-                                          ),
-                                        );
-                                      }
-                                    }).toList(),
-                                  ),
+                                            child: InkWell(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              onTap: () {
+                                                if (item.type == 'dir') {
+                                                  ref
+                                                      .read(
+                                                        fileBrowserControllerProvider(
+                                                          params,
+                                                        ).notifier,
+                                                      )
+                                                      .enterDir(item.name);
+                                                } else {
+                                                  _loadFile(item.path, params);
+                                                }
+                                              },
+                                              child: Icon(
+                                                item.type == 'dir'
+                                                    ? Icons.folder
+                                                    : Icons.insert_drive_file,
+                                                color:
+                                                    item.type == 'dir'
+                                                        ? Colors.amber
+                                                        : Colors.blueAccent,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }).toList(),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
+                          ),
                 ),
               ],
             ),
           ),
           // Editor area
           Expanded(
-            child: _selectedFilePath == null
-                ? Center(
-                    child: Text(
-                      'Select a file to edit',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF23232A) : Colors.grey[100],
-                          border: Border(bottom: BorderSide(color: isDark ? Colors.grey[900]! : Colors.grey[300]!)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.insert_drive_file, color: Colors.blueAccent, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _selectedFilePath ?? '',
-                                style: const TextStyle(fontFamily: 'Fira Mono', fontSize: 15),
-                                overflow: TextOverflow.ellipsis,
+            child:
+                _selectedFilePath == null
+                    ? Center(
+                      child: Text(
+                        'Select a file to edit',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    )
+                    : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                isDark
+                                    ? const Color(0xFF23232A)
+                                    : Colors.grey[100],
+                            border: Border(
+                              bottom: BorderSide(
+                                color:
+                                    isDark
+                                        ? Colors.grey[900]!
+                                        : Colors.grey[300]!,
                               ),
                             ),
-                          ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.insert_drive_file,
+                                color: Colors.blueAccent,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _selectedFilePath ?? '',
+                                  style: const TextStyle(
+                                    fontFamily: 'Fira Mono',
+                                    fontSize: 15,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: CodeTheme(
-                            data: CodeThemeData(),
-                            child: CodeField(
-                              controller: _codeController,
-                              textStyle: const TextStyle(fontFamily: 'Fira Mono', fontSize: 15, color: Colors.white),
-                              expands: true,
-                              gutterStyle: GutterStyle.none,
-                              background: Colors.transparent,
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: CodeTheme(
+                              data: CodeThemeData(),
+                              child: CodeField(
+                                controller: _codeController,
+                                textStyle: const TextStyle(
+                                  fontFamily: 'Fira Mono',
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                ),
+                                expands: true,
+                                gutterStyle: GutterStyle.none,
+                                background: Colors.transparent,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      // Actions bar
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF23232A) : Colors.grey[100],
-                          border: Border(top: BorderSide(color: isDark ? Colors.grey[900]! : Colors.grey[300]!)),
-                        ),
-                        child: Row(
-                          children: [
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.save, size: 16),
-                              label: const Text('Save', style: TextStyle(fontSize: 13)),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(32, 32),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        // Actions bar
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                isDark
+                                    ? const Color(0xFF23232A)
+                                    : Colors.grey[100],
+                            border: Border(
+                              top: BorderSide(
+                                color:
+                                    isDark
+                                        ? Colors.grey[900]!
+                                        : Colors.grey[300]!,
                               ),
-                              onPressed: () {
-                                // TODO: Save logic (stage changes)
-                              },
                             ),
-                            const SizedBox(width: 8),
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.upload, size: 16),
-                              label: _isCommitting
-                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : const Text('Commit & Push', style: TextStyle(fontSize: 13)),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(32, 32),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          child: Row(
+                            children: [
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.keyboard_hide, size: 16),
+                                label: const Text(
+                                  'Hide keyboard',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(32, 32),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  FocusScope.of(context).unfocus();
+                                },
                               ),
-                              onPressed: _isCommitting ? null : _commitAndPushFile,
-                            ),
-                            const SizedBox(width: 12),
-                           
-                          ],
+                              const SizedBox(width: 8),
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.upload, size: 16),
+                                label:
+                                    _isCommitting
+                                        ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                        : const Text(
+                                          'Commit & Push',
+                                          style: TextStyle(fontSize: 13),
+                                        ),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(32, 32),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                ),
+                                onPressed:
+                                    _isCommitting ? null : _commitAndPushFile,
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
           ),
         ],
       ),
@@ -440,15 +589,16 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         final maxHeight = MediaQuery.of(context).size.height * 0.6;
         return SafeArea(
           child: Container(
-            constraints: BoxConstraints(
-              maxHeight: maxHeight,
-            ),
+            constraints: BoxConstraints(maxHeight: maxHeight),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Text('Switch Branch', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  child: Text(
+                    'Switch Branch',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
                 ),
                 Expanded(
                   child: ListView.builder(
@@ -456,10 +606,22 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                     itemBuilder: (context, index) {
                       final branch = _branches[index];
                       return ListTile(
-                        leading: branch == _selectedBranch
-                            ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
-                            : null,
-                        title: Text(branch, style: TextStyle(fontWeight: branch == _selectedBranch ? FontWeight.bold : FontWeight.normal)),
+                        leading:
+                            branch == _selectedBranch
+                                ? Icon(
+                                  Icons.check,
+                                  color: Theme.of(context).colorScheme.primary,
+                                )
+                                : null,
+                        title: Text(
+                          branch,
+                          style: TextStyle(
+                            fontWeight:
+                                branch == _selectedBranch
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                          ),
+                        ),
                         onTap: () {
                           setState(() {
                             _selectedBranch = branch;
@@ -467,10 +629,22 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                             _fileContent = null;
                           });
                           // Optionally trigger a file browser refresh
-                          final repo = _selectedRepo ?? (_branches.isNotEmpty ? _selectedRepo : null);
+                          final repo =
+                              _selectedRepo ??
+                              (_branches.isNotEmpty ? _selectedRepo : null);
                           if (repo != null) {
-                            final params = RepoParams(owner: repo['owner']['login'], repo: repo['name'], branch: branch);
-                            ref.read(fileBrowserControllerProvider(params).notifier).fetchDir();
+                            final params = RepoParams(
+                              owner: repo['owner']['login'],
+                              repo: repo['name'],
+                              branch: branch,
+                            );
+                            ref
+                                .read(
+                                  fileBrowserControllerProvider(
+                                    params,
+                                  ).notifier,
+                                )
+                                .fetchDir();
                           }
                           Navigator.of(context).pop();
                         },
@@ -486,4 +660,4 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
       },
     );
   }
-} 
+}
