@@ -96,7 +96,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final branch = _selectedBranch;
     final url = branch != null
         ? 'https://api.github.com/repos/$owner/$repo/contents/?ref=$branch'
-        : 'https://api.github.com/repos/$owner/$repo/contents/';
+        : 'https//api.github.com/repos/$owner/$repo/contents';
     final res = await http.get(
       Uri.parse(url),
       headers: {

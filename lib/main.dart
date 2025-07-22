@@ -91,9 +91,9 @@ class _SplashGateState extends State<SplashGate> {
     }
     if (mounted) {
       setState(() {
-        _hasTokens = tokens;
+      _hasTokens = tokens;
         _isLoading = false;
-      });
+    });
     }
   }
 

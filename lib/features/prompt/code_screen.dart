@@ -220,6 +220,13 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
             ],
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.keyboard_hide),
+            tooltip: 'Hide Keyboard',
+            onPressed: () => FocusScope.of(context).unfocus(),
+          ),
+        ],
       ),
       floatingActionButton: (_branches.isNotEmpty && selectedRepo != null)
           ? FloatingActionButton(
@@ -258,56 +265,74 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                               alignment: Alignment.center,
                               child: const CircularProgressIndicator(),
                             )
-                          : ListView(
-                              shrinkWrap: true,
-                              children: fileBrowserState.items.map((item) {
-                                if (_sidebarExpanded) {
-                                  // Expanded: ListTile with icon and name
-                                  return ListTile(
-                                    dense: true,
-                                    leading: Icon(
-                                      item.type == 'dir' ? Icons.folder : Icons.insert_drive_file,
-                                      color: item.type == 'dir' ? Colors.amber : Colors.blueAccent,
-                                    ),
-                                    title: Text(
-                                      item.name,
-                                      style: item.type == 'dir'
-                                          ? const TextStyle(fontWeight: FontWeight.w500)
-                                          : null,
-                                    ),
-                                    selected: _selectedFilePath == item.path,
-                                    onTap: () {
-                                      if (item.type == 'dir') {
-                                        ref.read(fileBrowserControllerProvider(params).notifier).enterDir(item.name);
-                                      } else {
-                                        _loadFile(item.path, params);
-                                      }
-                                    },
-                                  );
-                                } else {
-                                  // Collapsed: icon only, custom Container
-                                  return Container(
-                                    width: 48,
-                                    height: 40,
-                                    alignment: Alignment.center,
-                                    margin: const EdgeInsets.symmetric(vertical: 2),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(8),
-                                      onTap: () {
-                                        if (item.type == 'dir') {
-                                          ref.read(fileBrowserControllerProvider(params).notifier).enterDir(item.name);
-                                        } else {
-                                          _loadFile(item.path, params);
-                                        }
+                          : Column(
+                              children: [
+                                if (fileBrowserState.pathStack.isNotEmpty)
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.arrow_back),
+                                      tooltip: 'Up',
+                                      onPressed: () {
+                                        ref.read(fileBrowserControllerProvider(params).notifier).goUp();
                                       },
-                                      child: Icon(
-                                        item.type == 'dir' ? Icons.folder : Icons.insert_drive_file,
-                                        color: item.type == 'dir' ? Colors.amber : Colors.blueAccent,
-                                      ),
                                     ),
-                                  );
-                                }
-                              }).toList(),
+                                  ),
+                                Expanded(
+                                  child: ListView(
+                                    shrinkWrap: true,
+                                    children: fileBrowserState.items.map((item) {
+                                      if (_sidebarExpanded) {
+                                    
+                                        return ListTile(
+                                          dense: true,
+                                          leading: Icon(
+                                            item.type == 'dir' ? Icons.folder : Icons.insert_drive_file,
+                                            color: item.type == 'dir' ? Colors.amber : Colors.blueAccent,
+                                          ),
+                                          
+                                          title: Text(
+                                            item.name,
+                                            style: item.type == 'dir'
+                                                ? const TextStyle(fontWeight: FontWeight.w500)
+                                                : null,
+                                          ),
+                                          selected: _selectedFilePath == item.path,
+                                          onTap: () {
+                                            if (item.type == 'dir') {
+                                              ref.read(fileBrowserControllerProvider(params).notifier).enterDir(item.name);
+                                            } else {
+                                              _loadFile(item.path, params);
+                                            }
+                                          },
+                                        );
+                                      } else {
+                                        // Collapsed: icon only, custom Container
+                                        return Container(
+                                          width: 48,
+                                          height: 40,
+                                          alignment: Alignment.center,
+                                          margin: const EdgeInsets.symmetric(vertical: 2),
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(8),
+                                            onTap: () {
+                                              if (item.type == 'dir') {
+                                                ref.read(fileBrowserControllerProvider(params).notifier).enterDir(item.name);
+                                              } else {
+                                                _loadFile(item.path, params);
+                                              }
+                                            },
+                                            child: Icon(
+                                              item.type == 'dir' ? Icons.folder : Icons.insert_drive_file,
+                                              color: item.type == 'dir' ? Colors.amber : Colors.blueAccent,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    }).toList(),
+                                  ),
+                                ),
+                              ],
                             ),
                 ),
               ],

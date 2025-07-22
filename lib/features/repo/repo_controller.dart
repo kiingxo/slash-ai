@@ -28,6 +28,7 @@ class RepoController extends StateNotifier<RepoState> {
 
   Future<void> fetchRepos() async {
     print('Fetching repos...');
+    
     state = state.copyWith(isLoading: true, error: null);
     try {
       final patRaw = await _storage.getApiKey('github_pat');
