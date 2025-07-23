@@ -267,7 +267,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                   style: theme.textTheme.bodyMedium,
                   dropdownColor: theme.cardColor,
                 ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 5),
               // Branch dropdown removed from AppBar for mobile FAB UX
             ],
           ),
@@ -305,11 +305,6 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                 style: theme.textTheme.bodyMedium,
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.keyboard_hide),
-            tooltip: 'Hide Keyboard',
-            onPressed: () => FocusScope.of(context).unfocus(),
-          ),
         ],
       ),
       floatingActionButton:
@@ -568,9 +563,9 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                           child: Row(
                             children: [
                               OutlinedButton.icon(
-                                icon: const Icon(Icons.save, size: 16),
+                                icon: const Icon(Icons.keyboard_hide, size: 16),
                                 label: const Text(
-                                  'Save',
+                                  'Hide Keyboard',
                                   style: TextStyle(fontSize: 13),
                                 ),
                                 style: OutlinedButton.styleFrom(
@@ -581,7 +576,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                                   ),
                                 ),
                                 onPressed: () {
-                                  // TODO: Save logic (stage changes)
+                                  FocusScope.of(context).unfocus();
                                 },
                               ),
                               const SizedBox(width: 8),
