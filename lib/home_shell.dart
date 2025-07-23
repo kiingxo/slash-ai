@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/repo/repo_page.dart';
 import 'features/prompt/prompt_page.dart';
-import 'features/prompt/code_screen.dart';
+import 'features/prompt/code_page.dart';
 
 import 'ui/screens/settings_screen.dart';
 
