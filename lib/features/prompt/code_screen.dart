@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
-import '../../ui/screens/settings_screen.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:highlight/languages/dart.dart';
 import '../../services/secure_storage_service.dart';
@@ -273,20 +272,62 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
             ],
           ),
         ),
-        actions: [],
+        actions: [
+          if (_branches.isNotEmpty)
+            DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedBranch,
+                hint: const Text('Branch'),
+                onChanged: (branch) {
+                  setState(() {
+                    _selectedBranch = branch;
+                    _selectedFilePath = null;
+                    _fileContent = null;
+                  });
+
+                  if (selectedRepo != null && branch != null) {
+                    final params = RepoParams(
+                      owner: selectedRepo['owner']['login'],
+                      repo: selectedRepo['name'],
+                      branch: branch,
+                    );
+                    ref
+                        .read(fileBrowserControllerProvider(params).notifier)
+                        .fetchDir();
+                  }
+                },
+                items:
+                    _branches.map((b) {
+                      return DropdownMenuItem(value: b, child: Text(b));
+                    }).toList(),
+                dropdownColor: theme.cardColor,
+                icon: const Icon(Icons.alt_route),
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_hide),
+            tooltip: 'Hide Keyboard',
+            onPressed: () => FocusScope.of(context).unfocus(),
+          ),
+        ],
       ),
       floatingActionButton:
           (_branches.isNotEmpty && selectedRepo != null)
               ? FloatingActionButton(
                 heroTag: 'branch_fab',
-                child: Icon(Icons.alt_route),
-                tooltip: 'Switch Branch',
-                onPressed: () => _showBranchPicker(context),
+                tooltip: 'AI Assistant (coming soon)',
+                onPressed: () {
+                  // Placeholder action
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Bot feature coming soon!')),
+                  );
+                },
+                child: const Text('🤖', style: TextStyle(fontSize: 24)),
               )
               : null,
       body: Row(
         children: [
-          // File browser sidebar
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeInOut,
@@ -527,9 +568,9 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                           child: Row(
                             children: [
                               OutlinedButton.icon(
-                                icon: const Icon(Icons.keyboard_hide, size: 16),
+                                icon: const Icon(Icons.save, size: 16),
                                 label: const Text(
-                                  'Hide keyboard',
+                                  'Save',
                                   style: TextStyle(fontSize: 13),
                                 ),
                                 style: OutlinedButton.styleFrom(
@@ -540,7 +581,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                                   ),
                                 ),
                                 onPressed: () {
-                                  FocusScope.of(context).unfocus();
+                                  // TODO: Save logic (stage changes)
                                 },
                               ),
                               const SizedBox(width: 8),
