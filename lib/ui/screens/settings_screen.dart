@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:slash_flutter/ui/components/slash_text.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../services/secure_storage_service.dart';
 import '../../features/auth/auth_page.dart';
@@ -27,15 +28,17 @@ class SettingsScreen extends ConsumerWidget {
       if (value.length <= 6) return '*' * value.length;
       return '${value.substring(0, 3)}***${value.substring(value.length - 3)}';
     }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (authState.isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Settings')),
+        appBar: AppBar(title: const SlashText('Settings')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
+      backgroundColor:
+          isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF23232A) : Colors.white,
         elevation: 1,
@@ -43,7 +46,7 @@ class SettingsScreen extends ConsumerWidget {
           children: [
             Image.asset('assets/slash2.png', height: 36),
             const SizedBox(width: 12),
-            const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SlashText('Settings', fontWeight: FontWeight.bold),
           ],
         ),
       ),
@@ -53,15 +56,17 @@ class SettingsScreen extends ConsumerWidget {
           // Friendly header
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
-            child: Text(
+            child: SlashText(
               'Configure your AI provider, API keys, and GitHub access. Your credentials are stored securely on your device.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black87),
+              color: isDark ? Colors.white70 : Colors.black87,
             ),
           ),
           // AI Model Card
           Card(
             color: isDark ? const Color(0xFF23232A) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -70,9 +75,12 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.memory, color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.memory,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 8),
-                      Text('AI Provider', style: Theme.of(context).textTheme.titleMedium),
+                      SlashText('AI Provider'),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -82,23 +90,29 @@ class SettingsScreen extends ConsumerWidget {
                         value: 'gemini',
                         groupValue: authState.model,
                         onChanged: (val) {
-                          if (val != null) ref.read(authControllerProvider.notifier).saveModel(val);
+                          if (val != null)
+                            ref
+                                .read(authControllerProvider.notifier)
+                                .saveModel(val);
                         },
                       ),
                       Image.asset('assets/slash.png', height: 24),
                       const SizedBox(width: 6),
-                      const Text('Gemini'),
+                      const SlashText('Gemini'),
                       const SizedBox(width: 24),
                       Radio<String>(
                         value: 'openai',
                         groupValue: authState.model,
                         onChanged: (val) {
-                          if (val != null) ref.read(authControllerProvider.notifier).saveModel(val);
+                          if (val != null)
+                            ref
+                                .read(authControllerProvider.notifier)
+                                .saveModel(val);
                         },
                       ),
                       Icon(Icons.bolt, color: Colors.amber[700]),
                       const SizedBox(width: 6),
-                      const Text('OpenAI'),
+                      const SlashText('OpenAI'),
                     ],
                   ),
                 ],
@@ -109,7 +123,9 @@ class SettingsScreen extends ConsumerWidget {
           // API Key Card
           Card(
             color: isDark ? const Color(0xFF23232A) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -118,9 +134,12 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.vpn_key, color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.vpn_key,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 8),
-                      Text('API Keys', style: Theme.of(context).textTheme.titleMedium),
+                      SlashText('API Keys'),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -132,17 +151,23 @@ class SettingsScreen extends ConsumerWidget {
                         Expanded(
                           child: TextField(
                             obscureText: true,
-                            controller: TextEditingController(text: authState.geminiApiKey ?? ''),
-                            decoration: const InputDecoration(hintText: 'Enter Gemini API Key'),
+                            controller: TextEditingController(
+                              text: authState.geminiApiKey ?? '',
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Enter Gemini API Key',
+                            ),
                             onSubmitted: (val) {
-                              ref.read(authControllerProvider.notifier).saveGeminiApiKey(val.trim());
+                              ref
+                                  .read(authControllerProvider.notifier)
+                                  .saveGeminiApiKey(val.trim());
                             },
                           ),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: () {},
-                          child: const Text('Save'),
+                          child: const SlashText('Save'),
                         ),
                       ],
                     ),
@@ -154,17 +179,23 @@ class SettingsScreen extends ConsumerWidget {
                         Expanded(
                           child: TextField(
                             obscureText: true,
-                            controller: TextEditingController(text: authState.openAIApiKey ?? ''),
-                            decoration: const InputDecoration(hintText: 'Enter OpenAI API Key'),
+                            controller: TextEditingController(
+                              text: authState.openAIApiKey ?? '',
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Enter OpenAI API Key',
+                            ),
                             onSubmitted: (val) {
-                              ref.read(authControllerProvider.notifier).saveOpenAIApiKey(val.trim());
+                              ref
+                                  .read(authControllerProvider.notifier)
+                                  .saveOpenAIApiKey(val.trim());
                             },
                           ),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: () {},
-                          child: const Text('Save'),
+                          child: const SlashText('Save'),
                         ),
                       ],
                     ),
@@ -177,17 +208,23 @@ class SettingsScreen extends ConsumerWidget {
                       Expanded(
                         child: TextField(
                           obscureText: true,
-                          controller: TextEditingController(text: authState.githubPat ?? ''),
-                          decoration: const InputDecoration(hintText: 'Enter GitHub PAT'),
+                          controller: TextEditingController(
+                            text: authState.githubPat ?? '',
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'Enter GitHub PAT',
+                          ),
                           onSubmitted: (val) {
-                            ref.read(authControllerProvider.notifier).saveGitHubPat(val.trim());
+                            ref
+                                .read(authControllerProvider.notifier)
+                                .saveGitHubPat(val.trim());
                           },
                         ),
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton(
                         onPressed: () {},
-                        child: const Text('Save'),
+                        child: const SlashText('Save'),
                       ),
                     ],
                   ),
@@ -199,38 +236,49 @@ class SettingsScreen extends ConsumerWidget {
           // Status Card
           Card(
             color: isDark ? const Color(0xFF23232A) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(
                     children: [
-                      Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.info_outline,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 8),
-                      Text('Key Status', style: Theme.of(context).textTheme.titleMedium),
+                      SlashText('Key Status'),
                     ],
                   ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
                       Image.asset('assets/slash.png', height: 18),
                       const SizedBox(width: 8),
-                      const Text('Gemini Key:'),
+                      const SlashText('Gemini Key:'),
                       const SizedBox(width: 8),
-                Text(mask(authState.geminiApiKey), style: const TextStyle(fontFamily: 'monospace')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
+                      SlashText(
+                        mask(authState.geminiApiKey),
+                        fontFamily: 'monospace',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
                       Icon(Icons.bolt, color: Colors.amber[700], size: 18),
                       const SizedBox(width: 8),
-                      const Text('OpenAI Key:'),
+                      const SlashText('OpenAI Key:'),
                       const SizedBox(width: 8),
-                      Text(mask(authState.openAIApiKey), style: const TextStyle(fontFamily: 'monospace')),
+                      SlashText(
+                        mask(authState.openAIApiKey),
+                        fontFamily: 'monospace',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -238,17 +286,25 @@ class SettingsScreen extends ConsumerWidget {
                     children: [
                       Icon(Icons.lock, color: Colors.grey, size: 18),
                       const SizedBox(width: 8),
-                      const Text('GitHub PAT:'),
+                      const SlashText('GitHub PAT:'),
                       const SizedBox(width: 8),
-                Text(mask(authState.githubPat), style: const TextStyle(fontFamily: 'monospace')),
-              ],
-            ),
-            if ((authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty) &&
-                      (authState.openAIApiKey == null || authState.openAIApiKey!.isEmpty) &&
-                (authState.githubPat == null || authState.githubPat!.isEmpty))
+                      SlashText(
+                        mask(authState.githubPat),
+                        fontFamily: 'monospace',
+                      ),
+                    ],
+                  ),
+                  if ((authState.geminiApiKey == null ||
+                          authState.geminiApiKey!.isEmpty) &&
+                      (authState.openAIApiKey == null ||
+                          authState.openAIApiKey!.isEmpty) &&
+                      (authState.githubPat == null ||
+                          authState.githubPat!.isEmpty))
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
-                      child: Text('No API keys found. Please log in again.', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      child: SlashText(
+                        'No API keys found. Please log in again.',
+                      ),
                     ),
                 ],
               ),
@@ -257,22 +313,27 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           // Logout
           Center(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.logout),
-                label: const Text('Clear Tokens / Logout'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  foregroundColor: Colors.white,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.logout),
+              label: const SlashText('Clear Tokens / Logout'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Colors.white,
                 minimumSize: const Size(220, 48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                onPressed: () => _logout(context, ref),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                elevation: 0,
               ),
+              onPressed: () => _logout(context, ref),
             ),
-          ],
+          ),
+        ],
       ),
     );
   }
-} 
+}

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'file_browser_controller.dart';
 import '../../common/widgets/widgets.dart';
 
@@ -7,7 +8,12 @@ class FileBrowserPage extends ConsumerWidget {
   final String owner;
   final String repo;
   final String? branch;
-  const FileBrowserPage({super.key, required this.owner, required this.repo, this.branch});
+  const FileBrowserPage({
+    super.key,
+    required this.owner,
+    required this.repo,
+    this.branch,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,7 +23,7 @@ class FileBrowserPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Browse: $repo'),
+        title: SlashText('Browse: $repo'),
         leading:
             state.pathStack.isNotEmpty
                 ? IconButton(
@@ -31,20 +37,20 @@ class FileBrowserPage extends ConsumerWidget {
               ? const Center(child: CircularProgressIndicator())
               : state.error != null
               ? Center(
-                child: Text(
+                child: SlashText(
                   friendlyErrorMessage(state.error),
-                  style: const TextStyle(color: Colors.red),
+                  color: Colors.red,
                 ),
               )
               : Column(
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: Text(
+                    child: SlashText(
                       state.pathStack.isEmpty
                           ? '/'
                           : '/${state.pathStack.join('/')}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   Expanded(
@@ -55,13 +61,13 @@ class FileBrowserPage extends ConsumerWidget {
                         if (item.type == 'dir') {
                           return ListTile(
                             leading: const Icon(Icons.folder),
-                            title: Text(item.name),
+                            title: SlashText(item.name),
                             onTap: () => controller.enterDir(item.name),
                           );
                         } else {
                           return ListTile(
                             leading: const Icon(Icons.insert_drive_file),
-                            title: Text(item.name),
+                            title: SlashText(item.name),
                           );
                         }
                       },

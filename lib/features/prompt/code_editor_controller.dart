@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
+import 'package:slash_flutter/ui/components/slash_text.dart';
 import '../file_browser/file_browser_controller.dart';
 import '../../features/auth/auth_controller.dart';
 import 'code_editor_service.dart';
@@ -18,9 +19,10 @@ class ExternalEditRequest {
 }
 
 // Main controller provider
-final codeEditorControllerProvider = StateNotifierProvider<CodeEditorController, CodeEditorState>(
-  (ref) => CodeEditorController(ref.read(codeEditorServiceProvider)),
-);
+final codeEditorControllerProvider =
+    StateNotifierProvider<CodeEditorController, CodeEditorState>(
+      (ref) => CodeEditorController(ref.read(codeEditorServiceProvider)),
+    );
 
 // State class
 class CodeEditorState {
@@ -79,13 +81,22 @@ class CodeEditorState {
 class CodeEditorController extends StateNotifier<CodeEditorState> {
   final CodeEditorService _service;
 
-  CodeEditorController(this._service) : super(CodeEditorState(
-    chatMessages: [
-      ChatMessage(isUser: false, text: "Hi! I'm /slash. Ask me about your code!"),
-    ],
-  ));
+  CodeEditorController(this._service)
+    : super(
+        CodeEditorState(
+          chatMessages: [
+            ChatMessage(
+              isUser: false,
+              text: "Hi! I'm /slash. Ask me about your code!",
+            ),
+          ],
+        ),
+      );
 
-  void handleExternalEdit(ExternalEditRequest request, CodeController codeController) {
+  void handleExternalEdit(
+    ExternalEditRequest request,
+    CodeController codeController,
+  ) {
     state = state.copyWith(
       selectedFilePath: request.fileName,
       fileContent: request.code,
@@ -114,43 +125,46 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
 
   Future<void> _fetchBranchesForRepo(dynamic repo) async {
     if (repo == null) return;
-    
-    state = state.copyWith(
-      branches: [],
-      selectedBranch: null,
-    );
+
+    state = state.copyWith(branches: [], selectedBranch: null);
 
     try {
       final branches = await _service.fetchBranches(
         owner: repo['owner']['login'],
         repo: repo['name'],
       );
-      
-      final selectedBranch = branches.contains('main')
-          ? 'main'
-          : (branches.isNotEmpty ? branches[0] : null);
+
+      final selectedBranch =
+          branches.contains('main')
+              ? 'main'
+              : (branches.isNotEmpty ? branches[0] : null);
 
       state = state.copyWith(
         branches: branches,
         selectedBranch: selectedBranch,
       );
     } catch (e) {
-      state = state.copyWith(
-        branches: [],
-        selectedBranch: null,
-      );
+      state = state.copyWith(branches: [], selectedBranch: null);
     }
   }
 
-  Future<void> loadFile(String path, RepoParams params, WidgetRef ref, CodeController codeController) async {
+  Future<void> loadFile(
+    String path,
+    RepoParams params,
+    WidgetRef ref,
+    CodeController codeController,
+  ) async {
     state = state.copyWith(isLoading: true);
-    
-    final fileBrowserController = ref.read(fileBrowserControllerProvider(params).notifier);
+
+    final fileBrowserController = ref.read(
+      fileBrowserControllerProvider(params).notifier,
+    );
     final fileBrowserState = ref.read(fileBrowserControllerProvider(params));
-    
-    final file = fileBrowserState.items.where((f) => f.path == path).isNotEmpty
-        ? fileBrowserState.items.firstWhere((f) => f.path == path)
-        : null;
+
+    final file =
+        fileBrowserState.items.where((f) => f.path == path).isNotEmpty
+            ? fileBrowserState.items.firstWhere((f) => f.path == path)
+            : null;
 
     if (file != null && file.content != null) {
       state = state.copyWith(
@@ -162,13 +176,14 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
     } else if (file != null) {
       // Fetch file content if not loaded
       await fileBrowserController.selectFile(file);
-      
+
       // Get the updated file from state
       final updatedState = ref.read(fileBrowserControllerProvider(params));
-      final updatedFile = updatedState.items.where((f) => f.path == path).isNotEmpty
-          ? updatedState.items.firstWhere((f) => f.path == path)
-          : null;
-      
+      final updatedFile =
+          updatedState.items.where((f) => f.path == path).isNotEmpty
+              ? updatedState.items.firstWhere((f) => f.path == path)
+              : null;
+
       final content = updatedFile?.content ?? '';
       state = state.copyWith(
         selectedFilePath: path,
@@ -181,14 +196,17 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
     }
   }
 
-  Future<void> commitAndPushFile(BuildContext context, String currentContent) async {
+  Future<void> commitAndPushFile(
+    BuildContext context,
+    String currentContent,
+  ) async {
     if (state.selectedFilePath == null ||
         state.fileContent == null ||
         state.selectedRepo == null ||
         state.selectedBranch == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No file selected or missing branch/repo.'),
+          content: SlashText('No file selected or missing branch/repo.'),
         ),
       );
       return;
@@ -210,16 +228,16 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
       );
 
       state = state.copyWith(isCommitting: false);
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Commit & push successful!')),
+        const SnackBar(content: SlashText('Commit & push successful!')),
       );
     } catch (e) {
       state = state.copyWith(isCommitting: false);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Commit failed: $e')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: SlashText('Commit failed: $e')));
     }
   }
 
@@ -229,7 +247,7 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
       builder: (ctx) {
         String msg = '';
         return AlertDialog(
-          title: const Text('Commit Message'),
+          title: const SlashText('Commit Message'),
           content: TextField(
             autofocus: true,
             decoration: const InputDecoration(hintText: 'Enter commit message'),
@@ -238,11 +256,11 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
+              child: const SlashText('Cancel'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(msg),
-              child: const Text('Commit'),
+              child: const SlashText('Commit'),
             ),
           ],
         );
@@ -259,7 +277,7 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
     // Add user message
     final updatedMessages = List<ChatMessage>.from(state.chatMessages)
       ..add(ChatMessage(isUser: true, text: prompt));
-    
+
     state = state.copyWith(
       chatMessages: updatedMessages,
       chatLoading: true,
@@ -289,24 +307,18 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
       final errorMessages = List<ChatMessage>.from(state.chatMessages)
         ..add(ChatMessage(isUser: false, text: 'Error: ${e.toString()}'));
 
-      state = state.copyWith(
-        chatMessages: errorMessages,
-        chatLoading: false,
-      );
+      state = state.copyWith(chatMessages: errorMessages, chatLoading: false);
     }
   }
 
   void applyAICodeEdit(CodeController codeController) {
     if (state.pendingEdit != null) {
       codeController.text = state.pendingEdit!;
-      
+
       final updatedMessages = List<ChatMessage>.from(state.chatMessages)
         ..add(ChatMessage(isUser: false, text: '✅ Edit applied to the code!'));
-      
-      state = state.copyWith(
-        pendingEdit: null,
-        chatMessages: updatedMessages,
-      );
+
+      state = state.copyWith(pendingEdit: null, chatMessages: updatedMessages);
     }
   }
 }

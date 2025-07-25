@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:slash_flutter/ui/components/slash_text.dart';
 import '../theme/colors.dart';
 
 class SlashDiffViewer extends StatelessWidget {
   final String oldContent;
   final String newContent;
 
-  const SlashDiffViewer({super.key, required this.oldContent, required this.newContent});
+  const SlashDiffViewer({
+    super.key,
+    required this.oldContent,
+    required this.newContent,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,27 +22,34 @@ class SlashDiffViewer extends StatelessWidget {
     return Card(
       color: isDark ? const Color(0xFF23232A) : Colors.white,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: isDark ? Colors.grey[900]! : Colors.grey[300]!)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: isDark ? Colors.grey[900]! : Colors.grey[300]!),
+      ),
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
         child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
                 Icon(Icons.remove_circle, color: oldText, size: 18),
                 const SizedBox(width: 6),
-                Text('Original', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: oldText, fontWeight: FontWeight.bold)),
+                SlashText(
+                  'Original',
+                  color: oldText,
+                  fontWeight: FontWeight.bold,
+                ),
               ],
             ),
             const SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: oldBg,
-            borderRadius: BorderRadius.circular(8),
-          ),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: oldBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
               child: _buildCodeBlock(oldContent, oldText, isDark),
             ),
@@ -46,16 +58,20 @@ class SlashDiffViewer extends StatelessWidget {
               children: [
                 Icon(Icons.add_circle, color: newText, size: 18),
                 const SizedBox(width: 6),
-                Text('Edited', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: newText, fontWeight: FontWeight.bold)),
+                SlashText(
+                  'Edited',
+                  color: newText,
+                  fontWeight: FontWeight.bold,
+                ),
               ],
             ),
             const SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: newBg,
-            borderRadius: BorderRadius.circular(8),
-          ),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: newBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
               child: _buildCodeBlock(newContent, newText, isDark),
             ),
@@ -85,27 +101,23 @@ class SlashDiffViewer extends StatelessWidget {
                         width: 32,
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 8),
-                        child: Text(
+                        child: SlashText(
                           '${i + 1}',
-                          style: TextStyle(
-                            color: isDark ? Colors.grey[600] : Colors.grey[500],
-                            fontSize: 11,
-                            fontFamily: 'Fira Mono',
-                          ),
+                          color: isDark ? Colors.grey[600] : Colors.grey[500],
+                          fontSize: 11,
+                          fontFamily: 'Fira Mono',
                         ),
                       ),
                       Flexible(
                         fit: FlexFit.loose,
-          child: Text(
+                        child: SlashText(
                           lines[i],
-            style: TextStyle(
-              fontFamily: 'Fira Mono',
-              fontSize: 13,
-                            color: textColor,
-            ),
-          ),
-        ),
-      ],
+                          fontFamily: 'Fira Mono',
+                          fontSize: 13,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -114,4 +126,4 @@ class SlashDiffViewer extends StatelessWidget {
       },
     );
   }
-} 
+}

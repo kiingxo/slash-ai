@@ -1,44 +1,54 @@
 import 'package:flutter/material.dart';
 import 'colors.dart';
-import 'typography.dart';
+import 'app_colors.dart';
 
-ThemeData buildAppTheme(Brightness brightness) {
-  final isDark = brightness == Brightness.dark;
-  return ThemeData(
-    
-    brightness: brightness,
-    scaffoldBackgroundColor: isDark ? SlashColors.bgDark : SlashColors.bgLight,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: SlashColors.primary,
+class AppTheme {
+  final AppColors colors;
+  final ThemeMode mode;
+
+  const AppTheme._({required this.colors, required this.mode});
+
+  factory AppTheme.light() {
+    return AppTheme._(
+      mode: ThemeMode.light,
+      colors: AppColors(
+        alwaysWhite: Colors.white,
+        alwaysBlack: const Color(0xFF111111),
+        lightWhiteDarkBlack: Colors.white,
+        lightBlackDarkWhite: const Color(0xFF111111),
+        always8B5CF6: const Color(0xff8B5CF6),
+        always343434: const Color(0xff343434),
+        always909090: const Color(0xff909090),
+        alwaysEDEDED: const Color(0xffEDEDED),
+      ),
+    );
+  }
+
+  factory AppTheme.dark() {
+    return AppTheme._(
+      mode: ThemeMode.dark,
+      colors: AppColors(
+        alwaysWhite: Colors.white,
+        alwaysBlack: const Color(0xFF111111),
+        lightWhiteDarkBlack: const Color(0xFF111111),
+        lightBlackDarkWhite: Colors.white,
+        always8B5CF6: const Color(0xff8B5CF6),
+        always343434: const Color(0xff343434),
+        always909090: const Color(0xff909090),
+        alwaysEDEDED: const Color(0xffEDEDED),
+      ),
+    );
+  }
+
+  static ThemeData buildAppTheme(Brightness brightness) {
+    return ThemeData(
       brightness: brightness,
-    ),
-    textTheme: SlashTypography.textTheme(isDark),
-    useMaterial3: true,
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: isDark ? SlashColors.inputDark : SlashColors.inputLight,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: SlashColors.primary,
+        brightness: brightness,
       ),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-    ),
-    cardTheme: CardThemeData(
-      elevation: 0,
-      color: isDark ? SlashColors.cardDark : SlashColors.cardLight,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-      shadowColor: Colors.black.withOpacity(0.04),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: SlashColors.primary,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: SlashTypography.button,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-      ),
-    ),
-  );
-} 
+      fontFamily: "DMSans",
+      useMaterial3: true,
+    );
+  }
+}

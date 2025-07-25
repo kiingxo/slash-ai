@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:highlight/languages/dart.dart';
+import 'package:slash_flutter/ui/components/slash_text.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
 import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
 import 'code_editor_controller.dart';
-import 'code_editor_service.dart';
 
 class CodeScreen extends ConsumerStatefulWidget {
   const CodeScreen({super.key});
@@ -35,7 +35,9 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     // Listen for external edit requests
     final req = ref.read(externalEditRequestProvider);
     if (req != null) {
-      ref.read(codeEditorControllerProvider.notifier).handleExternalEdit(req, _codeController);
+      ref
+          .read(codeEditorControllerProvider.notifier)
+          .handleExternalEdit(req, _codeController);
     }
   }
 
@@ -51,26 +53,40 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     final repoState = ref.watch(repoControllerProvider);
     final codeState = ref.watch(codeEditorControllerProvider);
     final repos = repoState.repos;
-    final selectedRepo = codeState.selectedRepo ?? (repos.isNotEmpty ? repos[0] : null);
+    final selectedRepo =
+        codeState.selectedRepo ?? (repos.isNotEmpty ? repos[0] : null);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
-    final params = selectedRepo != null
-        ? RepoParams(
-            owner: selectedRepo['owner']['login'],
-            repo: selectedRepo['name'],
-            branch: codeState.selectedBranch,
-          )
-        : null;
-    
-    final fileBrowserState = params != null
-        ? ref.watch(fileBrowserControllerProvider(params))
-        : null;
+
+    final params =
+        selectedRepo != null
+            ? RepoParams(
+              owner: selectedRepo['owner']['login'],
+              repo: selectedRepo['name'],
+              branch: codeState.selectedBranch,
+            )
+            : null;
+
+    final fileBrowserState =
+        params != null
+            ? ref.watch(fileBrowserControllerProvider(params))
+            : null;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
-      appBar: _buildAppBar(context, theme, isDark, repos, selectedRepo, codeState),
-      floatingActionButton: _buildFloatingActionButton(codeState.branches, selectedRepo),
+      backgroundColor:
+          isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
+      appBar: _buildAppBar(
+        context,
+        theme,
+        isDark,
+        repos,
+        selectedRepo,
+        codeState,
+      ),
+      floatingActionButton: _buildFloatingActionButton(
+        codeState.branches,
+        selectedRepo,
+      ),
       body: Stack(
         children: [
           Row(
@@ -102,22 +118,22 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
           children: [
             const Icon(Icons.code, color: Color(0xFF8B5CF6)),
             const SizedBox(width: 12),
-            const Text(
-              'Code Editor',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const SlashText('Code Editor', fontWeight: FontWeight.bold),
             const SizedBox(width: 24),
             if (repos.isNotEmpty)
               DropdownButton<dynamic>(
                 value: selectedRepo,
-                items: repos.map<DropdownMenuItem<dynamic>>((repo) {
-                  return DropdownMenuItem<dynamic>(
-                    value: repo,
-                    child: Text(repo['full_name'] ?? repo['name']),
-                  );
-                }).toList(),
+                items:
+                    repos.map<DropdownMenuItem<dynamic>>((repo) {
+                      return DropdownMenuItem<dynamic>(
+                        value: repo,
+                        child: SlashText(repo['full_name'] ?? repo['name']),
+                      );
+                    }).toList(),
                 onChanged: (repo) {
-                  ref.read(codeEditorControllerProvider.notifier).selectRepo(repo);
+                  ref
+                      .read(codeEditorControllerProvider.notifier)
+                      .selectRepo(repo);
                 },
                 style: theme.textTheme.bodyMedium,
                 dropdownColor: theme.cardColor,
@@ -130,15 +146,18 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: codeState.selectedBranch,
-              hint: const Text('Branch'),
+              hint: const SlashText('Branch'),
               onChanged: (branch) {
                 if (selectedRepo != null && branch != null) {
-                  ref.read(codeEditorControllerProvider.notifier).selectBranch(branch, selectedRepo);
+                  ref
+                      .read(codeEditorControllerProvider.notifier)
+                      .selectBranch(branch, selectedRepo);
                 }
               },
-              items: codeState.branches.map((b) {
-                return DropdownMenuItem(value: b, child: Text(b));
-              }).toList(),
+              items:
+                  codeState.branches.map((b) {
+                    return DropdownMenuItem(value: b, child: SlashText(b));
+                  }).toList(),
               dropdownColor: theme.cardColor,
               icon: const Icon(Icons.alt_route),
               style: theme.textTheme.bodyMedium,
@@ -148,18 +167,21 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     );
   }
 
-  Widget? _buildFloatingActionButton(List<String> branches, dynamic selectedRepo) {
+  Widget? _buildFloatingActionButton(
+    List<String> branches,
+    dynamic selectedRepo,
+  ) {
     return (branches.isNotEmpty && selectedRepo != null)
         ? FloatingActionButton(
-            heroTag: 'ai_assistant_fab',
-            tooltip: 'AI Assistant',
-            onPressed: () {
-              setState(() {
-                _showChatOverlay = true;
-              });
-            },
-            child: const Text('🤖', style: TextStyle(fontSize: 24)),
-          )
+          heroTag: 'ai_assistant_fab',
+          tooltip: 'AI Assistant',
+          onPressed: () {
+            setState(() {
+              _showChatOverlay = true;
+            });
+          },
+          child: const SlashText('🤖', fontSize: 24),
+        )
         : null;
   }
 
@@ -185,20 +207,22 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                 size: 22,
               ),
               tooltip: _sidebarExpanded ? 'Collapse' : 'Expand',
-              onPressed: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
+              onPressed:
+                  () => setState(() => _sidebarExpanded = !_sidebarExpanded),
             ),
           ),
           Expanded(
-            child: params == null
-                ? Container(
-                    alignment: Alignment.center,
-                    child: const Text('No repo selected'),
-                  )
-                : fileBrowserState == null || fileBrowserState.isLoading
+            child:
+                params == null
                     ? Container(
-                        alignment: Alignment.center,
-                        child: const CircularProgressIndicator(),
-                      )
+                      alignment: Alignment.center,
+                      child: const SlashText('No repo selected'),
+                    )
+                    : fileBrowserState == null || fileBrowserState.isLoading
+                    ? Container(
+                      alignment: Alignment.center,
+                      child: const CircularProgressIndicator(),
+                    )
                     : _buildFileList(params, fileBrowserState),
           ),
         ],
@@ -223,40 +247,53 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         Expanded(
           child: ListView(
             shrinkWrap: true,
-            children: fileBrowserState.items.map<Widget>((item) {
-              if (_sidebarExpanded) {
-                return ListTile(
-                  dense: true,
-                  leading: Icon(
-                    item.type == 'dir' ? Icons.folder : Icons.insert_drive_file,
-                    color: item.type == 'dir' ? Colors.amber : Colors.blueAccent,
-                  ),
-                  title: Text(
-                    item.name,
-                    style: item.type == 'dir'
-                        ? const TextStyle(fontWeight: FontWeight.w500)
-                        : null,
-                  ),
-                  selected: ref.watch(codeEditorControllerProvider).selectedFilePath == item.path,
-                  onTap: () => _handleFileItemTap(item, params),
-                );
-              } else {
-                return Container(
-                  width: 48,
-                  height: 40,
-                  alignment: Alignment.center,
-                  margin: const EdgeInsets.symmetric(vertical: 2),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => _handleFileItemTap(item, params),
-                    child: Icon(
-                      item.type == 'dir' ? Icons.folder : Icons.insert_drive_file,
-                      color: item.type == 'dir' ? Colors.amber : Colors.blueAccent,
-                    ),
-                  ),
-                );
-              }
-            }).toList(),
+            children:
+                fileBrowserState.items.map<Widget>((item) {
+                  if (_sidebarExpanded) {
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(
+                        item.type == 'dir'
+                            ? Icons.folder
+                            : Icons.insert_drive_file,
+                        color:
+                            item.type == 'dir'
+                                ? Colors.amber
+                                : Colors.blueAccent,
+                      ),
+                      title: SlashText(
+                        item.name,
+                        fontWeight: item.type == 'dir' ? FontWeight.w500 : null,
+                      ),
+                      selected:
+                          ref
+                              .watch(codeEditorControllerProvider)
+                              .selectedFilePath ==
+                          item.path,
+                      onTap: () => _handleFileItemTap(item, params),
+                    );
+                  } else {
+                    return Container(
+                      width: 48,
+                      height: 40,
+                      alignment: Alignment.center,
+                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => _handleFileItemTap(item, params),
+                        child: Icon(
+                          item.type == 'dir'
+                              ? Icons.folder
+                              : Icons.insert_drive_file,
+                          color:
+                              item.type == 'dir'
+                                  ? Colors.amber
+                                  : Colors.blueAccent,
+                        ),
+                      ),
+                    );
+                  }
+                }).toList(),
           ),
         ),
       ],
@@ -265,29 +302,34 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
 
   void _handleFileItemTap(dynamic item, RepoParams params) {
     if (item.type == 'dir') {
-      ref.read(fileBrowserControllerProvider(params).notifier).enterDir(item.name);
+      ref
+          .read(fileBrowserControllerProvider(params).notifier)
+          .enterDir(item.name);
     } else {
-      ref.read(codeEditorControllerProvider.notifier).loadFile(item.path, params, ref, _codeController);
+      ref
+          .read(codeEditorControllerProvider.notifier)
+          .loadFile(item.path, params, ref, _codeController);
     }
   }
 
-  Widget _buildEditorArea(BuildContext context, ThemeData theme, bool isDark, CodeEditorState codeState) {
+  Widget _buildEditorArea(
+    BuildContext context,
+    ThemeData theme,
+    bool isDark,
+    CodeEditorState codeState,
+  ) {
     return Expanded(
-      child: codeState.selectedFilePath == null
-          ? Center(
-              child: Text(
-                'Select a file to edit',
-                style: theme.textTheme.titleMedium,
+      child:
+          codeState.selectedFilePath == null
+              ? Center(child: SlashText('Select a file to edit', fontSize: 16))
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildFileHeader(isDark, codeState.selectedFilePath),
+                  _buildCodeEditor(),
+                  _buildActionsBar(isDark, codeState),
+                ],
               ),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildFileHeader(isDark, codeState.selectedFilePath),
-                _buildCodeEditor(),
-                _buildActionsBar(isDark, codeState),
-              ],
-            ),
     );
   }
 
@@ -304,12 +346,17 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.insert_drive_file, color: Colors.blueAccent, size: 18),
+          const Icon(
+            Icons.insert_drive_file,
+            color: Colors.blueAccent,
+            size: 18,
+          ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
+            child: SlashText(
               selectedFilePath ?? '',
-              style: const TextStyle(fontFamily: 'Fira Mono', fontSize: 15),
+              fontFamily: 'Fira Mono',
+              fontSize: 15,
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -355,7 +402,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         children: [
           OutlinedButton.icon(
             icon: const Icon(Icons.keyboard_hide, size: 16),
-            label: const Text('Hide Keyboard', style: TextStyle(fontSize: 13)),
+            label: const SlashText('Hide Keyboard', fontSize: 13),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(32, 32),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -365,20 +412,24 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
           const SizedBox(width: 8),
           OutlinedButton.icon(
             icon: const Icon(Icons.upload, size: 16),
-            label: codeState.isCommitting
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Commit & Push', style: TextStyle(fontSize: 13)),
+            label:
+                codeState.isCommitting
+                    ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const SlashText('Commit & Push', fontSize: 13),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(32, 32),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             ),
-            onPressed: codeState.isCommitting
-                ? null
-                : () => ref.read(codeEditorControllerProvider.notifier).commitAndPushFile(context, _codeController.text),
+            onPressed:
+                codeState.isCommitting
+                    ? null
+                    : () => ref
+                        .read(codeEditorControllerProvider.notifier)
+                        .commitAndPushFile(context, _codeController.text),
           ),
         ],
       ),
@@ -399,9 +450,12 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
             controller: _chatController,
             onSend: () => _handleChatSend(codeState),
             onClose: () => setState(() => _showChatOverlay = false),
-            onApplyEdit: codeState.pendingEdit != null
-                ? () => ref.read(codeEditorControllerProvider.notifier).applyAICodeEdit(_codeController)
-                : null,
+            onApplyEdit:
+                codeState.pendingEdit != null
+                    ? () => ref
+                        .read(codeEditorControllerProvider.notifier)
+                        .applyAICodeEdit(_codeController)
+                    : null,
           ),
         ),
         childWhenDragging: const SizedBox.shrink(),
@@ -416,9 +470,12 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
           controller: _chatController,
           onSend: () => _handleChatSend(codeState),
           onClose: () => setState(() => _showChatOverlay = false),
-          onApplyEdit: codeState.pendingEdit != null
-              ? () => ref.read(codeEditorControllerProvider.notifier).applyAICodeEdit(_codeController)
-              : null,
+          onApplyEdit:
+              codeState.pendingEdit != null
+                  ? () => ref
+                      .read(codeEditorControllerProvider.notifier)
+                      .applyAICodeEdit(_codeController)
+                  : null,
         ),
       ),
     );
@@ -427,13 +484,15 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
   void _handleChatSend(CodeEditorState codeState) {
     final prompt = _chatController.text.trim();
     if (prompt.isEmpty) return;
-    
-    ref.read(codeEditorControllerProvider.notifier).handleChatSend(
-      prompt,
-      _codeController.text,
-      codeState.selectedFilePath ?? 'current.dart',
-      ref,
-    );
+
+    ref
+        .read(codeEditorControllerProvider.notifier)
+        .handleChatSend(
+          prompt,
+          _codeController.text,
+          codeState.selectedFilePath ?? 'current.dart',
+          ref,
+        );
     _chatController.clear();
   }
 }
@@ -453,7 +512,7 @@ class _ChatOverlay extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onClose;
   final VoidCallback? onApplyEdit;
-  
+
   const _ChatOverlay({
     required this.messages,
     required this.loading,
@@ -492,7 +551,7 @@ class _ChatOverlay extends StatelessWidget {
     return Container(
       height: 32,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withOpacity(0.9),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Row(
@@ -501,9 +560,11 @@ class _ChatOverlay extends StatelessWidget {
           const Icon(Icons.chat_bubble, color: Colors.white, size: 18),
           const SizedBox(width: 6),
           const Expanded(
-            child: Text(
+            child: SlashText(
               'AI Chat',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
             ),
           ),
           IconButton(
@@ -534,26 +595,28 @@ class _ChatOverlay extends StatelessWidget {
           final msg = messages[idx];
           final isUser = msg.isUser;
           final theme = Theme.of(context);
-          
+
           return Align(
             alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 4),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: isUser
-                    ? theme.colorScheme.primary.withOpacity(0.12)
-                    : theme.colorScheme.surface,
+                color:
+                    isUser
+                        ? theme.colorScheme.primary.withOpacity(0.12)
+                        : theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: isUser
-                    ? []
-                    : [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                boxShadow:
+                    isUser
+                        ? []
+                        : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -562,21 +625,17 @@ class _ChatOverlay extends StatelessWidget {
                   if (!isUser)
                     Padding(
                       padding: const EdgeInsets.only(right: 6, top: 2),
-                      child: Text(
+                      child: SlashText(
                         '🤖',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: theme.colorScheme.primary,
-                        ),
+                        fontSize: 18,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
                   Flexible(
-                    child: Text(
+                    child: SlashText(
                       msg.text,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: 13,
-                        color: isUser ? theme.colorScheme.primary : null,
-                      ),
+                      fontSize: 13,
+                      color: isUser ? theme.colorScheme.primary : null,
                     ),
                   ),
                 ],
@@ -595,12 +654,14 @@ class _ChatOverlay extends StatelessWidget {
         width: double.infinity,
         child: ElevatedButton.icon(
           icon: const Icon(Icons.auto_fix_high),
-          label: const Text('Apply AI Edit to Code', style: TextStyle(fontSize: 13)),
+          label: const SlashText('Apply AI Edit to Code', fontSize: 13),
           onPressed: onApplyEdit,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             padding: const EdgeInsets.symmetric(vertical: 8),
           ),
         ),
@@ -626,9 +687,8 @@ class _ChatOverlay extends StatelessWidget {
             width: 36,
             height: 36,
             child: SlashButton(
-              label: '',
-              onTap: loading ? () {} : onSend,
-              icon: Icons.send,
+              text: 'Send',
+              onPressed: loading ? () {} : onSend,
             ),
           ),
         ],
