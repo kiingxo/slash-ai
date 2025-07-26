@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'ui/theme/app_theme.dart';
+import 'package:slash_flutter/ui/components/slash_loading.dart';
+import 'package:slash_flutter/ui/theme/app_theme.dart';
+import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
+import 'package:toastification/toastification.dart';
 import 'features/auth/auth_page.dart';
 import 'home_shell.dart';
 import 'services/secure_storage_service.dart';
 import 'dart:async';
-import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/repo/repo_controller.dart';
 
 void main() {
@@ -19,19 +20,18 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Color(0xFF000000),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset('assets/slash2.png', width: 200, height: 200),
-            const SizedBox(height: 50),
-            if (showLoader)
-              const CircularProgressIndicator(),
-          ],
-        ),
-      ),
+    return ThemeBuilder(
+      builder:
+          (context, colors, ref) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset('assets/slash2.png', width: 200, height: 200),
+                const SizedBox(height: 50),
+                if (showLoader) const SlashLoading(),
+              ],
+            ),
+          ),
     );
   }
 }
@@ -44,20 +44,26 @@ class SlashApp extends StatelessWidget {
     final gemini = await storage.getApiKey('gemini_api_key');
     final openai = await storage.getApiKey('openai_api_key');
     final github = await storage.getApiKey('github_pat');
-    final hasAIKey = (gemini != null && gemini.isNotEmpty) || (openai != null && openai.isNotEmpty);
+    final hasAIKey =
+        (gemini != null && gemini.isNotEmpty) ||
+        (openai != null && openai.isNotEmpty);
     return hasAIKey && github != null && github.isNotEmpty;
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '/slash',
-      
-      theme: buildAppTheme(Brightness.light),
-      darkTheme: buildAppTheme(Brightness.dark),
-      themeMode: ThemeMode.dark,
-      debugShowCheckedModeBanner: false,
-      home: SplashGate(_hasTokens),
+    return ToastificationWrapper(
+      child: MaterialApp(
+        title: '/slash',
+        theme: AppTheme.buildAppTheme(Brightness.light),
+        darkTheme: AppTheme.buildAppTheme(Brightness.dark),
+        themeMode: AppTheme.dark().mode,
+        debugShowCheckedModeBanner: false,
+        builder: (_, child) {
+          return _UnFocus(child: child!);
+        },
+        home: SplashGate(_hasTokens),
+      ),
     );
   }
 }
@@ -91,9 +97,9 @@ class _SplashGateState extends State<SplashGate> {
     }
     if (mounted) {
       setState(() {
-      _hasTokens = tokens;
+        _hasTokens = tokens;
         _isLoading = false;
-    });
+      });
     }
   }
 
@@ -102,8 +108,22 @@ class _SplashGateState extends State<SplashGate> {
     if (_isLoading) {
       return const SplashScreen(showLoader: true);
     }
-    return _hasTokens!
-        ? const HomeShell()
-        : const AuthPage();
+    return _hasTokens! ? const HomeShell() : const AuthPage();
   }
 }
+
+class _UnFocus extends StatelessWidget {
+  final Widget child;
+  const _UnFocus({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: child,
+    );
+  }
+}
+
+// com.example.slashFlutter

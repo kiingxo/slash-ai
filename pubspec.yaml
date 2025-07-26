@@ -1,6 +1,6 @@
 name: slash_flutter
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -8,18 +8,22 @@ environment:
   sdk: ^3.7.2
 
 dependencies:
+  cupertino_icons: ^1.0.8
+  dio: ^5.8.0+1
+  dropdown_button2: ^2.3.9
   flutter:
     sdk: flutter
-
-  cupertino_icons: ^1.0.8
-  flutter_riverpod: any
-  dio: ^5.8.0+1
-  url_launcher: ^6.3.2
-  http: ^1.4.0
-  flutter_secure_storage: ^9.2.4
-  google_fonts: ^6.1.0
   flutter_code_editor: ^0.3.3
+  flutter_riverpod: any
+  flutter_secure_storage: ^9.2.4
+  flutter_svg: ^2.2.0
+  google_fonts: ^6.1.0
   highlight: ^0.7.0
+  hooks_riverpod: ^2.6.1
+  http: ^1.4.0
+  shared_preferences: ^2.5.3
+  toastification: ^3.0.3
+  url_launcher: ^6.3.2
 
 uni_links:
   git:
@@ -27,17 +31,30 @@ uni_links:
     ref: namespace-fix
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^5.0.0
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
-  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
 
   assets:
+    - assets/icons/
     - assets/slash.png
     - assets/slash2.png
+
+  fonts:
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/DMSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/DMSans-Semibold.ttf
+          weight: 600
+        - asset: assets/fonts/DMSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/DMSans-Regular.ttf
+          weight: 400
 
 flutter_launcher_icons:
   android: "launcher_icon"

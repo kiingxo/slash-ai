@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'features/repo/repo_page.dart';
 import 'features/prompt/prompt_page.dart';
 import 'features/prompt/code_page.dart';
@@ -13,7 +14,7 @@ class HomeShell extends ConsumerWidget {
     RepoPage(),
     PromptPage(),
     CodeScreen(),
-    Center(child: Text('PRs (coming soon)', style: TextStyle(fontSize: 24))),
+    Center(child: SlashText('PRs (coming soon)', fontSize: 24)),
     SettingsScreen(),
   ];
 
@@ -122,37 +123,49 @@ class _NavBarItem extends StatelessWidget {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOut,
-                width: 40,
-                height: 36,
+                width: assetIcon != null ? 50 : 40,
+                height: assetIcon != null ? 50 : 36,
                 decoration: BoxDecoration(
-                  color: selected ? theme.colorScheme.primary.withOpacity(0.12) : Colors.transparent,
+                  color:
+                      selected
+                          ? theme.colorScheme.primary.withOpacity(0.12)
+                          : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
-                child: assetIcon != null
-                    ? Center(
-                        child: Image.asset(
-                          assetIcon!,
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.contain,
-                          color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
+                child:
+                    assetIcon != null
+                        ? Center(
+                          child: Image.asset(
+                            assetIcon!,
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.contain,
+                            color:
+                                selected
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurface.withOpacity(
+                                      0.7,
+                                    ),
+                          ),
+                        )
+                        : Icon(
+                          icon,
+                          size: 24,
+                          color:
+                              selected
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurface.withOpacity(
+                                    0.7,
+                                  ),
                         ),
-                      )
-                    : Icon(
-                  icon,
-                  size: 24,
-                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.7),
-                ),
               ),
               const SizedBox(height: 2),
               if (selected && assetIcon == null)
-                Text(
+                SlashText(
                   label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    color: theme.colorScheme.primary,
-                  ),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: theme.colorScheme.primary,
                 ),
             ],
           ),
@@ -160,4 +173,4 @@ class _NavBarItem extends StatelessWidget {
       ),
     );
   }
-} 
+}

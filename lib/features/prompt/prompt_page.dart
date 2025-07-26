@@ -3,13 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:highlight/languages/dart.dart';
 import 'package:slash_flutter/features/prompt/code_editor_controller.dart';
+import 'package:slash_flutter/ui/components/option_selection.dart';
+import 'package:slash_flutter/ui/components/slash_dropdown.dart';
+import 'package:slash_flutter/ui/components/slash_loading.dart';
+import 'package:slash_flutter/ui/components/slash_text.dart';
+import 'package:slash_flutter/ui/components/slash_toast.dart';
+import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
 import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
 import '../../ui/components/slash_diff_viewer.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
 import 'prompt_controller.dart';
-import 'code_page.dart';
 
 final tabIndexProvider = StateProvider<int>((ref) => 1); // 1 = prompt, 2 = code
 
@@ -40,7 +45,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   Future<void> _handlePromptSubmit() async {
     final prompt = _promptTextController.text.trim();
     if (prompt.isEmpty) return;
-    
+
     _promptTextController.clear();
     await ref.read(promptControllerProvider.notifier).submitPrompt(prompt);
   }
@@ -49,18 +54,16 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final repoState = ref.read(repoControllerProvider);
     final promptState = ref.read(promptControllerProvider);
     final repo = promptState.selectedRepo ?? repoState.selectedRepo;
-    
+
     if (repo == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No repository selected.')),
-      );
+      SlashToast.showError(context, 'No repository selected.');
       return;
     }
-    
+
     final owner = repo['owner']['login'];
     final repoName = repo['name'];
     final params = RepoParams(owner: owner, repo: repoName);
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -69,7 +72,9 @@ class _PromptPageState extends ConsumerState<PromptPage> {
           params: params,
           initiallySelected: promptState.repoContextFiles,
           onSelected: (selected) {
-            ref.read(promptControllerProvider.notifier).setRepoContextFiles(selected);
+            ref
+                .read(promptControllerProvider.notifier)
+                .setRepoContextFiles(selected);
           },
         );
       },
@@ -78,10 +83,10 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
   Widget _intentTag(String? intent) {
     if (intent == null) return const SizedBox.shrink();
-    
+
     Color color;
     String label;
-    
+
     switch (intent) {
       case 'code_edit':
         color = Colors.blueAccent;
@@ -97,13 +102,13 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         label = 'General';
         break;
     }
-    
+
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
         child: Chip(
-          label: Text(label, style: const TextStyle(color: Colors.white)),
+          label: SlashText(label, color: Colors.white),
           backgroundColor: color,
           visualDensity: VisualDensity.compact,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
@@ -115,7 +120,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   Widget _buildReviewBubble(ReviewData review, String summary, bool isLast) {
     final promptState = ref.watch(promptControllerProvider);
     final controller = ref.read(promptControllerProvider.notifier);
-    
+
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -149,12 +154,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                     onTap: () => controller.toggleReviewExpanded(),
                     child: Row(
                       children: [
-                        Flexible(
-                          child: Text(
-                            summary,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
+                        Flexible(child: SlashText(summary)),
                         const SizedBox(width: 8),
                         Icon(
                           promptState.reviewExpanded
@@ -170,10 +170,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
             ),
             if (promptState.reviewExpanded && isLast) ...[
               const SizedBox(height: 12),
-              Text(
-                review.fileName,
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              SlashText(review.fileName),
               const SizedBox(height: 8),
               SlashDiffViewer(
                 oldContent: review.oldContent,
@@ -186,41 +183,50 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blueAccent),
                     tooltip: 'Edit code',
-                    onPressed: promptState.isLoading
-                        ? null
-                        : () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Manual Edit'),
-                                content: const Text(
-                                  'You will be routed to the code editor to manually edit the AI\'s output.\n\nAfter editing, tap the green check to save your changes.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () => Navigator.of(ctx).pop(true),
-                                    child: const Text('Continue'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            
-                            if (confirm != true) return;
-                            
-                            // Set the external edit request and switch to code tab
-                            final container = ProviderScope.containerOf(context, listen: false);
-                            container
-                                .read(externalEditRequestProvider.notifier)
-                                .state = ExternalEditRequest(
-                              fileName: review.fileName,
-                              code: review.newContent,
-                            );
-                            container.read(tabIndexProvider.notifier).state = 2; // Switch to code tab
-                          },
+                    onPressed:
+                        promptState.isLoading
+                            ? null
+                            : () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder:
+                                    (ctx) => AlertDialog(
+                                      title: const SlashText('Manual Edit'),
+                                      content: const SlashText(
+                                        'You will be routed to the code editor to manually edit the AI\'s output.\n\nAfter editing, tap the green check to save your changes.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed:
+                                              () =>
+                                                  Navigator.of(ctx).pop(false),
+                                          child: const SlashText('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed:
+                                              () => Navigator.of(ctx).pop(true),
+                                          child: const SlashText('Continue'),
+                                        ),
+                                      ],
+                                    ),
+                              );
+
+                              if (confirm != true) return;
+
+                              // Set the external edit request and switch to code tab
+                              final container = ProviderScope.containerOf(
+                                context,
+                                listen: false,
+                              );
+                              container
+                                  .read(externalEditRequestProvider.notifier)
+                                  .state = ExternalEditRequest(
+                                fileName: review.fileName,
+                                code: review.newContent,
+                              );
+                              container.read(tabIndexProvider.notifier).state =
+                                  2; // Switch to code tab
+                            },
                   ),
                   const SizedBox(width: 8),
                   IconButton(
@@ -230,15 +236,17 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                       size: 28,
                     ),
                     tooltip: 'Approve and PR',
-                    onPressed: promptState.isLoading
-                        ? null
-                        : () => controller.approveReview(review, summary),
+                    onPressed:
+                        promptState.isLoading
+                            ? null
+                            : () => controller.approveReview(review, summary),
                   ),
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.cancel, color: Colors.red, size: 28),
                     tooltip: 'Reject',
-                    onPressed: promptState.isLoading ? null : controller.rejectReview,
+                    onPressed:
+                        promptState.isLoading ? null : controller.rejectReview,
                   ),
                 ],
               ),
@@ -255,250 +263,312 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final promptState = ref.watch(promptControllerProvider);
     final repoController = ref.read(repoControllerProvider.notifier);
     final promptController = ref.read(promptControllerProvider.notifier);
-    
+
     final repos = repoState.repos;
-    final selectedRepo = promptState.selectedRepo ?? 
-                        repoState.selectedRepo ?? 
-                        (repos.isNotEmpty ? repos[0] : null);
+    final selectedRepo =
+        promptState.selectedRepo ??
+        repoState.selectedRepo ??
+        (repos.isNotEmpty ? repos[0] : null);
 
     if (repoState.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    
+
     if (repos.isEmpty) {
-      return const Center(
-        child: Text('No repositories found.', style: TextStyle(fontSize: 18)),
-      );
+      return const Center(child: SlashText('No repositories found.'));
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: Image.asset('assets/slash2.png', height: 100),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: promptState.selectedModel,
-                items: const [
-                  DropdownMenuItem(value: 'gemini', child: Text('Gemini')),
-                  DropdownMenuItem(value: 'openai', child: Text('OpenAI')),
-                ],
-                onChanged: (val) {
-                  if (val != null) promptController.setSelectedModel(val);
-                },
-                style: Theme.of(context).textTheme.bodyMedium,
-                dropdownColor: Theme.of(context).cardColor,
+    return ThemeBuilder(
+      builder: (context, colors, ref) {
+        return Scaffold(
+          appBar: AppBar(
+            backgroundColor: colors.always8B5CF6.withValues(alpha: 0.1),
+            title: Image.asset('assets/slash2.png', height: 100),
+            centerTitle: false,
+            toolbarHeight: 80,
+            actions: [
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: colors.alwaysEDEDED.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: OptionSelection(
+                  options: ["Gemini", "OpenAI"],
+                  margin: 0,
+                  padding: 8,
+                  unselectedColor: Colors.transparent,
+                  selectedValue: promptState.selectedModel,
+                  onChanged: (val) {
+                    promptController.setSelectedModel(val);
+                  },
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Repository and branch selection
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: DropdownButton<dynamic>(
-                      value: selectedRepo,
-                      isExpanded: true,
-                      items: repos.map<DropdownMenuItem<dynamic>>((repo) {
-                        return DropdownMenuItem<dynamic>(
-                          value: repo,
-                          child: Text(repo['full_name'] ?? repo['name']),
-                        );
-                      }).toList(),
-                      onChanged: (repo) {
-                        promptController.setSelectedRepo(repo);
-                        repoController.selectRepo(repo);
-                      },
-                    ),
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Repository and branch selection
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                  const SizedBox(width: 12),
-                  if (promptState.branches.isNotEmpty)
-                    DropdownButton<String>(
-                      value: promptState.selectedBranch,
-                      items: promptState.branches
-                          .map((branch) => DropdownMenuItem<String>(
-                                value: branch,
-                                child: Text(branch),
-                              ))
-                          .toList(),
-                      onChanged: (branch) {
-                        promptController.setSelectedBranch(branch);
-                      },
-                    ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            
-            // Chat messages
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: promptState.messages.length,
-                itemBuilder: (context, idx) {
-                  final msg = promptState.messages[idx];
-                  
-                  if (msg.review != null) {
-                    // Review bubble
-                    return _buildReviewBubble(
-                      msg.review!,
-                      msg.text,
-                      idx == promptState.messages.length - 1,
-                    );
-                  }
-                  
-                  // Show intent tag above the latest agent message
-                  final isLastAgent = !msg.isUser &&
-                      idx == promptState.messages.lastIndexWhere((m) => !m.isUser);
-                  
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: Row(
                     children: [
-                      if (isLastAgent) _intentTag(promptState.lastIntent),
-                      Align(
-                        alignment: msg.isUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: msg.isUser
-                                ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
-                                : Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: msg.isUser
-                                ? []
-                                : [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.04),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (!msg.isUser)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8, top: 2),
-                                  child: Text(
-                                    '🤖',
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      color: Theme.of(context).colorScheme.primary,
-                                    ),
+                      Expanded(
+                        child: SlashDropDown(
+                          hintText: 'Select Repository',
+                          items:
+                              repos.map<DropdownMenuItem<dynamic>>((repo) {
+                                return DropdownMenuItem<dynamic>(
+                                  value: repo,
+                                  child: SlashText(
+                                    repo['full_name'] ?? repo['name'],
+                                    fontSize: 14,
                                   ),
-                                ),
-                              Flexible(
-                                child: Text(
-                                  msg.text,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: msg.isUser
+                                );
+                              }).toList(),
+                          onChanged: (repo) {
+                            promptController.setSelectedRepo(repo);
+                            repoController.selectRepo(repo);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      if (promptState.branches.isNotEmpty)
+                        SlashDropDown(
+                          width: 80,
+                          color: colors.always8B5CF6,
+                          value: promptState.selectedBranch,
+                          items:
+                              promptState.branches
+                                  .map<DropdownMenuItem<String>>((branch) {
+                                    return DropdownMenuItem<String>(
+                                      value: branch,
+                                      child: SlashText(
+                                        branch,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  })
+                                  .toList(),
+                          onChanged: (branch) {
+                            promptController.setSelectedBranch(branch);
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                const Divider(height: 0.5),
+
+                // Chat messages
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: promptState.messages.length,
+                    itemBuilder: (context, idx) {
+                      final msg = promptState.messages[idx];
+
+                      if (msg.review != null) {
+                        // Review bubble
+                        return _buildReviewBubble(
+                          msg.review!,
+                          msg.text,
+                          idx == promptState.messages.length - 1,
+                        );
+                      }
+
+                      // Show intent tag above the latest agent message
+                      final isLastAgent =
+                          !msg.isUser &&
+                          idx ==
+                              promptState.messages.lastIndexWhere(
+                                (m) => !m.isUser,
+                              );
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (isLastAgent) _intentTag(promptState.lastIntent),
+                          Align(
+                            alignment:
+                                msg.isUser
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color:
+                                    msg.isUser
                                         ? Theme.of(context).colorScheme.primary
-                                        : null,
-                                  ),
-                                ),
+                                            .withValues(alpha: 0.12)
+                                        : Theme.of(context).colorScheme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow:
+                                    msg.isUser
+                                        ? []
+                                        : [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.04,
+                                            ),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                               ),
-                            ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (!msg.isUser)
+                                    Container(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: slashIconButton(
+                                        asset: 'assets/icons/bot.svg',
+                                        iconSize: 24,
+                                        onPressed: () {},
+                                      ),
+                                    ),
+                                  Flexible(
+                                    child: Container(
+                                      padding: EdgeInsets.all(
+                                        !msg.isUser ? 8 : 0,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            !msg.isUser
+                                                ? colors.always909090
+                                                    .withValues(alpha: 0.12)
+                                                : null,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: SlashText(
+                                        msg.text,
+                                        color:
+                                            msg.isUser
+                                                ? Theme.of(
+                                                  context,
+                                                ).colorScheme.primary
+                                                : null,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+
+                // Loading indicator
+                if (promptState.isLoading)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Center(child: _ThinkingWidget()),
+                  ),
+
+                // Error message
+                if (promptState.error != null)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: SlashText(promptState.error!, color: Colors.red),
+                  ),
+
+                // Input field and send button
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      slashIconButton(
+                        asset: 'assets/icons/attach.svg',
+                        hasContainer: false,
+                        color: colors.always909090.withValues(alpha: 0.2),
+                        onPressed:
+                            promptState.isLoading
+                                ? () {}
+                                : () => _showFilePickerModal(context),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SlashTextField(
+                          controller: _promptTextController,
+                          hint: 'Type a prompt…',
+                          minLines: 4,
+                          maxLines: 8,
+                          suffix: Container(
+                            margin: const EdgeInsets.only(bottom: 5.0),
+                            child: slashIconButton(
+                              icon: Icons.arrow_upward,
+                              onPressed:
+                                  promptState.isLoading
+                                      ? () {}
+                                      : _handlePromptSubmit,
+                            ),
                           ),
                         ),
                       ),
+                      SizedBox(width: 12),
                     ],
-                  );
-                },
-              ),
-            ),
-            
-            // Loading indicator
-            if (promptState.isLoading)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Center(child: _ThinkingWidget()),
-              ),
-            
-            // Error message
-            if (promptState.error != null)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  promptState.error!,
-                  style: const TextStyle(color: Colors.red),
+                  ),
                 ),
-              ),
-            
-            // Input field and send button
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SlashTextField(
-                      controller: _promptTextController,
-                      hint: 'Type a prompt…',
-                      minLines: 1,
-                      maxLines: 4,
+
+                // Repo context files display
+                if (promptState.repoContextFiles.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Wrap(
+                      spacing: 6,
+                      children: [
+                        const SlashText(
+                          'Context:',
+                          fontWeight: FontWeight.bold,
+                        ),
+                        ...promptState.repoContextFiles.map(
+                          (f) => Chip(
+                            label: SlashText(f.name, fontSize: 12),
+                            onDeleted:
+                                () => promptController.removeContextFile(f),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SlashButton(
-                      label: 'Send',
-                      onTap: promptState.isLoading ? () {} : _handlePromptSubmit,
-                      icon: Icons.send,
-                    ),
-                  ),
-                ],
-              ),
+
+                // Add Repo Context Button
+                // Padding(
+                //   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                //   child: Align(
+                //     alignment: Alignment.centerLeft,
+                //     child: SlashButton(
+                //       text: 'Add Repo Context',
+                //       // icon: Icons.folder_open,
+                //       onPressed:
+                //           promptState.isLoading
+                //               ? () {}
+                //               : () => _showFilePickerModal(context),
+                //     ),
+                //   ),
+                // ),
+              ],
             ),
-            
-            // Repo context files display
-            if (promptState.repoContextFiles.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: Wrap(
-                  spacing: 6,
-                  children: [
-                    const Text(
-                      'Context:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    ...promptState.repoContextFiles.map((f) => Chip(
-                          label: Text(f.name, style: const TextStyle(fontSize: 12)),
-                          onDeleted: () => promptController.removeContextFile(f),
-                        )),
-                  ],
-                ),
-              ),
-            
-            // Add Repo Context Button
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: SlashButton(
-                  label: 'Add Repo Context',
-                  icon: Icons.folder_open,
-                  onTap: promptState.isLoading 
-                      ? () {} 
-                      : () => _showFilePickerModal(context),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -536,12 +606,10 @@ class _ThinkingWidgetState extends State<_ThinkingWidget>
       animation: _dots,
       builder: (context, child) {
         final dots = '.' * _dots.value;
-        return Text(
+        return SlashText(
           'Thinking$dots',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontStyle: FontStyle.italic,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+          fontStyle: FontStyle.italic,
+          color: Theme.of(context).colorScheme.primary,
         );
       },
     );
@@ -553,15 +621,16 @@ class _LazyFilePickerModal extends ConsumerStatefulWidget {
   final RepoParams params;
   final List<FileItem> initiallySelected;
   final void Function(List<FileItem>) onSelected;
-  
+
   const _LazyFilePickerModal({
     required this.params,
     required this.initiallySelected,
     required this.onSelected,
   });
-  
+
   @override
-  ConsumerState<_LazyFilePickerModal> createState() => _LazyFilePickerModalState();
+  ConsumerState<_LazyFilePickerModal> createState() =>
+      _LazyFilePickerModalState();
 }
 
 class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
@@ -583,7 +652,9 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
     } else if (selected.length < 3) {
       await controller.selectFile(file);
       setState(() {
-        final idx = controller.state.selectedFiles.indexWhere((f) => f.path == file.path);
+        final idx = controller.state.selectedFiles.indexWhere(
+          (f) => f.path == file.path,
+        );
         if (idx != -1) {
           selected.add(controller.state.selectedFiles[idx]);
         } else {
@@ -611,9 +682,9 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
 
   Widget _buildDir(FileBrowserController controller, FileBrowserState state) {
     if (state.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: SlashLoading());
     }
-    
+
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
@@ -621,49 +692,58 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
       child: ListView(
         shrinkWrap: true,
         physics: const ClampingScrollPhysics(),
-        children: state.items.map((item) {
-          if (item.type == 'dir') {
-            return ListTile(
-              leading: const Icon(Icons.folder, color: Colors.amber),
-              title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-              onTap: () {
-                _enterDir(item.name);
-                controller.fetchDir(_currentPath + (pathStack.isEmpty ? '' : '/'));
-              },
-            );
-          } else {
-            final isSelected = selected.any((f) => f.path == item.path);
-            return ListTile(
-              leading: const Icon(Icons.insert_drive_file, color: Colors.blueAccent),
-              title: Text(item.name),
-              subtitle: Text(
-                item.path,
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
-              ),
-              trailing: Checkbox(
-                value: isSelected,
-                onChanged: (_) => _onFileTap(item, controller),
-              ),
-              onTap: () => _onFileTap(item, controller),
-            );
-          }
-        }).toList(),
+        children:
+            state.items.map((item) {
+              if (item.type == 'dir') {
+                return ListTile(
+                  leading: const Icon(Icons.folder, color: Colors.amber),
+                  title: SlashText(item.name, fontWeight: FontWeight.w500),
+                  onTap: () {
+                    _enterDir(item.name);
+                    controller.fetchDir(
+                      _currentPath + (pathStack.isEmpty ? '' : '/'),
+                    );
+                  },
+                );
+              } else {
+                final isSelected = selected.any((f) => f.path == item.path);
+                return ListTile(
+                  leading: const Icon(
+                    Icons.insert_drive_file,
+                    color: Colors.blueAccent,
+                  ),
+                  title: SlashText(item.name),
+                  subtitle: SlashText(
+                    item.path,
+                    fontSize: 11,
+                    color: Colors.grey,
+                  ),
+                  trailing: Checkbox(
+                    value: isSelected,
+                    onChanged: (_) => _onFileTap(item, controller),
+                  ),
+                  onTap: () => _onFileTap(item, controller),
+                );
+              }
+            }).toList(),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.read(fileBrowserControllerProvider(widget.params).notifier);
+    final controller = ref.read(
+      fileBrowserControllerProvider(widget.params).notifier,
+    );
     final state = ref.watch(fileBrowserControllerProvider(widget.params));
-    
+
     // Fetch the current directory if needed
     if (state.pathStack.join('/') != _currentPath) {
       controller.fetchDir(_currentPath);
     }
-    
+
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
-    
+
     return SafeArea(
       child: Container(
         constraints: BoxConstraints(maxHeight: maxHeight),
@@ -687,9 +767,10 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
                 Expanded(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: Text(
+                    child: SlashText(
                       pathStack.isEmpty ? '/' : '/${pathStack.join('/')}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -702,9 +783,9 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            const SlashText(
               'Select up to 3 files for context',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              fontWeight: FontWeight.bold,
             ),
             const SizedBox(height: 8),
             Expanded(child: _buildDir(controller, state)),
@@ -713,9 +794,9 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
               children: [
                 Expanded(
                   child: SlashButton(
-                    label: 'Done',
-                    icon: Icons.check,
-                    onTap: () {
+                    text: 'Done',
+                    // icon: Icons.check,
+                    onPressed: () {
                       widget.onSelected(selected);
                       Navigator.of(context).pop();
                     },
@@ -724,9 +805,9 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: SlashButton(
-                    label: 'Cancel',
-                    icon: Icons.close,
-                    onTap: () => Navigator.of(context).pop(),
+                    text: 'Cancel',
+                    // icon: Icons.close,
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ),
               ],
@@ -742,13 +823,13 @@ class _LazyFilePickerModalState extends ConsumerState<_LazyFilePickerModal> {
 class CodeEditorScreen extends StatefulWidget {
   final String fileName;
   final String initialCode;
-  
+
   const CodeEditorScreen({
     required this.fileName,
     required this.initialCode,
     super.key,
   });
-  
+
   @override
   State<CodeEditorScreen> createState() => _CodeEditorScreenState();
 }
@@ -784,8 +865,9 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
     final editorBg = isDark ? const Color(0xFF23232A) : Colors.white;
     final borderColor = isDark ? const Color(0xFF333842) : Colors.grey[300]!;
     final gutterColor = isDark ? const Color(0xFF23232A) : Colors.grey[200]!;
-    final lineNumberColor = isDark ? const Color(0xFF8B949E) : Colors.grey[600]!;
-    
+    final lineNumberColor =
+        isDark ? const Color(0xFF8B949E) : Colors.grey[600]!;
+
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
@@ -796,9 +878,11 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
             const Icon(Icons.code, color: Color(0xFF8B5CF6)),
             const SizedBox(width: 8),
             Flexible(
-              child: Text(
+              child: SlashText(
                 widget.fileName,
-                style: const TextStyle(fontFamily: 'Fira Mono', fontSize: 16, color: Colors.white),
+                fontFamily: 'Fira Mono',
+                fontSize: 16,
+                color: Colors.white,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
               ),
