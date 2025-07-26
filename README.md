@@ -50,7 +50,7 @@ slash_flutter/
 ### 2. Clone & Install
 
 ```bash
-git clone https://github.com/your-org/slash_flutter.git
+git clone
 cd slash_flutter
 flutter pub get
 ```
