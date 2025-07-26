@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:slash_flutter/features/prompt/prompt_widgets.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'features/repo/repo_page.dart';
 import 'features/prompt/prompt_page.dart';
