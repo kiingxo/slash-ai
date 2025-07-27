@@ -151,74 +151,179 @@ class ReviewBubble extends ConsumerWidget {
 
     return Align(
       alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SvgPicture.asset(
-                  'assets/icons/bot.svg',
-                  height: 22,
-                  width: 22,
-                  colorFilter: ColorFilter.mode(
-                    Theme.of(context).colorScheme.primary,
-                    BlendMode.srcIn,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Main bubble
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => controller.toggleReviewExpanded(),
-                    child: Row(
-                      children: [
-                        Flexible(child: SlashText(summary)),
-                        const SizedBox(width: 8),
-                        Icon(
-                          promptState.reviewExpanded
-                              ? Icons.expand_less
-                              : Icons.expand_more,
-                          size: 20,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (promptState.reviewExpanded && isLast) ...[
-              const SizedBox(height: 12),
-              SlashText(review.fileName),
-              const SizedBox(height: 8),
-              SlashDiffViewer(
-                oldContent: review.oldContent,
-                newContent: review.newContent,
+                ],
               ),
-              const SizedBox(height: 16),
-              ReviewActionButtons(review: review, summary: summary),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SvgPicture.asset(
+                        'assets/icons/bot.svg',
+                        height: 22,
+                        width: 22,
+                        colorFilter: ColorFilter.mode(
+                          Theme.of(context).colorScheme.primary,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Summary text
+                            SlashText(summary),
+                            const SizedBox(height: 8),
+                            
+                            // Task completed + File info row
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green[50],
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: SlashText(
+                                    'Task completed',
+                                    fontSize: 10,
+                                    color: Colors.green[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: SlashText(
+                                    review.fileName,
+                                    fontSize: 10,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            
+                            // Tap to review
+                            GestureDetector(
+                              onTap: () => controller.toggleReviewExpanded(),
+                              child: Row(
+                                children: [
+                                  SlashText(
+                                    'Tap to review code',
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    promptState.reviewExpanded
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                    size: 16,
+                                    color: Colors.grey[600],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  // Expanded review section (your existing code)
+                  if (promptState.reviewExpanded && isLast) ...[
+                    const SizedBox(height: 12),
+                    SlashDiffViewer(
+                      oldContent: review.oldContent,
+                      newContent: review.newContent,
+                    ),
+                    const SizedBox(height: 16),
+                    ReviewActionButtons(review: review, summary: summary),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(width: 12),
+          
+          // Inline accept/reject buttons beside the bubble
+          Column(
+            children: [
+              // Quick accept button
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.green[200]!),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.check, color: Colors.green, size: 20),
+                  tooltip: 'Quick Accept',
+                  onPressed: promptState.isLoading 
+                      ? null 
+                      : () => controller.approveReview(review, summary),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 8),
+              
+              // Quick reject button
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                  tooltip: 'Quick Reject',
+                  onPressed: promptState.isLoading 
+                      ? null 
+                      : controller.rejectReview,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+              ),
             ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// Review action buttons widget
+// Keep your existing ReviewActionButtons widget unchanged
 class ReviewActionButtons extends ConsumerWidget {
   final dynamic review; // Replace with your ReviewData type
   final String summary;
@@ -301,7 +406,6 @@ class ReviewActionButtons extends ConsumerWidget {
     );
   }
 }
-
 // Thinking widget (animated ellipsis)
 class ThinkingWidget extends StatefulWidget {
   const ThinkingWidget({super.key});

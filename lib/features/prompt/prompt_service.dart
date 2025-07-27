@@ -67,8 +67,24 @@ class PromptService {
     required String prompt,
     required List<Map<String, String>> files,
   }) async {
-    // No summary generation; just return empty string
-    return 'Task completed'; // No summary
+    // Generate a short, precise summary for the chat bubble
+    final fileName = files.isNotEmpty ? files[0]['name'] : 'file';
+    final summaryPrompt =
+     '''
+You are /slash, an AI code assistant. The user requested a code change. 
+Provide a brief, precise summary of what you're changing (1-2 sentences max).
+
+User request: "$prompt"
+File: $fileName
+
+Be concise and specific about the change.''';
+    
+    final summary = await aiService.getCodeSuggestion(
+      prompt: summaryPrompt,
+      files: files,
+    );
+    
+    return summary.trim();
   }
 
   static Future<String> processCodeContent({
@@ -198,13 +214,19 @@ class PromptService {
   }
 }
 
-// Utility function to strip markdown code fences
+// Improved utility function to strip markdown code fences
 String stripCodeFences(String input) {
-  final codeFenceRegex = RegExp(
-    r'^```[a-zA-Z0-9]*\n|\n```|```[a-zA-Z0-9]*|```',
-    multiLine: true,
-  );
-  var output = input.replaceAll(codeFenceRegex, '');
+  String output = input.trim();
+  
+  // Remove opening code fence with optional language
+  output = output.replaceAll(RegExp(r'^```\w*\s*\n?'), '');
+  
+  // Remove closing code fence
+  output = output.replaceAll(RegExp(r'\n?```\s*$'), '');
+  
+  // Remove any remaining code fences
+  output = output.replaceAll(RegExp(r'```'), '');
+  
   return output.trim();
 }
 
