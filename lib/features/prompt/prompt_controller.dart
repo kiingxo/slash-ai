@@ -163,9 +163,27 @@ class PromptController extends StateNotifier<PromptState> {
       ));
     }
   }
-
-  Future<void> submitPrompt(String prompt) async {
+Future<void> submitPrompt(String prompt) async {
     if (prompt.trim().isEmpty) return;
+    
+    // Validation checks
+    final repo = state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+    
+    // Check if repository is selected
+    if (repo == null) {
+      state = state.copyWith(
+        error: 'Please select a repository before sending a message.',
+      );
+      return;
+    }
+
+    // Check if at least one context file is selected
+    if (state.repoContextFiles.isEmpty) {
+      state = state.copyWith(
+        error: 'Please select at least one context file before sending a message.',
+      );
+      return;
+    }
     
     state = state.copyWith(
       isLoading: true,
@@ -191,6 +209,33 @@ class PromptController extends StateNotifier<PromptState> {
       ));
     }
   }
+  // Future<void> submitPrompt(String prompt) async {
+  //   if (prompt.trim().isEmpty) return;
+    
+  //   state = state.copyWith(
+  //     isLoading: true,
+  //     clearError: true,
+  //   );
+    
+  //   _addMessage(ChatMessage(isUser: true, text: prompt));
+    
+  //   try {
+  //     await _processPrompt(prompt);
+  //   } catch (e, stackTrace) {
+  //     print('[PromptController] Error: $e');
+  //     print(stackTrace);
+      
+  //     state = state.copyWith(
+  //       isLoading: false,
+  //       error: e.toString(),
+  //     );
+      
+  //     _addMessage(ChatMessage(
+  //       isUser: false,
+  //       text: friendlyErrorMessage(e.toString()),
+  //     ));
+  //   }
+  // }
 
   Future<void> forceCodeEdit(String prompt) async {
     state = state.copyWith(isLoading: true);
@@ -210,12 +255,17 @@ class PromptController extends StateNotifier<PromptState> {
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
       
-      final files = await PromptService.fetchFiles(
-        owner: owner,
-        repo: repoName,
-        pat: authState.githubPat!,
-        branch: state.selectedBranch,
-      );
+      final contextFiles = state.repoContextFiles.isNotEmpty
+          ? state.repoContextFiles
+              .map((f) => {'name': f.name, 'content': f.content ?? ''})
+              .toList()
+          : null;
+
+      if (contextFiles == null || contextFiles.isEmpty) {
+        throw Exception('Please select at least one context file before submitting.');
+      }
+
+      final files = contextFiles;
       
       final summary = await PromptService.processCodeEditIntent(
         aiService: aiService,
@@ -361,14 +411,11 @@ class PromptController extends StateNotifier<PromptState> {
         final owner = repo['owner']['login'];
         final repoName = repo['name'];
         
-        final files = contextFiles.isNotEmpty
-            ? contextFiles
-            : await PromptService.fetchFiles(
-                owner: owner,
-                repo: repoName,
-                pat: authState.githubPat!,
-                branch: state.selectedBranch,
-              );
+        if (contextFiles.isEmpty) {
+          throw Exception('Please select at least one context file before submitting.');
+        }
+
+        final files = contextFiles;
         
         response = await PromptService.processCodeEditIntent(
           aiService: aiService,

@@ -38,7 +38,25 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
   Future<void> _handlePromptSubmit() async {
     final prompt = _promptTextController.text.trim();
-    if (prompt.isEmpty)return;
+    if (prompt.isEmpty) return;
+
+    // Validation checks
+    final repoState = ref.read(repoControllerProvider);
+    final promptState = ref.read(promptControllerProvider);
+    final selectedRepo = promptState.selectedRepo ?? repoState.selectedRepo;
+
+    // Check if repository is selected
+    if (selectedRepo == null) {
+      SlashToast.showError(context, 'Please select a repository before sending a message.');
+      return;
+    }
+
+    // Check if at least one context file is selected
+    if (promptState.repoContextFiles.isEmpty) {
+      SlashToast.showError(context, 'Please select at least one context file before sending a message.');
+      return;
+    }
+
     _promptTextController.clear();
     await ref.read(promptControllerProvider.notifier).submitPrompt(prompt);
   }
@@ -49,7 +67,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final repo = promptState.selectedRepo ?? repoState.selectedRepo;
 
     if (repo == null) {
-      SlashToast.showError(context, 'No repository selected.');
+      SlashToast.showError(context, 'Please select a repository first.');
       return;
     }
 

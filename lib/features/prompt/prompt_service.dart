@@ -67,15 +67,8 @@ class PromptService {
     required String prompt,
     required List<Map<String, String>> files,
   }) async {
-    // Get summary/explanation for chat bubble
-    final summaryPrompt =
-        "You are an AI code assistant. Summarize the following code change request for the user in a friendly, conversational way. Do NOT include the full code or file content in your response. "
-        "User request: $prompt";
-    
-    return await aiService.getCodeSuggestion(
-      prompt: summaryPrompt,
-      files: files,
-    );
+    // No summary generation; just return empty string
+    return 'Task completed'; // No summary
   }
 
   static Future<String> processCodeContent({
@@ -84,7 +77,7 @@ class PromptService {
     required List<Map<String, String>> files,
   }) async {
     final oldContent = files.isNotEmpty ? files[0]['content']! : '';
-    final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
+    final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown';
     
     final codeEditPrompt =
         'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n'

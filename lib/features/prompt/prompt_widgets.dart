@@ -338,7 +338,7 @@ class _ThinkingWidgetState extends State<ThinkingWidget>
       builder: (context, child) {
         final dots = '.' * _dots.value;
         return SlashText(
-          'Thinking$dots',
+          'Thinking🤔$dots',
           fontStyle: FontStyle.italic,
           color: Theme.of(context).colorScheme.primary,
         );
