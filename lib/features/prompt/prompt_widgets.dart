@@ -385,8 +385,8 @@ class ContextFilesDisplay extends StatelessWidget {
 // File picker modal widget
 class LazyFilePickerModal extends ConsumerStatefulWidget {
   final RepoParams params;
-  final List<FileItem> initiallySelected; // Changed back to FileItem
-  final void Function(List<FileItem>) onSelected; // Changed back to FileItem
+  final List<FileItem> initiallySelected;
+  final void Function(List<FileItem>) onSelected;
 
   const LazyFilePickerModal({
     super.key,
@@ -396,12 +396,11 @@ class LazyFilePickerModal extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<LazyFilePickerModal> createState() =>
-      _LazyFilePickerModalState();
+  ConsumerState<LazyFilePickerModal> createState() => _LazyFilePickerModalState();
 }
 
 class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
-  late List<FileItem> selected; // Changed back to FileItem
+  late List<FileItem> selected;
   late List<String> pathStack;
 
   @override
@@ -419,9 +418,7 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
     } else if (selected.length < 3) {
       await controller.selectFile(file);
       setState(() {
-        final idx = controller.state.selectedFiles.indexWhere(
-          (f) => f.path == file.path,
-        );
+        final idx = controller.state.selectedFiles.indexWhere((f) => f.path == file.path);
         if (idx != -1) {
           selected.add(controller.state.selectedFiles[idx]);
         } else {
@@ -431,21 +428,25 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
     }
   }
 
-  void _enterDir(String dirName) {
+ void _enterDir(String dirName, FileBrowserController controller) {
+  setState(() {
+    pathStack.add(dirName);
+  });
+
+  final path = pathStack.isEmpty ? '/' : pathStack.join('/');
+  controller.fetchDir(path);
+}
+
+void _goUp(FileBrowserController controller) {
+  if (pathStack.isNotEmpty) {
     setState(() {
-      pathStack.add(dirName);
+      pathStack.removeLast();
     });
-  }
 
-  void _goUp() {
-    if (pathStack.isNotEmpty) {
-      setState(() {
-        pathStack.removeLast();
-      });
-    }
+    final path = pathStack.isEmpty ? '/' : pathStack.join('/');
+    controller.fetchDir(path);
   }
-
-  String get _currentPath => pathStack.isEmpty ? '' : pathStack.join('/');
+}
 
   Widget _buildDir(FileBrowserController controller, FileBrowserState state) {
     if (state.isLoading) {
@@ -464,20 +465,12 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
             return ListTile(
               leading: const Icon(Icons.folder, color: Colors.amber),
               title: SlashText(item.name, fontWeight: FontWeight.w500),
-              onTap: () {
-                _enterDir(item.name);
-                controller.fetchDir(
-                  _currentPath + (pathStack.isEmpty ? '' : '/'),
-                );
-              },
+              onTap: () => _enterDir(item.name, controller),
             );
           } else {
             final isSelected = selected.any((f) => f.path == item.path);
             return ListTile(
-              leading: const Icon(
-                Icons.insert_drive_file,
-                color: Colors.blueAccent,
-              ),
+              leading: const Icon(Icons.insert_drive_file, color: Colors.blueAccent),
               title: SlashText(item.name),
               subtitle: SlashText(
                 item.path,
@@ -498,15 +491,8 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.read(
-      fileBrowserControllerProvider(widget.params).notifier,
-    );
+    final controller = ref.read(fileBrowserControllerProvider(widget.params).notifier);
     final state = ref.watch(fileBrowserControllerProvider(widget.params));
-
-    // Fetch the current directory if needed
-    if (state.pathStack.join('/') != _currentPath) {
-      controller.fetchDir(_currentPath);
-    }
 
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
 
@@ -528,7 +514,7 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
                     tooltip: 'Up',
-                    onPressed: _goUp,
+                    onPressed: () => _goUp(controller),
                   ),
                 Expanded(
                   child: SingleChildScrollView(
@@ -582,7 +568,6 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
     );
   }
 }
-
 // Code editor screen for manual editing
 class CodeEditorScreen extends StatefulWidget {
   final String fileName;
