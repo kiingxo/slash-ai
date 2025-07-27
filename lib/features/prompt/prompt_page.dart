@@ -11,6 +11,7 @@ import '../../ui/components/slash_button.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
 import 'prompt_controller.dart';
+
 class PromptPage extends ConsumerStatefulWidget {
   const PromptPage({super.key});
 
@@ -37,8 +38,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
   Future<void> _handlePromptSubmit() async {
     final prompt = _promptTextController.text.trim();
-    if (prompt.isEmpty) return;
-
+    if (prompt.isEmpty)return;
     _promptTextController.clear();
     await ref.read(promptControllerProvider.notifier).submitPrompt(prompt);
   }
@@ -166,7 +166,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                                       value: branch,
                                       child: SlashText(
                                         branch,
-                                        fontSize: 14,
+                                        fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     );
@@ -212,7 +212,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (isLastAgent) IntentTag(intent: promptState.lastIntent),
+                          if (isLastAgent)
+                            IntentTag(intent: promptState.lastIntent),
                           ChatMessageBubble(message: msg),
                         ],
                       );
@@ -277,7 +278,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 if (promptState.repoContextFiles.isNotEmpty)
                   ContextFilesDisplay(
                     contextFiles: promptState.repoContextFiles,
-                    onRemoveFile: (file) => promptController.removeContextFile(file),
+                    onRemoveFile:
+                        (file) => promptController.removeContextFile(file),
                   ),
               ],
             ),

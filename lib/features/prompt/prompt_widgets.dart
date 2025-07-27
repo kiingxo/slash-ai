@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:highlight/languages/dart.dart';
 import 'package:slash_flutter/features/file_browser/file_browser_controller.dart';
 import 'package:slash_flutter/features/prompt/code_editor_controller.dart';
@@ -17,10 +18,7 @@ final tabIndexProvider = StateProvider<int>((ref) => 1); // 1 = prompt, 2 = code
 class IntentTag extends StatelessWidget {
   final String? intent;
 
-  const IntentTag({
-    super.key,
-    required this.intent,
-  });
+  const IntentTag({super.key, required this.intent});
 
   @override
   Widget build(BuildContext context) {
@@ -64,34 +62,35 @@ class IntentTag extends StatelessWidget {
 class ChatMessageBubble extends ConsumerWidget {
   final dynamic message; // Replace with your Message type
 
-  const ChatMessageBubble({
-    super.key,
-    required this.message,
-  });
+  const ChatMessageBubble({super.key, required this.message});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final msg = message;
-    
+
     return Align(
       alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: msg.isUser
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
-              : Theme.of(context).colorScheme.surface,
+          color:
+              msg.isUser
+                  ? Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.12)
+                  : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: msg.isUser
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+          boxShadow:
+              msg.isUser
+                  ? []
+                  : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -110,19 +109,18 @@ class ChatMessageBubble extends ConsumerWidget {
               child: Container(
                 padding: EdgeInsets.all(!msg.isUser ? 8 : 0),
                 decoration: BoxDecoration(
-                  color: !msg.isUser
-                      ? Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.12)
-                      : null,
+                  color:
+                      !msg.isUser
+                          ? Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.12)
+                          : null,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: SlashText(
                   msg.text,
-                  color: msg.isUser
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
+                  color:
+                      msg.isUser ? Theme.of(context).colorScheme.primary : null,
                 ),
               ),
             ),
@@ -173,10 +171,14 @@ class ReviewBubble extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.android,
-                  size: 22,
-                  color: Theme.of(context).colorScheme.primary,
+                SvgPicture.asset(
+                  'assets/icons/bot.svg',
+                  height: 22,
+                  width: 22,
+                  colorFilter: ColorFilter.mode(
+                    Theme.of(context).colorScheme.primary,
+                    BlendMode.srcIn,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -238,56 +240,56 @@ class ReviewActionButtons extends ConsumerWidget {
         IconButton(
           icon: const Icon(Icons.edit, color: Colors.blueAccent),
           tooltip: 'Edit code',
-          onPressed: promptState.isLoading
-              ? null
-              : () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const SlashText('Manual Edit'),
-                      content: const SlashText(
-                        'You will be routed to the code editor to manually edit the AI\'s output.\n\nAfter editing, tap the green check to save your changes.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(false),
-                          child: const SlashText('Cancel'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => Navigator.of(ctx).pop(true),
-                          child: const SlashText('Continue'),
-                        ),
-                      ],
-                    ),
-                  );
+          onPressed:
+              promptState.isLoading
+                  ? null
+                  : () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder:
+                          (ctx) => AlertDialog(
+                            title: const SlashText('Manual Edit'),
+                            content: const SlashText(
+                              'You will be routed to the code editor to manually edit the AI\'s output.\n\nAfter editing, tap the green check to save your changes.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(false),
+                                child: const SlashText('Cancel'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.of(ctx).pop(true),
+                                child: const SlashText('Continue'),
+                              ),
+                            ],
+                          ),
+                    );
 
-                  if (confirm != true) return;
+                    if (confirm != true) return;
 
-                  // Set the external edit request and switch to code tab
-                  final container = ProviderScope.containerOf(
-                    context,
-                    listen: false,
-                  );
-                  container
-                      .read(externalEditRequestProvider.notifier)
-                      .state = ExternalEditRequest(
-                    fileName: review.fileName,
-                    code: review.newContent,
-                  );
-                  container.read(tabIndexProvider.notifier).state = 2; // Switch to code tab
-                },
+                    // Set the external edit request and switch to code tab
+                    final container = ProviderScope.containerOf(
+                      context,
+                      listen: false,
+                    );
+                    container
+                        .read(externalEditRequestProvider.notifier)
+                        .state = ExternalEditRequest(
+                      fileName: review.fileName,
+                      code: review.newContent,
+                    );
+                    container.read(tabIndexProvider.notifier).state =
+                        2; // Switch to code tab
+                  },
         ),
         const SizedBox(width: 8),
         IconButton(
-          icon: const Icon(
-            Icons.check_circle,
-            color: Colors.green,
-            size: 28,
-          ),
+          icon: const Icon(Icons.check_circle, color: Colors.green, size: 28),
           tooltip: 'Approve and PR',
-          onPressed: promptState.isLoading
-              ? null
-              : () => controller.approveReview(review, summary),
+          onPressed:
+              promptState.isLoading
+                  ? null
+                  : () => controller.approveReview(review, summary),
         ),
         const SizedBox(width: 8),
         IconButton(
@@ -359,17 +361,11 @@ class ContextFilesDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Wrap(
         spacing: 6,
         children: [
-          const SlashText(
-            'Context:',
-            fontWeight: FontWeight.bold,
-          ),
+          const SlashText('Context:', fontWeight: FontWeight.bold),
           ...contextFiles.map(
             (f) => Chip(
               label: SlashText(f.name, fontSize: 12),
@@ -396,7 +392,8 @@ class LazyFilePickerModal extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<LazyFilePickerModal> createState() => _LazyFilePickerModalState();
+  ConsumerState<LazyFilePickerModal> createState() =>
+      _LazyFilePickerModalState();
 }
 
 class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
@@ -418,7 +415,9 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
     } else if (selected.length < 3) {
       await controller.selectFile(file);
       setState(() {
-        final idx = controller.state.selectedFiles.indexWhere((f) => f.path == file.path);
+        final idx = controller.state.selectedFiles.indexWhere(
+          (f) => f.path == file.path,
+        );
         if (idx != -1) {
           selected.add(controller.state.selectedFiles[idx]);
         } else {
@@ -428,25 +427,25 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
     }
   }
 
- void _enterDir(String dirName, FileBrowserController controller) {
-  setState(() {
-    pathStack.add(dirName);
-  });
-
-  final path = pathStack.isEmpty ? '/' : pathStack.join('/');
-  controller.fetchDir(path);
-}
-
-void _goUp(FileBrowserController controller) {
-  if (pathStack.isNotEmpty) {
+  void _enterDir(String dirName, FileBrowserController controller) {
     setState(() {
-      pathStack.removeLast();
+      pathStack.add(dirName);
     });
 
     final path = pathStack.isEmpty ? '/' : pathStack.join('/');
     controller.fetchDir(path);
   }
-}
+
+  void _goUp(FileBrowserController controller) {
+    if (pathStack.isNotEmpty) {
+      setState(() {
+        pathStack.removeLast();
+      });
+
+      final path = pathStack.isEmpty ? '/' : pathStack.join('/');
+      controller.fetchDir(path);
+    }
+  }
 
   Widget _buildDir(FileBrowserController controller, FileBrowserState state) {
     if (state.isLoading) {
@@ -460,38 +459,44 @@ void _goUp(FileBrowserController controller) {
       child: ListView(
         shrinkWrap: true,
         physics: const ClampingScrollPhysics(),
-        children: state.items.map((item) {
-          if (item.type == 'dir') {
-            return ListTile(
-              leading: const Icon(Icons.folder, color: Colors.amber),
-              title: SlashText(item.name, fontWeight: FontWeight.w500),
-              onTap: () => _enterDir(item.name, controller),
-            );
-          } else {
-            final isSelected = selected.any((f) => f.path == item.path);
-            return ListTile(
-              leading: const Icon(Icons.insert_drive_file, color: Colors.blueAccent),
-              title: SlashText(item.name),
-              subtitle: SlashText(
-                item.path,
-                fontSize: 11,
-                color: Colors.grey,
-              ),
-              trailing: Checkbox(
-                value: isSelected,
-                onChanged: (_) => _onFileTap(item, controller),
-              ),
-              onTap: () => _onFileTap(item, controller),
-            );
-          }
-        }).toList(),
+        children:
+            state.items.map((item) {
+              if (item.type == 'dir') {
+                return ListTile(
+                  leading: const Icon(Icons.folder, color: Colors.amber),
+                  title: SlashText(item.name, fontWeight: FontWeight.w500),
+                  onTap: () => _enterDir(item.name, controller),
+                );
+              } else {
+                final isSelected = selected.any((f) => f.path == item.path);
+                return ListTile(
+                  leading: const Icon(
+                    Icons.insert_drive_file,
+                    color: Colors.blueAccent,
+                  ),
+                  title: SlashText(item.name),
+                  subtitle: SlashText(
+                    item.path,
+                    fontSize: 11,
+                    color: Colors.grey,
+                  ),
+                  trailing: Checkbox(
+                    value: isSelected,
+                    onChanged: (_) => _onFileTap(item, controller),
+                  ),
+                  onTap: () => _onFileTap(item, controller),
+                );
+              }
+            }).toList(),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.read(fileBrowserControllerProvider(widget.params).notifier);
+    final controller = ref.read(
+      fileBrowserControllerProvider(widget.params).notifier,
+    );
     final state = ref.watch(fileBrowserControllerProvider(widget.params));
 
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
@@ -568,6 +573,7 @@ void _goUp(FileBrowserController controller) {
     );
   }
 }
+
 // Code editor screen for manual editing
 class CodeEditorScreen extends StatefulWidget {
   final String fileName;
