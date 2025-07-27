@@ -38,7 +38,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
   Future<void> _handlePromptSubmit() async {
     final prompt = _promptTextController.text.trim();
-    if (prompt.isEmpty)return;
+    if (prompt.isEmpty) return;
     _promptTextController.clear();
     await ref.read(promptControllerProvider.notifier).submitPrompt(prompt);
   }
@@ -137,16 +137,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                       Expanded(
                         child: SlashDropDown(
                           hintText: 'Select Repository',
-                          items:
-                              repos.map<DropdownMenuItem<dynamic>>((repo) {
-                                return DropdownMenuItem<dynamic>(
-                                  value: repo,
-                                  child: SlashText(
-                                    repo['full_name'] ?? repo['name'],
-                                    fontSize: 12,
-                                  ),
-                                );
-                              }).toList(),
+                          items: repos.map<DropdownMenuItem<dynamic>>((repo) {
+                            return DropdownMenuItem<dynamic>(
+                              value: repo,
+                              child: SlashText(
+                                repo['full_name'] ?? repo['name'],
+                                fontSize: 12,
+                              ),
+                            );
+                          }).toList(),
                           onChanged: (repo) {
                             promptController.setSelectedRepo(repo);
                             repoController.selectRepo(repo);
@@ -159,19 +158,17 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                           width: 80,
                           color: colors.always8B5CF6,
                           value: promptState.selectedBranch,
-                          items:
-                              promptState.branches
-                                  .map<DropdownMenuItem<String>>((branch) {
-                                    return DropdownMenuItem<String>(
-                                      value: branch,
-                                      child: SlashText(
-                                        branch,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    );
-                                  })
-                                  .toList(),
+                          items: promptState.branches
+                              .map<DropdownMenuItem<String>>((branch) {
+                            return DropdownMenuItem<String>(
+                              value: branch,
+                              child: SlashText(
+                                branch,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          }).toList(),
                           onChanged: (branch) {
                             promptController.setSelectedBranch(branch);
                           },
@@ -183,6 +180,21 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 const SizedBox(height: 10),
 
                 const Divider(height: 0.5),
+
+                // Loading indicator for repo processing
+                if (promptState.isProcessingRepo)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(width: 12),
+                        SlashText('Processing repository...',
+                            fontStyle: FontStyle.italic),
+                      ],
+                    ),
+                  ),
 
                 // Chat messages
                 Expanded(
@@ -202,8 +214,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                       }
 
                       // Show intent tag above the latest agent message
-                      final isLastAgent =
-                          !msg.isUser &&
+                      final isLastAgent = !msg.isUser &&
                           idx ==
                               promptState.messages.lastIndexWhere(
                                 (m) => !m.isUser,
@@ -221,8 +232,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   ),
                 ),
 
-                // Loading indicator
-                if (promptState.isLoading)
+                // Loading indicator for prompt processing
+                if (promptState.isLoading && !promptState.isProcessingRepo)
                   const Padding(
                     padding: EdgeInsets.all(12),
                     child: Center(child: ThinkingWidget()),
@@ -245,10 +256,9 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                         asset: 'assets/icons/attach.svg',
                         hasContainer: false,
                         color: colors.always909090.withValues(alpha: 0.2),
-                        onPressed:
-                            promptState.isLoading
-                                ? () {}
-                                : () => _showFilePickerModal(context),
+                        onPressed: promptState.isLoading
+                            ? () {}
+                            : () => _showFilePickerModal(context),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -257,14 +267,17 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                           hint: 'Type a prompt…',
                           minLines: 4,
                           maxLines: 8,
+                          // Disable input while processing repo
+                          enabled: !promptState.isProcessingRepo,
                           suffix: Container(
                             margin: const EdgeInsets.only(bottom: 5.0),
                             child: slashIconButton(
                               icon: Icons.arrow_upward,
-                              onPressed:
-                                  promptState.isLoading
-                                      ? () {}
-                                      : _handlePromptSubmit,
+                              // Disable send button while loading or processing repo
+                              onPressed: promptState.isLoading ||
+                                      promptState.isProcessingRepo
+                                  ? () {}
+                                  : _handlePromptSubmit,
                             ),
                           ),
                         ),
@@ -274,12 +287,12 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   ),
                 ),
 
-                // Repo context files display
-                if (promptState.repoContextFiles.isNotEmpty)
+                // Repo context files display (consider if still needed with vector search)
+                if (promptState.repoContextFiles.isNotEmpty && !promptState.isProcessingRepo)
                   ContextFilesDisplay(
                     contextFiles: promptState.repoContextFiles,
-                    onRemoveFile:
-                        (file) => promptController.removeContextFile(file),
+                    onRemoveFile: (file) =>
+                        promptController.removeContextFile(file),
                   ),
               ],
             ),

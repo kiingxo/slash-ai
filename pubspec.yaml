@@ -24,6 +24,8 @@ dependencies:
   shared_preferences: ^2.5.3
   toastification: ^3.0.3
   url_launcher: ^6.3.2
+  sqflite: any # Added sqflite
+  path: any # Added path
 
 uni_links:
   git:

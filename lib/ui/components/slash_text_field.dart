@@ -25,6 +25,7 @@ class SlashTextField extends StatefulWidget {
   final Color? backgroundColor;
   final String? prefixText;
   final String? headerText;
+  final bool enabled; // Add this line for the enabled parameter
 
   const SlashTextField({
     super.key,
@@ -50,6 +51,7 @@ class SlashTextField extends StatefulWidget {
     this.border,
     this.backgroundColor,
     this.prefixText,
+    this.enabled = true, // Add this line with a default value
   });
 
   @override
@@ -99,6 +101,7 @@ class _SlashTextFieldState extends State<SlashTextField> {
                       maxLength: widget.maxLength,
                       minLines: widget.minLines,
                       maxLines: widget.maxLines,
+                      enabled: widget.enabled, // Use the enabled parameter here
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         color: colors.lightBlackDarkWhite,

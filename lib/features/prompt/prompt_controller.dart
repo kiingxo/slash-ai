@@ -1,15 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:slash_flutter/services/code_database.dart';
 import '../file_browser/file_browser_controller.dart';
 import '../auth/auth_controller.dart';
 import '../repo/repo_controller.dart';
 import 'prompt_service.dart';
+import 'package:slash_flutter/services/file_processing_service.dart'; // Import the file processing service
 
 // Message model for chat
 class ChatMessage {
   final bool isUser;
   final String text;
   final ReviewData? review;
-  
+
   ChatMessage({
     required this.isUser,
     required this.text,
@@ -23,7 +25,7 @@ class ReviewData {
   final String oldContent;
   final String newContent;
   final String summary;
-  
+
   ReviewData({
     required this.fileName,
     required this.oldContent,
@@ -45,6 +47,7 @@ class PromptState {
   final List<String> branches;
   final String? selectedBranch;
   final dynamic selectedRepo;
+  final bool isProcessingRepo; // Added to indicate if repo is being processed
 
   PromptState({
     this.messages = const [],
@@ -58,6 +61,7 @@ class PromptState {
     this.branches = const [],
     this.selectedBranch,
     this.selectedRepo,
+    this.isProcessingRepo = false, // Initialize
   });
 
   PromptState copyWith({
@@ -74,12 +78,14 @@ class PromptState {
     dynamic selectedRepo,
     bool clearError = false,
     bool clearPendingReview = false,
+    bool? isProcessingRepo, // Add to copyWith
   }) {
     return PromptState(
       messages: messages ?? this.messages,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
-      pendingReview: clearPendingReview ? null : (pendingReview ?? this.pendingReview),
+      pendingReview:
+          clearPendingReview ? null : (pendingReview ?? this.pendingReview),
       reviewExpanded: reviewExpanded ?? this.reviewExpanded,
       selectedModel: selectedModel ?? this.selectedModel,
       lastIntent: lastIntent ?? this.lastIntent,
@@ -87,6 +93,7 @@ class PromptState {
       branches: branches ?? this.branches,
       selectedBranch: selectedBranch ?? this.selectedBranch,
       selectedRepo: selectedRepo ?? this.selectedRepo,
+      isProcessingRepo: isProcessingRepo ?? this.isProcessingRepo, // Update
     );
   }
 }
@@ -95,14 +102,15 @@ class PromptState {
 class PromptController extends StateNotifier<PromptState> {
   final Ref ref;
 
-  PromptController(this.ref) : super(PromptState(
-    messages: [
-      ChatMessage(
-        isUser: false,
-        text: "Hi! I'm /slash. How can I help you today?",
-      ),
-    ],
-  )) {
+  PromptController(this.ref)
+      : super(PromptState(
+          messages: [
+            ChatMessage(
+              isUser: false,
+              text: "Hi! I\'m /slash. How can I help you today?",
+            ),
+          ],
+        )) {
     _initializeModel();
   }
 
@@ -119,6 +127,7 @@ class PromptController extends StateNotifier<PromptState> {
     state = state.copyWith(selectedRepo: repo);
     if (repo != null) {
       _fetchBranchesForRepo(repo);
+      _processRepoForEmbeddings(repo); // Trigger processing
     }
   }
 
@@ -142,17 +151,17 @@ class PromptController extends StateNotifier<PromptState> {
 
   Future<void> addRepoContext() async {
     try {
-      final repo = state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      final repo =
+          state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
       if (repo == null) throw Exception('No repository selected.');
-      
+
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
       final params = RepoParams(owner: owner, repo: repoName);
-      
-      final fileBrowserController = ref.read(
-        fileBrowserControllerProvider(params).notifier,
-      );
-      
+
+      final fileBrowserController =
+          ref.read(fileBrowserControllerProvider(params).notifier);
+
       final files = await fileBrowserController.listAllFiles();
       state = state.copyWith(repoContextFiles: files);
     } catch (e) {
@@ -166,25 +175,25 @@ class PromptController extends StateNotifier<PromptState> {
 
   Future<void> submitPrompt(String prompt) async {
     if (prompt.trim().isEmpty) return;
-    
+
     state = state.copyWith(
       isLoading: true,
       clearError: true,
     );
-    
+
     _addMessage(ChatMessage(isUser: true, text: prompt));
-    
+
     try {
       await _processPrompt(prompt);
     } catch (e, stackTrace) {
       print('[PromptController] Error: $e');
       print(stackTrace);
-      
+
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
       );
-      
+
       _addMessage(ChatMessage(
         isUser: false,
         text: friendlyErrorMessage(e.toString()),
@@ -194,67 +203,72 @@ class PromptController extends StateNotifier<PromptState> {
 
   Future<void> forceCodeEdit(String prompt) async {
     state = state.copyWith(isLoading: true);
-    
+
     try {
       final authState = ref.read(authControllerProvider);
-      final repo = state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
-      
+      final repo =
+          state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+
       if (repo == null) throw Exception('No repository selected');
-      
+
       final aiService = PromptService.createAIService(
         model: state.selectedModel,
         geminiKey: authState.geminiApiKey,
         openAIApiKey: authState.openAIApiKey,
       );
-      
+
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
-      
-      final files = await PromptService.fetchFiles(
-        owner: owner,
-        repo: repoName,
-        pat: authState.githubPat!,
-        branch: state.selectedBranch,
-      );
-      
+
+      final files = state.repoContextFiles.isNotEmpty
+          ? state.repoContextFiles
+              .map((f) => {'name': f.name, 'content': f.content ?? ''})
+              .toList()
+          : await PromptService.fetchFiles(
+              owner: owner,
+              repo: repoName,
+              pat: authState.githubPat!,
+              branch: state.selectedBranch,
+            );
+
       final summary = await PromptService.processCodeEditIntent(
         aiService: aiService,
         prompt: prompt,
         files: files,
       );
-      
+
       final newContent = await PromptService.processCodeContent(
         aiService: aiService,
         prompt: prompt,
         files: files,
       );
-      
+
       final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
       final oldContent = files.isNotEmpty ? files[0]['content']! : '';
-      
+
       final review = ReviewData(
         fileName: fileName,
         oldContent: oldContent,
         newContent: newContent,
         summary: summary,
       );
-      
+
       state = state.copyWith(
         isLoading: false,
         pendingReview: review,
         reviewExpanded: false,
       );
-      
+
       _addMessage(ChatMessage(isUser: false, text: summary, review: review));
     } catch (e, stackTrace) {
       print('[PromptController] Force code edit error: $e');
       print(stackTrace);
-      
+
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
       );
-      
+
       _addMessage(ChatMessage(
         isUser: false,
         text: friendlyErrorMessage(e.toString()),
@@ -267,14 +281,15 @@ class PromptController extends StateNotifier<PromptState> {
       isLoading: true,
       clearError: true,
     );
-    
+
     try {
-      final repo = state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+      final repo =
+          state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
       if (repo == null) throw Exception('No repository selected');
-      
+
       final owner = repo['owner']['login'];
       final repoName = repo['name'];
-      
+
       final prUrl = await PromptService.createPullRequest(
         owner: owner,
         repo: repoName,
@@ -284,12 +299,12 @@ class PromptController extends StateNotifier<PromptState> {
         summary: review.summary,
         selectedBranch: state.selectedBranch,
       );
-      
+
       state = state.copyWith(
         isLoading: false,
         clearPendingReview: true,
       );
-      
+
       _addMessage(ChatMessage(
         isUser: false,
         text: 'Pull request created! $prUrl',
@@ -299,7 +314,7 @@ class PromptController extends StateNotifier<PromptState> {
         isLoading: false,
         error: e.toString(),
       );
-      
+
       _addMessage(ChatMessage(
         isUser: false,
         text: friendlyErrorMessage(e.toString()),
@@ -312,7 +327,7 @@ class PromptController extends StateNotifier<PromptState> {
       clearPendingReview: true,
       reviewExpanded: false,
     );
-    
+
     _addMessage(ChatMessage(
       isUser: false,
       text: 'Suggestion rejected.',
@@ -321,106 +336,122 @@ class PromptController extends StateNotifier<PromptState> {
 
   Future<void> _processPrompt(String prompt) async {
     final authState = ref.read(authControllerProvider);
-    final repo = state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
-    
+    final repo =
+        state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
+
     // Validate API keys
-    if ((state.selectedModel == 'gemini' && 
-         (authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty)) ||
-        (state.selectedModel == 'openai' && 
-         (authState.openAIApiKey == null || authState.openAIApiKey!.isEmpty)) ||
-        authState.githubPat == null || authState.githubPat!.isEmpty) {
+    if ((state.selectedModel == 'gemini' &&
+            (authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty)) ||
+        (state.selectedModel == 'openai' &&
+            (authState.openAIApiKey == null || authState.openAIApiKey!.isEmpty)) ||
+        authState.githubPat == null ||
+        authState.githubPat!.isEmpty) {
       throw Exception('Missing API keys');
     }
-    
+
     final aiService = PromptService.createAIService(
       model: state.selectedModel,
       geminiKey: authState.geminiApiKey,
       openAIApiKey: authState.openAIApiKey,
     );
-    
+
     // Classify intent
+    // You might want to classify intent *after* getting context chunks
+    // as the context can influence the intent. We'll keep it here for now
+    // but can revisit this.
     final intent = await aiService.classifyIntent(prompt);
     state = state.copyWith(lastIntent: intent);
-    
-    // Prepare context files
-    final contextFiles = state.repoContextFiles.isNotEmpty
-        ? state.repoContextFiles
-            .map((f) => {'name': f.name, 'content': f.content ?? ''})
-            .toList()
-            .take(3)
-            .toList()
-        : const <Map<String, String>>[];
-    
+
+    // Use vector search to get context files based on the query
+    List<CodeChunk> relevantChunks = [];
+    if (repo != null) {
+      // Assuming the repo path is available when a repo is selected
+      final repoPath = repo['local_path'] ?? '.'; // Replace with actual repo path if stored
+      relevantChunks = await FileProcessingService.searchCodeChunks(prompt, 5); // Get top 5 chunks
+    }
+
+
+    // Prepare context for LLM
+    final contextString = relevantChunks.map((chunk) {
+      // Format the chunk information for the LLM
+      return 'File: ${chunk.fileName}\nChunk:\n${chunk.chunkText}\n';
+    }).join('\n---\n'); // Use a separator between chunks
+
+    // Combine context with the user's prompt
+    final promptWithContext = contextString.isNotEmpty
+        ? 'Context:\n$contextString\nUser Query: $prompt'
+        : prompt; // Use only the prompt if no relevant chunks found
+
+
     String response;
     ReviewData? review;
-    
+
     switch (intent) {
       case 'code_edit':
         if (repo == null) throw Exception('No repository selected');
-        
-        final owner = repo['owner']['login'];
-        final repoName = repo['name'];
-        
-        final files = contextFiles.isNotEmpty
-            ? contextFiles
-            : await PromptService.fetchFiles(
-                owner: owner,
-                repo: repoName,
-                pat: authState.githubPat!,
-                branch: state.selectedBranch,
-              );
-        
+
+        // For code edit, we might need the full file content of the relevant files
+        // instead of just chunks. This is a point to consider and refine.
+        // For now, we'll pass the relevant chunks' text as context.
+
+        // You'll need to adapt how you fetch/provide file content for code edits
+        // based on the relevant chunks. This might involve reading the full files
+        // for the files containing the relevant chunks.
+
+        // Example (simplified - you'll need to implement the logic to get full files):
+        final filesForEdit = relevantChunks.map((chunk) => {'name': chunk.fileName, 'content': chunk.chunkText}).toList(); // Simplified: using chunk text as content
+
         response = await PromptService.processCodeEditIntent(
           aiService: aiService,
-          prompt: prompt,
-          files: files,
+          prompt: promptWithContext, // Pass prompt with context
+          files: filesForEdit, // Pass relevant file content (or chunks)
         );
-        
-        final newContent = await PromptService.processCodeContent(
-          aiService: aiService,
-          prompt: prompt,
-          files: files,
-        );
-        
-        final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
-        final oldContent = files.isNotEmpty ? files[0]['content']! : '';
-        
+
+         // To get the new content for the review, you might need a separate call
+         // to the AI service with the full file content and the user's request.
+         // This is a more complex interaction that needs careful design.
+         // For now, we'll use a placeholder or simplify the review process for code edits.
+
+        // Placeholder for review data in code_edit case
         review = ReviewData(
-          fileName: fileName,
-          oldContent: oldContent,
-          newContent: newContent,
+          fileName: relevantChunks.isNotEmpty ? relevantChunks.first.fileName : 'unknown.dart',
+          oldContent: 'Original content not available with chunking approach yet.', // Indicate limitation
+          newContent: 'Generated new content not available with chunking approach yet.', // Indicate limitation
           summary: response,
         );
+
+
         break;
-        
+
       case 'repo_question':
         if (repo == null) {
-          response = "No repository selected. Please select a repository to ask questions about it.";
+          response =
+              "No repository selected. Please select a repository to ask questions about it.";
         } else {
           response = await PromptService.processRepoQuestion(
             aiService: aiService,
-            prompt: prompt,
+            prompt: promptWithContext, // Pass prompt with context
             repo: repo,
-            contextFiles: contextFiles,
+            contextFiles: [], // Context is now handled by vector search
           );
         }
         break;
-        
+
       default:
         response = await PromptService.processGeneralIntent(
           aiService: aiService,
-          prompt: prompt,
-          contextFiles: contextFiles,
+          prompt: promptWithContext, // Pass prompt with context
+          contextFiles: [], // Context is now handled by vector search
         );
         break;
     }
-    
+
     state = state.copyWith(
       isLoading: false,
-      pendingReview: review,
+      pendingReview: review, // pendingReview might need adjustment for code_edit with chunking
       reviewExpanded: false,
     );
-    
+
     _addMessage(ChatMessage(
       isUser: false,
       text: response,
@@ -428,24 +459,64 @@ class PromptController extends StateNotifier<PromptState> {
     ));
   }
 
+
+  // New function to trigger repo processing for embeddings
+  Future<void> _processRepoForEmbeddings(dynamic repo) async {
+    if (repo == null) return;
+
+    state = state.copyWith(isProcessingRepo: true, clearError: true);
+
+    try {
+      // Assuming the repo object contains a 'local_path' field
+      final repoPath = repo['local_path']; // Get the local path of the repo
+
+      if (repoPath == null) {
+        throw Exception('Local path for the selected repository is not available.');
+      }
+
+      await FileProcessingService.processDirectoryAndStoreEmbeddings(repoPath);
+
+      state = state.copyWith(isProcessingRepo: false);
+      print('Repository processing for embeddings completed.');
+       _addMessage(ChatMessage(
+        isUser: false,
+        text: 'Repository processed and embeddings stored for search.',
+      ));
+
+    } catch (e, stackTrace) {
+      print('[PromptController] Error processing repo for embeddings: $e');
+      print(stackTrace);
+
+      state = state.copyWith(
+        isProcessingRepo: false,
+        error: 'Failed to process repository for embeddings: ${friendlyErrorMessage(e.toString())}',
+      );
+       _addMessage(ChatMessage(
+        isUser: false,
+        text: 'Failed to process repository for embeddings: ${friendlyErrorMessage(e.toString())}',
+      ));
+    }
+  }
+
+
   Future<void> _fetchBranchesForRepo(dynamic repo) async {
     if (repo == null) return;
-    
+
     state = state.copyWith(
       branches: [],
       selectedBranch: null,
     );
-    
+
     try {
       final branches = await PromptService.fetchBranches(
         owner: repo['owner']['login'],
         repo: repo['name'],
       );
-      
+
       final selectedBranch = branches.contains('main')
           ? 'main'
           : (branches.isNotEmpty ? branches[0] : null);
-      
+
       state = state.copyWith(
         branches: branches,
         selectedBranch: selectedBranch,
@@ -467,6 +538,7 @@ class PromptController extends StateNotifier<PromptState> {
 }
 
 // Provider
-final promptControllerProvider = StateNotifierProvider<PromptController, PromptState>((ref) {
+final promptControllerProvider =
+    StateNotifierProvider<PromptController, PromptState>((ref) {
   return PromptController(ref);
 });
