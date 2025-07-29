@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:slash_flutter/features/prompt/context_control_widget.dart';
 import 'package:slash_flutter/features/prompt/prompt_widgets.dart';
 import 'package:slash_flutter/ui/components/option_selection.dart';
 import 'package:slash_flutter/ui/components/slash_dropdown.dart';
@@ -91,219 +92,257 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       },
     );
   }
+// Add this to your existing PromptPage widget
+// Replace the existing build method with this updated version
 
-  @override
-  Widget build(BuildContext context) {
-    final repoState = ref.watch(repoControllerProvider);
-    final promptState = ref.watch(promptControllerProvider);
-    final repoController = ref.read(repoControllerProvider.notifier);
-    final promptController = ref.read(promptControllerProvider.notifier);
+@override
+Widget build(BuildContext context) {
+  final repoState = ref.watch(repoControllerProvider);
+  final promptState = ref.watch(promptControllerProvider);
+  final repoController = ref.read(repoControllerProvider.notifier);
+  final promptController = ref.read(promptControllerProvider.notifier);
 
-    final repos = repoState.repos;
-    final selectedRepo =
-        promptState.selectedRepo ??
-        repoState.selectedRepo ??
-        (repos.isNotEmpty ? repos[0] : null);
+  final repos = repoState.repos;
+  final selectedRepo =
+      promptState.selectedRepo ??
+      repoState.selectedRepo ??
+      (repos.isNotEmpty ? repos[0] : null);
 
-    if (repoState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  if (repoState.isLoading) {
+    return const Center(child: CircularProgressIndicator());
+  }
 
-    if (repos.isEmpty) {
-      return const Center(child: SlashText('No repositories found.'));
-    }
+  if (repos.isEmpty) {
+    return const Center(child: SlashText('No repositories found.'));
+  }
 
-    return ThemeBuilder(
-      builder: (context, colors, ref) {
-        return Scaffold(
-          appBar: AppBar(
-            backgroundColor: colors.always8B5CF6.withValues(alpha: 0.1),
-            title: Image.asset('assets/slash2.png', height: 100),
-            centerTitle: false,
-            toolbarHeight: 80,
-            actions: [
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: colors.alwaysEDEDED.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
+  return ThemeBuilder(
+    builder: (context, colors, ref) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: colors.always8B5CF6.withValues(alpha: 0.1),
+          title: Image.asset('assets/slash2.png', height: 100),
+          centerTitle: false,
+          toolbarHeight: 80,
+          actions: [
+            // Context summary button
+            IconButton(
+              icon: const Icon(Icons.summarize),
+              tooltip: 'View Context Summary',
+              onPressed: promptState.repoContextFiles.isEmpty
+                  ? null
+                  : () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => ContextSummaryDialog(
+                          contextFiles: promptState.repoContextFiles,
+                          contextSummaries: promptState.contextSummaries,
+                        ),
+                      );
+                    },
+            ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: colors.alwaysEDEDED.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: OptionSelection(
+                options: ["Gemini", "OpenAI"],
+                margin: 0,
+                padding: 8,
+                unselectedColor: Colors.transparent,
+                selectedValue: promptState.selectedModel,
+                onChanged: (val) {
+                  promptController.setSelectedModel(val);
+                },
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Repository and branch selection
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-                child: OptionSelection(
-                  options: ["Gemini", "OpenAI"],
-                  margin: 0,
-                  padding: 8,
-                  unselectedColor: Colors.transparent,
-                  selectedValue: promptState.selectedModel,
-                  onChanged: (val) {
-                    promptController.setSelectedModel(val);
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SlashDropDown(
+                        hintText: 'Select Repository',
+                        items: repos.map<DropdownMenuItem<dynamic>>((repo) {
+                          return DropdownMenuItem<dynamic>(
+                            value: repo,
+                            child: SlashText(
+                              repo['full_name'] ?? repo['name'],
+                              fontSize: 12,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (repo) {
+                          promptController.setSelectedRepo(repo);
+                          repoController.selectRepo(repo);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    if (promptState.branches.isNotEmpty)
+                      SlashDropDown(
+                        width: 80,
+                        color: colors.always8B5CF6,
+                        value: promptState.selectedBranch,
+                        items: promptState.branches
+                            .map<DropdownMenuItem<String>>((branch) {
+                          return DropdownMenuItem<String>(
+                            value: branch,
+                            child: SlashText(
+                              branch,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (branch) {
+                          promptController.setSelectedBranch(branch);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+
+              // Context Control Widget - NEW!
+              const ContextControlWidget(),
+
+              const SizedBox(height: 10),
+              const Divider(height: 0.5),
+
+              // Chat messages - Updated to use enhanced bubble
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: promptState.messages.length,
+                  itemBuilder: (context, idx) {
+                    final msg = promptState.messages[idx];
+
+                    if (msg.review != null) {
+                      // Review bubble
+                      return ReviewBubble(
+                        review: msg.review!,
+                        summary: msg.text,
+                        isLast: idx == promptState.messages.length - 1,
+                      );
+                    }
+
+                    // Show intent tag above the latest agent message
+                    final isLastAgent = !msg.isUser &&
+                        idx ==
+                            promptState.messages.lastIndexWhere(
+                              (m) => !m.isUser,
+                            );
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (isLastAgent)
+                          IntentTag(intent: promptState.lastIntent),
+                        // Use enhanced message bubble
+                        EnhancedChatMessageBubble(message: msg),
+                      ],
+                    );
                   },
                 ),
               ),
-            ],
-          ),
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Repository and branch selection
+
+              // Loading indicator
+              if (promptState.isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Center(child: ThinkingWidget()),
+                ),
+
+              // Error message
+              if (promptState.error != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: SlashDropDown(
-                          hintText: 'Select Repository',
-                          items:
-                              repos.map<DropdownMenuItem<dynamic>>((repo) {
-                                return DropdownMenuItem<dynamic>(
-                                  value: repo,
-                                  child: SlashText(
-                                    repo['full_name'] ?? repo['name'],
-                                    fontSize: 12,
+                  padding: const EdgeInsets.all(12),
+                  child: SlashText(promptState.error!, color: Colors.red),
+                ),
+
+              // Input field and send button
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    slashIconButton(
+                      asset: 'assets/icons/attach.svg',
+                      hasContainer: false,
+                      color: colors.always909090.withValues(alpha: 0.2),
+                      onPressed: promptState.isLoading
+                          ? () {}
+                          : () => _showFilePickerModal(context),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SlashTextField(
+                        controller: _promptTextController,
+                        hint: 'Type a prompt…',
+                        minLines: 4,
+                        maxLines: 8,
+                        suffix: Container(
+                          margin: const EdgeInsets.only(bottom: 5.0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Context toggle button
+                              if (promptState.contextStrategy == ContextStrategy.onDemand)
+                                Container(
+                                  margin: const EdgeInsets.only(right: 8),
+                                  child: slashIconButton(
+                                    icon: promptState.includeContextInNextMessage
+                                        ? Icons.attach_file
+                                        : Icons.attach_file_outlined,
+                                    iconSize: 18,
+                                    color: promptState.includeContextInNextMessage
+                                        ? colors.always8B5CF6
+                                        : colors.always909090,
+                                    onPressed: () => promptController
+                                        .forceIncludeContextInNextMessage(),
+                                    hasContainer: false,
                                   ),
-                                );
-                              }).toList(),
-                          onChanged: (repo) {
-                            promptController.setSelectedRepo(repo);
-                            repoController.selectRepo(repo);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      if (promptState.branches.isNotEmpty)
-                        SlashDropDown(
-                          width: 80,
-                          color: colors.always8B5CF6,
-                          value: promptState.selectedBranch,
-                          items:
-                              promptState.branches
-                                  .map<DropdownMenuItem<String>>((branch) {
-                                    return DropdownMenuItem<String>(
-                                      value: branch,
-                                      child: SlashText(
-                                        branch,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    );
-                                  })
-                                  .toList(),
-                          onChanged: (branch) {
-                            promptController.setSelectedBranch(branch);
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                const Divider(height: 0.5),
-
-                // Chat messages
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: promptState.messages.length,
-                    itemBuilder: (context, idx) {
-                      final msg = promptState.messages[idx];
-
-                      if (msg.review != null) {
-                        // Review bubble
-                        return ReviewBubble(
-                          review: msg.review!,
-                          summary: msg.text,
-                          isLast: idx == promptState.messages.length - 1,
-                        );
-                      }
-
-                      // Show intent tag above the latest agent message
-                      final isLastAgent =
-                          !msg.isUser &&
-                          idx ==
-                              promptState.messages.lastIndexWhere(
-                                (m) => !m.isUser,
-                              );
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (isLastAgent)
-                            IntentTag(intent: promptState.lastIntent),
-                          ChatMessageBubble(message: msg),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-
-                // Loading indicator
-                if (promptState.isLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Center(child: ThinkingWidget()),
-                  ),
-
-                // Error message
-                if (promptState.error != null)
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: SlashText(promptState.error!, color: Colors.red),
-                  ),
-
-                // Input field and send button
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      slashIconButton(
-                        asset: 'assets/icons/attach.svg',
-                        hasContainer: false,
-                        color: colors.always909090.withValues(alpha: 0.2),
-                        onPressed:
-                            promptState.isLoading
-                                ? () {}
-                                : () => _showFilePickerModal(context),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SlashTextField(
-                          controller: _promptTextController,
-                          hint: 'Type a prompt…',
-                          minLines: 4,
-                          maxLines: 8,
-                          suffix: Container(
-                            margin: const EdgeInsets.only(bottom: 5.0),
-                            child: slashIconButton(
-                              icon: Icons.arrow_upward,
-                              onPressed:
-                                  promptState.isLoading
-                                      ? () {}
-                                      : _handlePromptSubmit,
-                            ),
+                                ),
+                              // Send button
+                              slashIconButton(
+                                icon: Icons.arrow_upward,
+                                onPressed: promptState.isLoading
+                                    ? () {}
+                                    : _handlePromptSubmit,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      SizedBox(width: 12),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                 ),
+              ),
 
-                // Repo context files display
-                if (promptState.repoContextFiles.isNotEmpty)
-                  ContextFilesDisplay(
-                    contextFiles: promptState.repoContextFiles,
-                    onRemoveFile:
-                        (file) => promptController.removeContextFile(file),
-                  ),
-              ],
-            ),
+              // Repo context files display
+              if (promptState.repoContextFiles.isNotEmpty)
+                ContextFilesDisplay(
+                  contextFiles: promptState.repoContextFiles,
+                  onRemoveFile: (file) => promptController.removeContextFile(file),
+                ),
+            ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
+
 }
