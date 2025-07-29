@@ -288,8 +288,8 @@ class ReviewBubble extends ConsumerWidget {
                       ? null 
                       : () => controller.approveReview(review, summary),
                   constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
+                    minWidth: 32,
+                    minHeight: 32,
                   ),
                 ),
               ),
@@ -310,8 +310,8 @@ class ReviewBubble extends ConsumerWidget {
                       ? null 
                       : controller.rejectReview,
                   constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
+                    minWidth: 32,
+                    minHeight: 32,
                   ),
                 ),
               ),
