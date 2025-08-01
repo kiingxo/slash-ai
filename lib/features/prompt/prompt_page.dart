@@ -23,16 +23,37 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   late TextEditingController _promptTextController;
   final TextEditingController _searchController = TextEditingController();
 
+  // Chat scroll behavior
+  final ScrollController _chatController = ScrollController();
+  bool _userScrolling = false;
+
+  void _autoScrollToBottom() {
+    if (!_chatController.hasClients) return;
+    if (_userScrolling) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_chatController.hasClients) return;
+      _chatController.animateTo(
+        _chatController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _promptTextController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoScrollToBottom();
+    });
   }
 
   @override
   void dispose() {
     _promptTextController.dispose();
     _searchController.dispose();
+    _chatController.dispose();
     super.dispose();
   }
 
@@ -40,23 +61,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final prompt = _promptTextController.text.trim();
     if (prompt.isEmpty) return;
 
-    // Validation checks
-    final repoState = ref.read(repoControllerProvider);
-    final promptState = ref.read(promptControllerProvider);
-    final selectedRepo = promptState.selectedRepo ?? repoState.selectedRepo;
-
-    // Check if repository is selected
-    if (selectedRepo == null) {
-      SlashToast.showError(context, 'Please select a repository before sending a message.');
-      return;
-    }
-
-    // Check if at least one context file is selected
-    if (promptState.repoContextFiles.isEmpty) {
-      SlashToast.showError(context, 'Please select at least one context file before sending a message.');
-      return;
-    }
-
+    // Agentic: allow send for follow-ups without forcing repo/context here.
     _promptTextController.clear();
     await ref.read(promptControllerProvider.notifier).submitPrompt(prompt);
   }
@@ -202,49 +207,62 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
                 const Divider(height: 0.5),
 
-                // Chat messages
+                // Chat messages with auto-scroll + user scroll detection
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: promptState.messages.length,
-                    itemBuilder: (context, idx) {
-                      final msg = promptState.messages[idx];
-
-                      if (msg.review != null) {
-                        // Review bubble
-                        return ReviewBubble(
-                          review: msg.review!,
-                          summary: msg.text,
-                          isLast: idx == promptState.messages.length - 1,
-                        );
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (_chatController.hasClients) {
+                        final atBottom = _chatController.position.pixels >=
+                            (_chatController.position.maxScrollExtent - 48);
+                        _userScrolling = !atBottom;
                       }
-
-                      // Show intent tag above the latest agent message
-                      final isLastAgent =
-                          !msg.isUser &&
-                          idx ==
-                              promptState.messages.lastIndexWhere(
-                                (m) => !m.isUser,
-                              );
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (isLastAgent)
-                            IntentTag(intent: promptState.lastIntent),
-                          ChatMessageBubble(message: msg),
-                        ],
-                      );
+                      return false;
                     },
+                    child: ListView.builder(
+                      controller: _chatController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: promptState.messages.length,
+                      itemBuilder: (context, idx) {
+                        final msg = promptState.messages[idx];
+
+                        if (msg.review != null) {
+                          if (idx == promptState.messages.length - 1) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _autoScrollToBottom();
+                            });
+                          }
+                          return ReviewBubble(
+                            review: msg.review!,
+                            summary: msg.text,
+                            isLast: idx == promptState.messages.length - 1,
+                          );
+                        }
+
+                        final isLastAgent =
+                            !msg.isUser &&
+                            idx ==
+                                promptState.messages.lastIndexWhere(
+                                  (m) => !m.isUser,
+                                );
+
+                        if (idx == promptState.messages.length - 1) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _autoScrollToBottom();
+                          });
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (isLastAgent)
+                              IntentTag(intent: promptState.lastIntent),
+                            ChatMessageBubble(message: msg),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
-
-                // Loading indicator
-                if (promptState.isLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Center(child: ThinkingWidget()),
-                  ),
 
                 // Error message
                 if (promptState.error != null)

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 
 /// Unified chat service for OpenAI-style and OpenRouter endpoints.
@@ -27,18 +28,18 @@ class OpenAIService {
     required List<Map<String, String>> files,
   }) async {
     final systemPrompt = files.isNotEmpty
-        ? 'You are an expert code assistant. User prompt: $prompt\nRelevant files:\n${files.map((f) => 'File: ${f['name']}\n${f['content']}\n---').join('\n')}\nSuggest minimal, high-quality code changes. Output only the code diff and a short summary.'
+        ? 'You are an expert code assistant. User prompt: $prompt\nRelevant files:\n${files.map((f) => 'File: ${f['name']}\n${_truncateContent(f['content'] ?? '')}\n---').join('\n')}\nSuggest minimal, high-quality code changes. Output only the code diff and a short summary.'
         : 'You are an expert code assistant. User prompt: $prompt';
-    
+
     final requestBody = {
       'model': model,
       'messages': [
         {'role': 'system', 'content': systemPrompt},
       ],
-      'max_tokens': 4096, // Increased from 1024 to allow for complete code generation
+      'max_tokens': 4096,
       'temperature': 0.2,
     };
-    
+
     final headers = {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $apiKey',
@@ -46,19 +47,17 @@ class OpenAIService {
       if (useOpenRouter) 'X-Title': 'Slash',               // optional
     };
 
-    final response = await http
-        .post(
-          Uri.parse(baseUrl),
-          headers: headers,
-          body: jsonEncode(requestBody),
-        )
-        .timeout(const Duration(seconds: 30));
-    
+    final response = await _postWithRetry(
+      Uri.parse(baseUrl),
+      headers,
+      jsonEncode(requestBody),
+    );
+
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['choices']?[0]?['message']?['content']?.trim() ?? '';
     } else {
-      throw Exception('${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.body}');
+      throw Exception('${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.statusCode}: ${response.body}');
     }
   }
 
@@ -81,21 +80,55 @@ class OpenAIService {
       if (useOpenRouter) 'X-Title': 'Slash',
     };
 
-    final response = await http
-        .post(
-          Uri.parse(baseUrl),
-          headers: headers,
-          body: jsonEncode(requestBody),
-        )
-        .timeout(const Duration(seconds: 30));
-    
+    final response = await _postWithRetry(
+      Uri.parse(baseUrl),
+      headers,
+      jsonEncode(requestBody),
+    );
+
     print('[OpenAIService] classifyIntent raw response: ${response.body}');
     
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['choices']?[0]?['message']?['content']?.trim() ?? 'general';
     } else {
-      throw Exception('${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.body}');
+      throw Exception('${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.statusCode}: ${response.body}');
     }
+  }
+  // Retry helper with exponential backoff; increases resilience against 408/429/5xx.
+  Future<http.Response> _postWithRetry(
+    Uri uri,
+    Map<String, String> headers,
+    Object body, {
+    int maxAttempts = 3,
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final res = await http
+            .post(uri, headers: headers, body: body)
+            .timeout(timeout);
+
+        // Retry on common transient statuses
+        if ([408, 409, 429, 500, 502, 503, 504].contains(res.statusCode) &&
+            attempt < maxAttempts) {
+          final backoffMs = 800 * attempt;
+          await Future.delayed(Duration(milliseconds: backoffMs));
+          continue;
+        }
+        return res;
+      } on TimeoutException {
+        if (attempt >= maxAttempts) rethrow;
+        final backoffMs = 800 * attempt;
+        await Future.delayed(Duration(milliseconds: backoffMs));
+      }
+    }
+    throw Exception('Request failed after $maxAttempts attempts');
+  }
+
+  // Truncate very large file content to reduce payload size (helps avoid timeouts)
+  String _truncateContent(String content, {int maxChars = 4000}) {
+    if (content.length <= maxChars) return content;
+    return content.substring(0, maxChars) + '\n… (truncated)';
   }
 }

@@ -80,23 +80,14 @@ class PromptService {
     required String prompt,
     required List<Map<String, String>> files,
   }) async {
-    // Generate a short, precise summary for the chat bubble
-    final fileName = files.isNotEmpty ? files[0]['name'] : 'file';
-    final summaryPrompt =
-     '''
-You are /slash, an AI code assistant. The user requested a code change. 
-Provide a brief, precise summary of what you're changing (1-2 sentences max).
-
-User request: "$prompt"
-File: $fileName
-
-Be concise and specific about the change.''';
+    final fileName = files.isNotEmpty ? (files[0]['name'] ?? 'file') : 'file';
+    final planPrompt =
+        '${systemPrompt()}\n\nYou are performing a code edit.\nUser request: "$prompt"\nTarget file: $fileName\nRespond with a concise 1-2 sentence plan, no headings.';
     
     final summary = await aiService.getCodeSuggestion(
-      prompt: summaryPrompt,
+      prompt: planPrompt,
       files: files,
     );
-    
     return summary.trim();
   }
 
@@ -105,11 +96,11 @@ Be concise and specific about the change.''';
     required String prompt,
     required List<Map<String, String>> files,
   }) async {
-    final oldContent = files.isNotEmpty ? files[0]['content']! : '';
-    final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown';
+    final oldContent = files.isNotEmpty ? (files[0]['content'] ?? '') : '';
+    final fileName = files.isNotEmpty ? (files[0]['name'] ?? 'unknown') : 'unknown';
     
     final codeEditPrompt =
-        'You are a code editing agent. Given the original file content and the user\'s request, output ONLY the new file content after the edit. Do NOT include any explanation, comments, or markdown. Output only the code, as it should appear in the file.\n\n'
+        '${systemPrompt()}\n\nYou are a code editing agent. Output ONLY the new file content, no comments or markdown fences.\n'
         'File: $fileName\n'
         'Original content:\n$oldContent\n'
         'User request: $prompt';
@@ -132,12 +123,31 @@ Be concise and specific about the change.''';
         'Repo name: ${repo['name']}\nDescription: ${repo['description'] ?? 'No description.'}';
     
     final answerPrompt =
-        'User question: $prompt\nRepo info: $repoInfo\nAnswer the user\'s question about the repo.';
+        '${systemPrompt()}\n\nUser question: $prompt\n$repoInfo\nAnswer clearly in plain sentences.';
     
     return await aiService.getCodeSuggestion(
       prompt: answerPrompt,
       files: contextFiles,
     );
+  }
+
+  // Global, persistent system prompt to keep behavior consistent across turns.
+  static String systemPrompt() {
+    return '''
+You are /slash, an agentic coding assistant.
+
+Core behavior:
+- Understand and work with code across languages and frameworks.
+- Classify user intent implicitly each turn: code_edit, repo_question, or general.
+- For code_edit: produce a concise plan in 1-2 sentences. When given a file, output ONLY fully-updated file content when asked for content. No extra prose, no markdown fences.
+- For repo_question: answer clearly using available repo/meta context and snippets.
+- For general: be concise, plain sentences, no headings/labels.
+
+Rules:
+- Avoid headings like "Summary", "Plan", "Diff", "Analysis".
+- Prefer minimal, actionable guidance.
+- If a file context was provided in a previous turn, assume it as the current working file unless a new file is explicitly given.
+''';
   }
 
   static Future<String> processGeneralIntent({
@@ -146,7 +156,7 @@ Be concise and specific about the change.''';
     required List<Map<String, String>> contextFiles,
   }) async {
     final answerPrompt =
-        'User: $prompt\nYou are /slash, an AI code assistant. Respond conversationally.';
+        '${systemPrompt()}\n\nUser: $prompt';
     
     return await aiService.getCodeSuggestion(
       prompt: answerPrompt,

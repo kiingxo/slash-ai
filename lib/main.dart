@@ -40,14 +40,25 @@ class SlashApp extends StatelessWidget {
   const SlashApp({super.key});
 
   Future<bool> _hasTokens() async {
+    // Gate based on new auth_service values:
+    // - model: 'gemini' requires gemini_api_key
+    // - model: 'openrouter' requires openrouter_api_key
+    // - both require github_pat
     final storage = SecureStorageService();
-    final gemini = await storage.getApiKey('gemini_api_key');
-    final openai = await storage.getApiKey('openai_api_key');
+    final model = await storage.getApiKey('model') ?? 'gemini';
     final github = await storage.getApiKey('github_pat');
-    final hasAIKey =
-        (gemini != null && gemini.isNotEmpty) ||
-        (openai != null && openai.isNotEmpty);
-    return hasAIKey && github != null && github.isNotEmpty;
+
+    String? aiKey;
+    if (model == 'openrouter') {
+      aiKey = await storage.getApiKey('openrouter_api_key');
+    } else {
+      // default to gemini
+      aiKey = await storage.getApiKey('gemini_api_key');
+    }
+
+    final hasAIKey = aiKey != null && aiKey.isNotEmpty;
+    final hasGitHub = github != null && github.isNotEmpty;
+    return hasAIKey && hasGitHub;
   }
 
   @override

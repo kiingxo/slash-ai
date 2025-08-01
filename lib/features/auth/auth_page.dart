@@ -26,7 +26,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   String? successMessage;
   String? errorMessage;
   bool isValid = false;
-  String model = 'gemini';
+  String model = 'openrouter';
   List<String> openRouterModels = const [];
   bool loadingModels = false;
   String modelSearch = '';
@@ -60,7 +60,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
       }
     });
     openRouterModelController.addListener(_validate);
-    model = authState.model;
+    model = (authState.model.isNotEmpty ? authState.model : 'openrouter');
     _validate();
   }
 
@@ -148,11 +148,6 @@ class _AuthPageState extends ConsumerState<AuthPage> {
       await ref
           .read(new_auth.authControllerProvider.notifier)
           .setGeminiKey(geminiKey);
-    } else if (model == 'openai') {
-      // Keeping OpenAI path for backward compatibility (stored as 'openai_api_key')
-      await ref
-          .read(new_auth.authControllerProvider.notifier)
-          .setOpenRouterKey(openAIKey);
     } else {
       // openrouter
       await ref
@@ -267,9 +262,9 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                         //     ),
                         //     const SlashText('OpenAI'),
                         //   ],
-                        // ),
+                        // ),the
                         OptionSelection(
-                          options: const ['Gemini', 'OpenRouter'],
+                          options: const ['OpenRouter', 'Gemini'],
                           selectedValue: model.toLowerCase() == 'openrouter' ? 'OpenRouter' : 'Gemini',
                           onChanged: (value) {
                             setState(() {

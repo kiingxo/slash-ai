@@ -10,12 +10,39 @@ class ChatMessage {
   final bool isUser;
   final String text;
   final ReviewData? review;
-  
+
+  // Context bubble metadata for the user turn
+  // Holds the exact files that were sent with that message
+  final List<ContextFileMeta>? sentContext; // immutable snapshot per turn
+  final DateTime? sentAt; // timestamp when the turn was sent
+  final bool expandableContext; // controls UI expand/collapse
+
   ChatMessage({
     required this.isUser,
     required this.text,
     this.review,
+    this.sentContext,
+    this.sentAt,
+    this.expandableContext = false,
   });
+
+  ChatMessage copyWith({
+    bool? isUser,
+    String? text,
+    ReviewData? review,
+    List<ContextFileMeta>? sentContext,
+    DateTime? sentAt,
+    bool? expandableContext,
+  }) {
+    return ChatMessage(
+      isUser: isUser ?? this.isUser,
+      text: text ?? this.text,
+      review: review ?? this.review,
+      sentContext: sentContext ?? this.sentContext,
+      sentAt: sentAt ?? this.sentAt,
+      expandableContext: expandableContext ?? this.expandableContext,
+    );
+  }
 }
 
 // Review data for expandable review bubble
@@ -31,6 +58,13 @@ class ReviewData {
     required this.newContent,
     required this.summary,
   });
+}
+
+class ContextFileMeta {
+  final String name;
+  final String preview; // first N lines snapshot for quick view
+
+  ContextFileMeta({required this.name, required this.preview});
 }
 
 // Prompt state
@@ -166,48 +200,46 @@ class PromptController extends StateNotifier<PromptState> {
   }
 Future<void> submitPrompt(String prompt) async {
     if (prompt.trim().isEmpty) return;
-    
-    // Validation checks
-    final repo = state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
-    
-    // Check if repository is selected
-    if (repo == null) {
-      state = state.copyWith(
-        error: 'Please select a repository before sending a message.',
-      );
-      return;
+
+    // Allow follow-ups: repo/context only required for code-edit actions inside _processPrompt.
+    state = state.copyWith(isLoading: true, clearError: true);
+
+    // Snapshot current selected context as "send-once" and then clear UI selection
+    final sentContext = state.repoContextFiles
+        .map((f) => ContextFileMeta(
+              name: f.name,
+              preview: (f.content ?? '').split('\n').take(12).join('\n'),
+            ))
+        .toList();
+
+    // Add user message with compact context bubble metadata (expandable in UI)
+    _addMessage(ChatMessage(
+      isUser: true,
+      text: prompt,
+      sentContext: sentContext.isNotEmpty ? sentContext : null,
+      sentAt: DateTime.now(),
+      expandableContext: sentContext.isNotEmpty,
+    ));
+
+    // Clear the selected context after send (send-once behavior)
+    if (state.repoContextFiles.isNotEmpty) {
+      state = state.copyWith(repoContextFiles: []);
     }
 
-    // Check if at least one context file is selected
-    if (state.repoContextFiles.isEmpty) {
-      state = state.copyWith(
-        error: 'Please select at least one context file before sending a message.',
-      );
-      return;
-    }
-    
-    state = state.copyWith(
-      isLoading: true,
-      clearError: true,
-    );
-    
-    _addMessage(ChatMessage(isUser: true, text: prompt));
-    
+    // Add inline thinking placeholder before calling the LLM
+    _addMessage(ChatMessage(isUser: false, text: 'Thinking…'));
+
     try {
       await _processPrompt(prompt);
+
+      // On success, replace the last assistant "Thinking…" bubble with the final response
+      _replaceLastAssistantWithFinal();
     } catch (e, stackTrace) {
       print('[PromptController] Error: $e');
       print(stackTrace);
-      
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
-      
-      _addMessage(ChatMessage(
-        isUser: false,
-        text: friendlyErrorMessage(e.toString()),
-      ));
+
+      state = state.copyWith(isLoading: false, error: e.toString());
+      _replaceLastAssistantWithText(friendlyErrorMessage(e.toString()));
     }
   }
   // Future<void> submitPrompt(String prompt) async {
@@ -398,52 +430,119 @@ Future<void> submitPrompt(String prompt) async {
     final intent = await aiService.classifyIntent(prompt);
     state = state.copyWith(lastIntent: intent);
     
-    // Prepare context files
-    final contextFiles = state.repoContextFiles.isNotEmpty
-        ? state.repoContextFiles
-            .map((f) => {'name': f.name, 'content': f.content ?? ''})
-            .toList()
-            .take(3)
-            .toList()
-        : const <Map<String, String>>[];
+    // Construct the context to send for this turn:
+    // 1) Prefer "send-once" context that was attached to this user message (last user turn).
+    // 2) Else, fall back to inferred last edited file from previous ReviewData.
+    // 3) Else, empty list.
+    List<Map<String, String>> contextFiles = const <Map<String, String>>[];
+
+    // Find last user message with sentContext metadata
+    for (int i = state.messages.length - 1; i >= 0; i--) {
+      final m = state.messages[i];
+      if (m.isUser && m.sentContext != null && m.sentContext!.isNotEmpty) {
+        contextFiles = m.sentContext!
+            .map((c) => {'name': c.name, 'content': c.preview})
+            .toList();
+        break;
+      }
+    }
+
+    // If nothing from sent-once context, infer from last review (use latest newContent as base)
+    if (contextFiles.isEmpty) {
+      String? inferredFileName;
+      String? inferredOldContent;
+      for (int i = state.messages.length - 1; i >= 0; i--) {
+        final m = state.messages[i];
+        if (!m.isUser && m.review != null) {
+          inferredFileName = m.review!.fileName;
+          inferredOldContent = m.review!.newContent;
+          break;
+        }
+      }
+      if (inferredFileName != null && inferredOldContent != null) {
+        contextFiles = [
+          {'name': inferredFileName, 'content': inferredOldContent}
+        ];
+      }
+    }
+
+    // Infer last edited file from the conversation if no explicit context is selected
+    String? inferredFileName;
+    String? inferredOldContent;
+    for (int i = state.messages.length - 1; i >= 0; i--) {
+      final m = state.messages[i];
+      if (!m.isUser && m.review != null) {
+        inferredFileName = m.review!.fileName;
+        inferredOldContent = m.review!.newContent; // use last newContent as the current base
+        break;
+      }
+    }
+
+    if (contextFiles.isEmpty && inferredFileName != null && inferredOldContent != null) {
+      contextFiles = [
+        {'name': inferredFileName, 'content': inferredOldContent}
+      ];
+    }
     
     String response;
     ReviewData? review;
     
     switch (intent) {
       case 'code_edit':
-        if (repo == null) throw Exception('No repository selected');
-        
-        final owner = repo['owner']['login'];
-        final repoName = repo['name'];
-        
-        if (contextFiles.isEmpty) {
-          throw Exception('Please select at least one context file before submitting.');
+        // Code edits require a repo to create PRs, but follow-ups can still generate previews.
+        if (repo == null) {
+          // Proceed in preview mode using inferred or sticky file, if available.
+          final files = contextFiles;
+          response = await PromptService.processCodeEditIntent(
+            aiService: aiService,
+            prompt: '[PREVIEW MODE] $prompt',
+            files: files,
+          );
+
+          if (files.isNotEmpty) {
+            final newContent = await PromptService.processCodeContent(
+              aiService: aiService,
+              prompt: '[PREVIEW MODE] $prompt',
+              files: files,
+            );
+            final fileName = files[0]['name'] ?? 'unknown.dart';
+            final oldContent = files[0]['content'] ?? '';
+            review = ReviewData(
+              fileName: fileName,
+              oldContent: oldContent,
+              newContent: newContent,
+              summary: response,
+            );
+          }
+          break;
         }
 
+        // Repo present. Use sticky/inferred context if explicit selection is absent.
         final files = contextFiles;
-        
         response = await PromptService.processCodeEditIntent(
           aiService: aiService,
           prompt: prompt,
           files: files,
         );
-        
-        final newContent = await PromptService.processCodeContent(
-          aiService: aiService,
-          prompt: prompt,
-          files: files,
-        );
-        
-        final fileName = files.isNotEmpty ? files[0]['name']! : 'unknown.dart';
-        final oldContent = files.isNotEmpty ? files[0]['content']! : '';
-        
-        review = ReviewData(
-          fileName: fileName,
-          oldContent: oldContent,
-          newContent: newContent,
-          summary: response,
-        );
+
+        if (files.isNotEmpty) {
+          final newContent = await PromptService.processCodeContent(
+            aiService: aiService,
+            prompt: prompt,
+            files: files,
+          );
+          final fileName = files[0]['name'] ?? 'unknown.dart';
+          final oldContent = files[0]['content'] ?? '';
+          review = ReviewData(
+            fileName: fileName,
+            oldContent: oldContent,
+            newContent: newContent,
+            summary: response,
+          );
+        } else {
+          // If we still lack a concrete file, return a plan only. The user can confirm a file later.
+          review = null;
+        }
         break;
         
       case 'repo_question':
@@ -516,6 +615,40 @@ Future<void> submitPrompt(String prompt) async {
     final updatedMessages = List<ChatMessage>.from(state.messages);
     updatedMessages.add(message);
     state = state.copyWith(messages: updatedMessages);
+  }
+
+  // Replace the most recent assistant message (e.g., the "Thinking…" placeholder)
+  void _replaceLastAssistantWithText(String newText) {
+    final updated = List<ChatMessage>.from(state.messages);
+    for (int i = updated.length - 1; i >= 0; i--) {
+      if (!updated[i].isUser) {
+        updated[i] = ChatMessage(isUser: false, text: newText, review: updated[i].review);
+        break;
+      }
+    }
+    state = state.copyWith(messages: updated);
+  }
+
+  // Convenience: replace placeholder with the final response already appended by _processPrompt
+  void _replaceLastAssistantWithFinal() {
+    // _processPrompt appends the final assistant message; remove the placeholder before it.
+    final updated = List<ChatMessage>.from(state.messages);
+    // Find the last two assistant messages: [placeholder, final]
+    int lastAssistant = -1;
+    for (int i = updated.length - 1; i >= 0; i--) {
+      if (!updated[i].isUser) {
+        lastAssistant = i;
+        break;
+      }
+    }
+    if (lastAssistant > 0) {
+      // Remove the assistant bubble just before the last one if it contains "Thinking…"
+      final maybePlaceholderIndex = lastAssistant - 1;
+      if (maybePlaceholderIndex >= 0 && !updated[maybePlaceholderIndex].isUser && updated[maybePlaceholderIndex].text.trim() == 'Thinking…') {
+        updated.removeAt(maybePlaceholderIndex);
+      }
+    }
+    state = state.copyWith(messages: updated, isLoading: false);
   }
 }
 
