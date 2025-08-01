@@ -11,6 +11,9 @@ import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'package:slash_flutter/ui/components/slash_button.dart';
 import 'package:slash_flutter/ui/components/slash_diff_viewer.dart';
 
+import 'models/chat_message.dart';
+import 'models/review_data.dart';
+
 // Tab index provider - moved here to be accessible by widgets
 final tabIndexProvider = StateProvider<int>((ref) => 1); // 1 = prompt, 2 = code
 
@@ -58,9 +61,8 @@ class IntentTag extends StatelessWidget {
   }
 }
 
-// Chat message bubble widget
 class ChatMessageBubble extends ConsumerWidget {
-  final dynamic message; // Replace with your Message type
+  final ChatMessage message;
 
   const ChatMessageBubble({super.key, required this.message});
 
@@ -131,9 +133,8 @@ class ChatMessageBubble extends ConsumerWidget {
   }
 }
 
-// Review bubble widget
 class ReviewBubble extends ConsumerWidget {
-  final dynamic review; // Replace with your ReviewData type
+  final ReviewData review;
   final String summary;
   final bool isLast;
 
@@ -218,7 +219,7 @@ class ReviewBubble extends ConsumerWidget {
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: SlashText(
-                                    review.fileName,
+                                    (review.title),
                                     fontSize: 10,
                                     color: Colors.blue[700],
                                   ),
@@ -258,8 +259,8 @@ class ReviewBubble extends ConsumerWidget {
                   if (promptState.reviewExpanded && isLast) ...[
                     const SizedBox(height: 12),
                     SlashDiffViewer(
-                      oldContent: review.oldContent,
-                      newContent: review.newContent,
+                      oldContent: review.summary ?? '',
+                      newContent: review.diff ?? '',
                     ),
                     const SizedBox(height: 16),
                     ReviewActionButtons(review: review, summary: summary),
@@ -286,7 +287,7 @@ class ReviewBubble extends ConsumerWidget {
                   tooltip: 'Quick Accept',
                   onPressed: promptState.isLoading 
                       ? null 
-                      : () => controller.approveReview(review, summary),
+                      : () => controller.approveReview(),
                   constraints: const BoxConstraints(
                     minWidth: 36,
                     minHeight: 36,
@@ -394,7 +395,7 @@ class ReviewActionButtons extends ConsumerWidget {
           onPressed:
               promptState.isLoading
                   ? null
-                  : () => controller.approveReview(review, summary),
+                  : () => controller.approveReview(),
         ),
         const SizedBox(width: 8),
         IconButton(

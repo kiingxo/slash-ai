@@ -115,16 +115,21 @@ Be concise and specific about the change.''';
     required dynamic repo,
     required List<Map<String, String>> contextFiles,
   }) async {
-    final repoInfo =
-        'Repo name: ${repo['name']}\nDescription: ${repo['description'] ?? 'No description.'}';
-    
-    final answerPrompt =
-        'User question: $prompt\nRepo info: $repoInfo\nAnswer the user\'s question about the repo.';
-    
-    return await aiService.getCodeSuggestion(
+    final repoInfo = 'Repo name: ${repo['name']}\nDescription: ${repo['description'] ?? 'No description.'}';
+    final answerPrompt = '''
+User question about repository:
+"$prompt"
+
+$repoInfo
+
+Answer succinctly with specific references to files or modules when possible. Avoid boilerplate.
+''';
+
+    final res = await aiService.getCodeSuggestion(
       prompt: answerPrompt,
       files: contextFiles,
     );
+    return res.trim();
   }
 
   static Future<String> processGeneralIntent({

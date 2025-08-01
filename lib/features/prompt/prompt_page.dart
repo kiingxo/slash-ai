@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:slash_flutter/features/prompt/prompt_widgets.dart';
+import 'agent_integration.dart';
+import 'prompt_widgets_agent.dart';
+import '../agent/tools/tool.dart';
+import 'models/chat_message.dart';
 import 'package:slash_flutter/ui/components/option_selection.dart';
 import 'package:slash_flutter/ui/components/slash_dropdown.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
@@ -50,10 +54,9 @@ class _PromptPageState extends ConsumerState<PromptPage> {
       SlashToast.showError(context, 'Please select a repository before sending a message.');
       return;
     }
-
-    // Check if at least one context file is selected
-    if (promptState.repoContextFiles.isEmpty) {
-      SlashToast.showError(context, 'Please select at least one context file before sending a message.');
+    // Do not block on manual context unless manual mode is enabled explicitly.
+    if (promptState.manualContextEnabled && promptState.repoContextFiles.isEmpty) {
+      SlashToast.showError(context, 'Manual context is enabled but no files selected. Either select files or disable manual context.');
       return;
     }
 
@@ -154,7 +157,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                     children: [
                       Expanded(
                         child: SlashDropDown(
-                          hintText: 'Select Repository',
+                          hintText: 'Select Repositoryy',
                           items:
                               repos.map<DropdownMenuItem<dynamic>>((repo) {
                                 return DropdownMenuItem<dynamic>(
@@ -206,8 +209,20 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: promptState.messages.length,
+                    itemCount: (promptState.messages.isEmpty ? 1 : promptState.messages.length),
                     itemBuilder: (context, idx) {
+                      if (promptState.messages.isEmpty) {
+                        // Initial assistant introduction when no messages yet
+                        return ChatMessageBubble(
+                          message: ChatMessage(
+                            isUser: false,
+                            text:
+                                "I'm /slash. Ask me to change code, search the repo, or answer questions. "
+                                "You don't need to pick files—I'll auto-select relevant context from the folder scope.",
+                          ),
+                        );
+                      }
+
                       final msg = promptState.messages[idx];
 
                       if (msg.review != null) {
@@ -253,6 +268,9 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                     child: SlashText(promptState.error!, color: Colors.red),
                   ),
 
+                // Agent demo temporarily disabled in rewrite to reduce UI noise
+                // You can re-enable this block after stabilizing chat UX.
+                
                 // Input field and send button
                 Padding(
                   padding: const EdgeInsets.all(16),
