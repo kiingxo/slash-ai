@@ -10,6 +10,83 @@ class GitHubService {
     'Accept': 'application/vnd.github+json',
   };
 
+  // PR APIs
+
+  Future<List<dynamic>> listPullRequests({
+    required String owner,
+    required String repo,
+    String state = 'open',
+  }) async {
+    final res = await http.get(
+      Uri.parse('https://api.github.com/repos/$owner/$repo/pulls?state=$state'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to list PRs: ${res.body}');
+    }
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getPullRequest({
+    required String owner,
+    required String repo,
+    required int number,
+  }) async {
+    final res = await http.get(
+      Uri.parse('https://api.github.com/repos/$owner/$repo/pulls/$number'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to get PR #$number: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getPullRequestFiles({
+    required String owner,
+    required String repo,
+    required int number,
+  }) async {
+    final res = await http.get(
+      Uri.parse('https://api.github.com/repos/$owner/$repo/pulls/$number/files'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to get PR #$number files: ${res.body}');
+    }
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  Future<void> mergePullRequest({
+    required String owner,
+    required String repo,
+    required int number,
+  }) async {
+    final res = await http.put(
+      Uri.parse('https://api.github.com/repos/$owner/$repo/pulls/$number/merge'),
+      headers: _headers,
+      body: jsonEncode({'merge_method': 'merge'}),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to merge PR #$number: ${res.body}');
+    }
+  }
+
+  Future<void> closePullRequest({
+    required String owner,
+    required String repo,
+    required int number,
+  }) async {
+    final res = await http.patch(
+      Uri.parse('https://api.github.com/repos/$owner/$repo/pulls/$number'),
+      headers: _headers,
+      body: jsonEncode({'state': 'closed'}),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to close PR #$number: ${res.body}');
+    }
+  }
+
   Future<void> createBranch({
     required String owner,
     required String repo,
@@ -106,4 +183,4 @@ class GitHubService {
     final List branches = jsonDecode(res.body);
     return branches.map<String>((b) => b['name'] as String).toList();
   }
-} 
+}

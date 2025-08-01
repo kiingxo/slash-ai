@@ -7,6 +7,7 @@ import 'features/prompt/prompt_page.dart';
 import 'features/prompt/code_page.dart';
 
 import 'ui/screens/settings_screen.dart';
+import 'features/pr/pr_page.dart';
 
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
@@ -15,7 +16,8 @@ class HomeShell extends ConsumerWidget {
     RepoPage(),
     PromptPage(),
     CodeScreen(),
-    Center(child: SlashText('PRs (coming soon)', fontSize: 24)),
+    // PRs feature
+    const PrPage(),
     SettingsScreen(),
   ];
 
@@ -32,7 +34,7 @@ class HomeShell extends ConsumerWidget {
             color: theme.colorScheme.surface.withOpacity(0.95),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
-              BoxShadow(
+              BoxShadow( 
                 color: Colors.black.withOpacity(0.10),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
