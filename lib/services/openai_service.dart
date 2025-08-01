@@ -1,14 +1,31 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+/// Unified chat service for OpenAI-style and OpenRouter endpoints.
+/// - When useOpenRouter = true, it targets OpenRouter's /chat/completions with
+///   "Authorization: Bearer <OPENROUTER_API_KEY>" and supports arbitrary model ids.
+/// - When useOpenRouter = false, it targets OpenAI's /chat/completions.
 class OpenAIService {
   final String apiKey;
-  static const String _baseUrl = 'https://api.openai.com/v1/chat/completions';
   final String model;
+  final bool useOpenRouter;
+  final String baseUrl;
 
-  OpenAIService(this.apiKey, {this.model = 'gpt-3.5-turbo'});
+  // Defaults maintain backward compatibility with OpenAI.
+  OpenAIService(
+    this.apiKey, {
+    this.model = 'gpt-3.5-turbo',
+    this.useOpenRouter = false,
+    String? baseUrl,
+  }) : baseUrl = baseUrl ??
+            (useOpenRouter
+                ? 'https://openrouter.ai/api/v1/chat/completions'
+                : 'https://api.openai.com/v1/chat/completions');
 
-  Future<String> getCodeSuggestion({required String prompt, required List<Map<String, String>> files}) async {
+  Future<String> getCodeSuggestion({
+    required String prompt,
+    required List<Map<String, String>> files,
+  }) async {
     final systemPrompt = files.isNotEmpty
         ? 'You are an expert code assistant. User prompt: $prompt\nRelevant files:\n${files.map((f) => 'File: ${f['name']}\n${f['content']}\n---').join('\n')}\nSuggest minimal, high-quality code changes. Output only the code diff and a short summary.'
         : 'You are an expert code assistant. User prompt: $prompt';
@@ -22,20 +39,26 @@ class OpenAIService {
       'temperature': 0.2,
     };
     
-    final response = await http.post(
-      Uri.parse(_baseUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $apiKey',
-      },
-      body: jsonEncode(requestBody),
-    ).timeout(const Duration(seconds: 30));
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $apiKey',
+      if (useOpenRouter) 'HTTP-Referer': 'https://slash', // optional for OpenRouter analytics
+      if (useOpenRouter) 'X-Title': 'Slash',               // optional
+    };
+
+    final response = await http
+        .post(
+          Uri.parse(baseUrl),
+          headers: headers,
+          body: jsonEncode(requestBody),
+        )
+        .timeout(const Duration(seconds: 30));
     
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['choices']?[0]?['message']?['content']?.trim() ?? '';
     } else {
-      throw Exception('OpenAI error: ${response.body}');
+      throw Exception('${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.body}');
     }
   }
 
@@ -51,14 +74,20 @@ class OpenAIService {
       'temperature': 0.0,
     };
     
-    final response = await http.post(
-      Uri.parse(_baseUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $apiKey',
-      },
-      body: jsonEncode(requestBody),
-    ).timeout(const Duration(seconds: 30));
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $apiKey',
+      if (useOpenRouter) 'HTTP-Referer': 'https://slash',
+      if (useOpenRouter) 'X-Title': 'Slash',
+    };
+
+    final response = await http
+        .post(
+          Uri.parse(baseUrl),
+          headers: headers,
+          body: jsonEncode(requestBody),
+        )
+        .timeout(const Duration(seconds: 30));
     
     print('[OpenAIService] classifyIntent raw response: ${response.body}');
     
@@ -66,7 +95,7 @@ class OpenAIService {
       final data = jsonDecode(response.body);
       return data['choices']?[0]?['message']?['content']?.trim() ?? 'general';
     } else {
-      throw Exception('OpenAI error: ${response.body}');
+      throw Exception('${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.body}');
     }
   }
 }

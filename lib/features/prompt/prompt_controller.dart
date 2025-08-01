@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../file_browser/file_browser_controller.dart';
-import '../auth/auth_controller.dart';
+import '../auth/auth_controller.dart' as legacy_auth;
+import '../auth/auth_service.dart';
 import '../repo/repo_controller.dart';
 import 'prompt_service.dart';
 
@@ -249,7 +250,9 @@ Future<void> submitPrompt(String prompt) async {
       final aiService = PromptService.createAIService(
         model: state.selectedModel,
         geminiKey: authState.geminiApiKey,
-        openAIApiKey: authState.openAIApiKey,
+        openAIApiKey: null, // legacy OpenAI not used via new auth service
+        openRouterApiKey: authState.openRouterApiKey,
+        openRouterModel: authState.openRouterModel,
       );
       
       final owner = repo['owner']['login'];
@@ -373,19 +376,22 @@ Future<void> submitPrompt(String prompt) async {
     final authState = ref.read(authControllerProvider);
     final repo = state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
     
-    // Validate API keys
-    if ((state.selectedModel == 'gemini' && 
-         (authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty)) ||
-        (state.selectedModel == 'openai' && 
-         (authState.openAIApiKey == null || authState.openAIApiKey!.isEmpty)) ||
-        authState.githubPat == null || authState.githubPat!.isEmpty) {
+    // Validate API keys (Gemini or OpenRouter)
+    if ((state.selectedModel == 'gemini' &&
+            (authState.geminiApiKey == null || authState.geminiApiKey!.isEmpty)) ||
+        (state.selectedModel == 'openrouter' &&
+            (authState.openRouterApiKey == null || authState.openRouterApiKey!.isEmpty)) ||
+        authState.githubPat == null ||
+        authState.githubPat!.isEmpty) {
       throw Exception('Missing API keys');
     }
     
     final aiService = PromptService.createAIService(
       model: state.selectedModel,
       geminiKey: authState.geminiApiKey,
-      openAIApiKey: authState.openAIApiKey,
+      openAIApiKey: null, // legacy OpenAI not used via new auth service
+      openRouterApiKey: authState.openRouterApiKey,
+      openRouterModel: authState.openRouterModel,
     );
     
     // Classify intent

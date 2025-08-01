@@ -129,7 +129,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: OptionSelection(
-                  options: ["Gemini", "OpenAI"],
+                  options: ["Gemini", "OpenRouter"],
                   margin: 0,
                   padding: 8,
                   unselectedColor: Colors.transparent,

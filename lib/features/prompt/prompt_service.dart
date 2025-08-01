@@ -48,13 +48,26 @@ class PromptService {
     required String model,
     String? geminiKey,
     String? openAIApiKey,
+    String? openRouterApiKey,
+    String? openRouterModel,
   }) {
-    if (model == 'gemini') {
+    if (model.toLowerCase() == 'gemini') {
       if (geminiKey == null || geminiKey.isEmpty) {
         throw Exception('Gemini API key is required');
       }
       return GeminiService(geminiKey);
+    } else if (model.toLowerCase() == 'openrouter') {
+      if (openRouterApiKey == null || openRouterApiKey.isEmpty) {
+        throw Exception('OpenRouter API key is required');
+      }
+      // Use unified OpenAIService in OpenRouter mode.
+      return OpenAIService(
+        openRouterApiKey,
+        model: openRouterModel ?? 'openrouter/anthropic/claude-3.5-sonnet',
+        useOpenRouter: true,
+      );
     } else {
+      // Fallback to OpenAI for backward compatibility.
       if (openAIApiKey == null || openAIApiKey.isEmpty) {
         throw Exception('OpenAI API key is required');
       }
