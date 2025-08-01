@@ -29,12 +29,16 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
   void _autoScrollToBottom() {
     if (!_chatController.hasClients) return;
-    if (_userScrolling) return;
+    // Only auto-scroll if user is already near the bottom to avoid hijacking when reading history.
+    final pos = _chatController.position;
+    final nearBottom = (pos.maxScrollExtent - pos.pixels) <= 80; // threshold
+    if (!nearBottom) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_chatController.hasClients) return;
       _chatController.animateTo(
         _chatController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
       );
     });
@@ -64,6 +68,8 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     // Agentic: allow send for follow-ups without forcing repo/context here.
     _promptTextController.clear();
     await ref.read(promptControllerProvider.notifier).submitPrompt(prompt);
+    // Only snap if user is already near bottom (handled inside).
+    _autoScrollToBottom();
   }
 
   void _showFilePickerModal(BuildContext context) async {
@@ -207,59 +213,64 @@ class _PromptPageState extends ConsumerState<PromptPage> {
 
                 const Divider(height: 0.5),
 
-                // Chat messages with auto-scroll + user scroll detection
+                // Chat messages: always keep view pinned to the latest message
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
-                    onNotification: (notification) {
-                      if (_chatController.hasClients) {
-                        final atBottom = _chatController.position.pixels >=
-                            (_chatController.position.maxScrollExtent - 48);
-                        _userScrolling = !atBottom;
-                      }
+                    onNotification: (_) {
+                      // Let user scroll freely; we only snap if already near bottom (handled in _autoScrollToBottom).
                       return false;
                     },
-                    child: ListView.builder(
-                      controller: _chatController,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: promptState.messages.length,
-                      itemBuilder: (context, idx) {
-                        final msg = promptState.messages[idx];
-
-                        if (msg.review != null) {
-                          if (idx == promptState.messages.length - 1) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              _autoScrollToBottom();
-                            });
-                          }
-                          return ReviewBubble(
-                            review: msg.review!,
-                            summary: msg.text,
-                            isLast: idx == promptState.messages.length - 1,
-                          );
-                        }
-
-                        final isLastAgent =
-                            !msg.isUser &&
-                            idx ==
-                                promptState.messages.lastIndexWhere(
-                                  (m) => !m.isUser,
-                                );
-
-                        if (idx == promptState.messages.length - 1) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _autoScrollToBottom();
-                          });
-                        }
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (isLastAgent)
-                              IntentTag(intent: promptState.lastIntent),
-                            ChatMessageBubble(message: msg),
-                          ],
-                        );
+                    child: NotificationListener<SizeChangedLayoutNotification>(
+                      onNotification: (_) {
+                        _autoScrollToBottom();
+                        return false;
                       },
+                      child: SizeChangedLayoutNotifier(
+                        child: ListView.builder(
+                          controller: _chatController,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: promptState.messages.length,
+                          itemBuilder: (context, idx) {
+                            final msg = promptState.messages[idx];
+                            final isLast = idx == promptState.messages.length - 1;
+
+                            if (msg.review != null) {
+                              if (isLast) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  _autoScrollToBottom();
+                                });
+                              }
+                              return ReviewBubble(
+                                review: msg.review!,
+                                summary: msg.text,
+                                isLast: isLast,
+                              );
+                            }
+
+                            final isLastAgent =
+                                !msg.isUser &&
+                                idx ==
+                                    promptState.messages.lastIndexWhere(
+                                      (m) => !m.isUser,
+                                    );
+
+                            if (isLast) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                _autoScrollToBottom();
+                              });
+                            }
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (isLastAgent)
+                                  IntentTag(intent: promptState.lastIntent),
+                                ChatMessageBubble(message: msg),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),

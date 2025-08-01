@@ -82,7 +82,7 @@ class PromptService {
   }) async {
     final fileName = files.isNotEmpty ? (files[0]['name'] ?? 'file') : 'file';
     final planPrompt =
-        '${systemPrompt()}\n\nYou are performing a code edit.\nUser request: "$prompt"\nTarget file: $fileName\nRespond with a concise 1-2 sentence plan, no headings.';
+        '${systemPrompt()}\n\nYou are performing a code edit.\nUser request: "$prompt"\nTarget file: $fileName\nRespond with a concise 1-2 sentence summary of the change. Do not include words like "Plan", "Summary", "Diff", or any labels.';
     
     final summary = await aiService.getCodeSuggestion(
       prompt: planPrompt,
