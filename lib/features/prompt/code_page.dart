@@ -23,6 +23,9 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
   Offset _chatOverlayOffset = const Offset(60, 120);
   final TextEditingController _chatController = TextEditingController();
 
+  // UI polish: remember last editor size and clamp overlay within bounds
+  Size? _lastBodySize;
+
   @override
   void initState() {
     super.initState();
@@ -87,16 +90,27 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         codeState.branches,
         selectedRepo,
       ),
-      body: Stack(
-        children: [
-          Row(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          _lastBodySize = Size(constraints.maxWidth, constraints.maxHeight);
+          final isNarrow = constraints.maxWidth < 720;
+
+          return Stack(
             children: [
-              _buildSidebar(context, theme, isDark, params, fileBrowserState),
-              _buildEditorArea(context, theme, isDark, codeState),
+              Row(
+                children: [
+                  // On very small widths, collapse the sidebar
+                  if (!isNarrow)
+                    _buildSidebar(context, theme, isDark, params, fileBrowserState)
+                  else
+                    _buildCollapsedSidebarButton(context, params, fileBrowserState),
+                  Expanded(child: _buildEditorArea(context, theme, isDark, codeState, isNarrow: isNarrow)),
+                ],
+              ),
+              if (_showChatOverlay) _buildChatOverlay(context, codeState),
             ],
-          ),
-          if (_showChatOverlay) _buildChatOverlay(context, codeState),
-        ],
+          );
+        },
       ),
     );
   }
@@ -183,6 +197,21 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
           child: const SlashText('🤖', fontSize: 24),
         )
         : null;
+  }
+
+  // Compact sidebar launcher on small screens
+  Widget _buildCollapsedSidebarButton(BuildContext context, RepoParams? params, dynamic fileBrowserState) {
+    return Container(
+      width: 52,
+      alignment: Alignment.topCenter,
+      child: IconButton(
+        tooltip: 'Files',
+        icon: const Icon(Icons.folder_open),
+        onPressed: () {
+          _openFilesBottomSheet(context, params);
+        },
+      ),
+    );
   }
 
   Widget _buildSidebar(
@@ -316,26 +345,50 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     BuildContext context,
     ThemeData theme,
     bool isDark,
-    CodeEditorState codeState,
-  ) {
-    return Expanded(
-      child:
-          codeState.selectedFilePath == null
-              ? Center(child: SlashText('Select a file to edit', fontSize: 16))
-              : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildFileHeader(isDark, codeState.selectedFilePath),
-                  _buildCodeEditor(),
-                  _buildActionsBar(isDark, codeState),
-                ],
+    CodeEditorState codeState, {
+    bool isNarrow = false,
+  }) {
+    return codeState.selectedFilePath == null
+        ? Center(child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SlashText('Select a file to edit', fontSize: 16),
+          ))
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildTabsHeader(codeState),
+              _buildFileHeader(isDark, codeState.selectedFilePath),
+              // Add safe horizontal scroll to avoid overflow on long lines
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.all(isNarrow ? 8 : 16),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LayoutBuilder(
+                      builder: (context, c) {
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(minWidth: c.maxWidth),
+                            child: SizedBox(
+                              width: c.maxWidth,
+                              child: _buildCodeEditor(isDark: isDark, compact: isNarrow),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ),
-    );
+              _buildActionsBar(isDark, codeState),
+            ],
+          );
   }
 
   Widget _buildFileHeader(bool isDark, String? selectedFilePath) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF23232A) : Colors.grey[100],
         border: Border(
@@ -346,42 +399,50 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.insert_drive_file,
-            color: Colors.blueAccent,
-            size: 18,
-          ),
+          const Icon(Icons.insert_drive_file, color: Colors.blueAccent, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: SlashText(
               selectedFilePath ?? '',
               fontFamily: 'Fira Mono',
-              fontSize: 15,
+              fontSize: 14,
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 8),
+          _smallChip(icon: Icons.search, label: 'Find'),
+          const SizedBox(width: 6),
+          _smallChip(icon: Icons.auto_fix_high, label: 'Refactor'),
         ],
       ),
     );
   }
 
-  Widget _buildCodeEditor() {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: CodeTheme(
-          data: CodeThemeData(),
-          child: CodeField(
-            controller: _codeController,
-            textStyle: const TextStyle(
-              fontFamily: 'Fira Mono',
-              fontSize: 15,
-              color: Colors.white,
-            ),
-            expands: true,
-            gutterStyle: GutterStyle.none,
-            background: Colors.transparent,
+  Widget _buildCodeEditor({required bool isDark, bool compact = false}) {
+    return CodeTheme(
+      data: CodeThemeData(),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0E0E12) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE5E7EB)),
+        ),
+        child: CodeField(
+          controller: _codeController,
+          textStyle: TextStyle(
+            fontFamily: 'Fira Mono',
+            fontSize: compact ? 13 : 15,
+            color: isDark ? Colors.white : const Color(0xFF111827),
           ),
+          expands: true,
+          lineNumberStyle: LineNumberStyle(
+            width: compact ? 32 : 40,
+            textAlign: TextAlign.right,
+          ),
+          gutterStyle: GutterStyle(
+            margin: compact ? 6 : 8,
+          ),
+          background: Colors.transparent,
         ),
       ),
     );
@@ -389,7 +450,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
 
   Widget _buildActionsBar(bool isDark, CodeEditorState codeState) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF23232A) : Colors.grey[100],
         border: Border(
@@ -400,36 +461,34 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
       ),
       child: Row(
         children: [
-          OutlinedButton.icon(
-            icon: const Icon(Icons.keyboard_hide, size: 16),
-            label: const SlashText('Hide Keyboard', fontSize: 13),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(32, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            ),
-            onPressed: () => FocusScope.of(context).unfocus(),
+          _iconButton(
+            tooltip: 'Hide Keyboard',
+            icon: Icons.keyboard_hide,
+            onTap: () => FocusScope.of(context).unfocus(),
           ),
           const SizedBox(width: 8),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.upload, size: 16),
-            label:
-                codeState.isCommitting
-                    ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                    : const SlashText('Commit & Push', fontSize: 13),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(32, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          _iconButton(
+            tooltip: 'AI Assistant',
+            icon: Icons.smart_toy_outlined,
+            onTap: () => setState(() => _showChatOverlay = true),
+          ),
+          const Spacer(),
+          SizedBox(
+            height: 32,
+            child: ElevatedButton.icon(
+              icon: codeState.isCommitting
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.upload, size: 16),
+              label: SlashText(codeState.isCommitting ? 'Committing…' : 'Commit & Push', fontSize: 13),
+              onPressed: codeState.isCommitting
+                  ? null
+                  : () => ref.read(codeEditorControllerProvider.notifier).commitAndPushFile(context, _codeController.text),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
             ),
-            onPressed:
-                codeState.isCommitting
-                    ? null
-                    : () => ref
-                        .read(codeEditorControllerProvider.notifier)
-                        .commitAndPushFile(context, _codeController.text),
           ),
         ],
       ),
@@ -437,45 +496,50 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
   }
 
   Widget _buildChatOverlay(BuildContext context, CodeEditorState codeState) {
+    final size = _lastBodySize ?? MediaQuery.of(context).size;
+    final overlayW = size.width < 380 ? size.width - 24 : 320.0;
+    final overlayH = size.height < 520 ? size.height * 0.6 : 360.0;
+
+    double clampX(double x) => x.clamp(8.0, (size.width - overlayW) - 8.0);
+    double clampY(double y) => y.clamp(60.0, (size.height - overlayH) - 8.0);
+
     return Positioned(
-      left: _chatOverlayOffset.dx,
-      top: _chatOverlayOffset.dy,
+      left: clampX(_chatOverlayOffset.dx),
+      top: clampY(_chatOverlayOffset.dy),
       child: Draggable(
         feedback: SizedBox(
-          width: 340,
-          height: 420,
+          width: overlayW,
+          height: overlayH,
           child: _ChatOverlay(
             messages: codeState.chatMessages,
             loading: codeState.chatLoading,
             controller: _chatController,
             onSend: () => _handleChatSend(codeState),
             onClose: () => setState(() => _showChatOverlay = false),
-            onApplyEdit:
-                codeState.pendingEdit != null
-                    ? () => ref
-                        .read(codeEditorControllerProvider.notifier)
-                        .applyAICodeEdit(_codeController)
-                    : null,
+            onApplyEdit: codeState.pendingEdit != null
+                ? () => ref.read(codeEditorControllerProvider.notifier).applyAICodeEdit(_codeController)
+                : null,
           ),
         ),
         childWhenDragging: const SizedBox.shrink(),
         onDragEnd: (details) {
           setState(() {
-            _chatOverlayOffset = details.offset;
+            _chatOverlayOffset = Offset(clampX(details.offset.dx), clampY(details.offset.dy));
           });
         },
-        child: _ChatOverlay(
-          messages: codeState.chatMessages,
-          loading: codeState.chatLoading,
-          controller: _chatController,
-          onSend: () => _handleChatSend(codeState),
-          onClose: () => setState(() => _showChatOverlay = false),
-          onApplyEdit:
-              codeState.pendingEdit != null
-                  ? () => ref
-                      .read(codeEditorControllerProvider.notifier)
-                      .applyAICodeEdit(_codeController)
-                  : null,
+        child: SizedBox(
+          width: overlayW,
+          height: overlayH,
+          child: _ChatOverlay(
+            messages: codeState.chatMessages,
+            loading: codeState.chatLoading,
+            controller: _chatController,
+            onSend: () => _handleChatSend(codeState),
+            onClose: () => setState(() => _showChatOverlay = false),
+            onApplyEdit: codeState.pendingEdit != null
+                ? () => ref.read(codeEditorControllerProvider.notifier).applyAICodeEdit(_codeController)
+                : null,
+          ),
         ),
       ),
     );
@@ -495,9 +559,170 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         );
     _chatController.clear();
   }
-}
 
-// Simple chat message model for overlay
+  // Simple tabs header for UX (single active file)
+  Widget _buildTabsHeader(CodeEditorState codeState) {
+    final filePath = codeState.selectedFilePath ?? '';
+    final fileName = filePath.split('/').isNotEmpty ? filePath.split('/').last : filePath;
+
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.05))),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.description_outlined, size: 16),
+                const SizedBox(width: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  child: SlashText(fileName, fontSize: 13, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Placeholder for future tabs actions
+        ],
+      ),
+    );
+  }
+
+  // Small UI helpers
+  Widget _iconButton({required String tooltip, required IconData icon, required VoidCallback onTap}) {
+    return Tooltip(
+      message: tooltip,
+      child: Ink(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.withOpacity(0.25)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, size: 18),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _smallChip({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: Colors.blue),
+          const SizedBox(width: 4),
+          SlashText(label, fontSize: 12, color: Colors.blue),
+        ],
+      ),
+    );
+  }
+
+  // Bottom sheet for files on small screens
+  void _openFilesBottomSheet(BuildContext context, RepoParams? params) {
+    if (params == null) {
+      showModalBottomSheet(
+        context: context,
+        builder: (_) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(child: SlashText('No repo selected')),
+          ),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        final fbState = ref.watch(fileBrowserControllerProvider(params));
+        final notifier = ref.read(fileBrowserControllerProvider(params).notifier);
+
+        return FractionallySizedBox(
+          heightFactor: 0.85,
+          child: Column(
+            children: [
+              Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    const Icon(Icons.folder, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    const Expanded(child: SlashText('Files', fontWeight: FontWeight.w600)),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              if (fbState.isLoading)
+                const Expanded(child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: fbState.items.length + (fbState.pathStack.isNotEmpty ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (fbState.pathStack.isNotEmpty && index == 0) {
+                        return ListTile(
+                          leading: const Icon(Icons.arrow_upward),
+                          title: const SlashText('Up'),
+                          onTap: () => notifier.goUp(),
+                        );
+                      }
+                      final i = fbState.pathStack.isNotEmpty ? index - 1 : index;
+                      final item = fbState.items[i];
+                      final isDir = item.type == 'dir';
+
+                      return ListTile(
+                        dense: true,
+                        leading: Icon(isDir ? Icons.folder : Icons.insert_drive_file,
+                            color: isDir ? Colors.amber : Colors.blueAccent),
+                        title: SlashText(item.name, overflow: TextOverflow.ellipsis),
+                        onTap: () {
+                          if (isDir) {
+                            notifier.enterDir(item.name);
+                          } else {
+                            ref.read(codeEditorControllerProvider.notifier).loadFile(item.path, params, ref, _codeController);
+                            Navigator.of(ctx).pop();
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 class ChatMessage {
   final bool isUser;
   final String text;
