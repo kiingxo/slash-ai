@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:slash_flutter/ui/components/slash_loading.dart';
 import 'package:slash_flutter/ui/theme/app_theme.dart';
 import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
+import 'package:slash_flutter/ui/components/cool_background.dart';
 import 'package:toastification/toastification.dart';
 import 'features/auth/auth_page.dart';
 import 'home_shell.dart';
@@ -21,34 +22,37 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ThemeBuilder(
-      builder: (context, colors, ref) => Stack(
-  children: [
-    Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.asset('assets/slash2.png', width: 200, height: 200),
-          const SizedBox(height: 40),
-          if (showLoader) const SlashLoading(),
-        ],
-      ),
-    ),
-    Positioned(
-      bottom: 32,
-      left: 0,
-      right: 0,
-      child: Text(
-        'by Blueprint',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 12,
-         
-          letterSpacing: 1.2,
+      builder: (context, colors, ref) => SlashBackground(
+        overlayOpacity: 0.35,
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset('assets/slash2.png', width: 200, height: 200),
+                  const SizedBox(height: 40),
+                  if (showLoader) const SlashLoading(),
+                ],
+              ),
+            ),
+            Positioned(
+              bottom: 32,
+              left: 0,
+              right: 0,
+              child: Text(
+                'by Blueprint',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-    ),
-  ],
-));
+    );
   }
 }
 

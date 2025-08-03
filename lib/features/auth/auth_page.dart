@@ -6,6 +6,7 @@ import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
 import 'auth_controller.dart' as legacy_auth; // legacy controller (existing in project)
 import 'auth_service.dart' as new_auth; // new controller with OpenRouter support
 import '../../ui/components/slash_text_field.dart';
+import 'package:slash_flutter/ui/components/cool_background.dart';
 import '../../ui/components/slash_button.dart';
 import '../../home_shell.dart';
 import 'package:dio/dio.dart';
@@ -179,10 +180,11 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     final authState = ref.watch(new_auth.authControllerProvider);
     return ThemeBuilder(
       builder: (context, colors, ref) {
-        return Center(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
+        return SlashBackground(
+          child: Center(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
                 // const Icon(
                 //   Icons.lock_outline,
                 //   size: 48,
@@ -342,7 +344,8 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                     ),
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ),
         );
