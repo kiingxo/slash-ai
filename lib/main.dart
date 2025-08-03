@@ -21,18 +21,34 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ThemeBuilder(
-      builder:
-          (context, colors, ref) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('assets/slash2.png', width: 200, height: 200),
-                const SizedBox(height: 50),
-                if (showLoader) const SlashLoading(),
-              ],
-            ),
-          ),
-    );
+      builder: (context, colors, ref) => Stack(
+  children: [
+    Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset('assets/slash2.png', width: 200, height: 200),
+          const SizedBox(height: 40),
+          if (showLoader) const SlashLoading(),
+        ],
+      ),
+    ),
+    Positioned(
+      bottom: 32,
+      left: 0,
+      right: 0,
+      child: Text(
+        'by Blueprint',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 12,
+         
+          letterSpacing: 1.2,
+        ),
+      ),
+    ),
+  ],
+));
   }
 }
 

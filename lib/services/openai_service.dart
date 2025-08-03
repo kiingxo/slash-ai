@@ -121,7 +121,7 @@ class OpenAIService {
         if (attempt >= maxAttempts) rethrow;
         final backoffMs = 800 * attempt;
         await Future.delayed(Duration(milliseconds: backoffMs));
-      }
+    }
     }
     throw Exception('Request failed after $maxAttempts attempts');
   }

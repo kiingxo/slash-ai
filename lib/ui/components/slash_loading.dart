@@ -15,9 +15,10 @@ class SlashLoading extends StatelessWidget {
             width: 20,
             height: 20,
             child: CircularProgressIndicator(
+              
               value: value,
               color: color ?? colors.always8B5CF6,
-              strokeWidth: 2,
+              strokeWidth: 1,
             ),
           ),
         );
