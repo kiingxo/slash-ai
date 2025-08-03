@@ -314,7 +314,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                               isDense: true,
                               border: OutlineInputBorder(),
                               labelText: 'Model',
-                              hintText: 'Models auto-loaded from OpenRouter key',
+                              hintText: '',
                             ),
                           ),
                         ],

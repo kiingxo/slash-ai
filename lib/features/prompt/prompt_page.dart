@@ -11,6 +11,7 @@ import '../../ui/components/slash_button.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
 import 'prompt_controller.dart';
+import '../auth/auth_controller.dart';
 
 class PromptPage extends ConsumerStatefulWidget {
   const PromptPage({super.key});
@@ -144,9 +145,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   margin: 0,
                   padding: 8,
                   unselectedColor: Colors.transparent,
-                  selectedValue: promptState.selectedModel,
+                  // Force default OpenRouter on first mount if nothing persisted yet:
+                  selectedValue: (promptState.selectedModel.isEmpty
+                      ? 'openrouter'
+                      : promptState.selectedModel),
                   onChanged: (val) {
+                    // Persist into auth so next reload uses the saved choice
                     promptController.setSelectedModel(val);
+                    // Mirror to auth storage to survive reloads
+                    ref.read(authControllerProvider.notifier).saveModel(val.toLowerCase());
                   },
                 ),
               ),

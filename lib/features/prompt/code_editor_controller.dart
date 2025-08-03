@@ -6,6 +6,9 @@ import '../file_browser/file_browser_controller.dart';
 import '../../features/auth/auth_controller.dart';
 import 'code_editor_service.dart';
 import 'code_page.dart';
+import 'prompt_controller.dart' as pc;
+import 'prompt_service.dart' as ps;
+import '../../services/secure_storage_service.dart';
 
 // Provider for external edit requests
 final externalEditRequestProvider = StateProvider<ExternalEditRequest?>(
@@ -36,6 +39,8 @@ class CodeEditorState {
   final List<ChatMessage> chatMessages;
   final bool chatLoading;
   final String? pendingEdit;
+  // Code screen local model selection (independent toggle)
+  final String codeModel; // 'gemini' | 'openrouter'
 
   CodeEditorState({
     this.selectedRepo,
@@ -48,6 +53,7 @@ class CodeEditorState {
     this.chatMessages = const [],
     this.chatLoading = false,
     this.pendingEdit,
+    this.codeModel = 'openrouter',
   });
 
   CodeEditorState copyWith({
@@ -61,6 +67,7 @@ class CodeEditorState {
     List<ChatMessage>? chatMessages,
     bool? chatLoading,
     String? pendingEdit,
+    String? codeModel,
   }) {
     return CodeEditorState(
       selectedRepo: selectedRepo ?? this.selectedRepo,
@@ -73,6 +80,7 @@ class CodeEditorState {
       chatMessages: chatMessages ?? this.chatMessages,
       chatLoading: chatLoading ?? this.chatLoading,
       pendingEdit: pendingEdit ?? this.pendingEdit,
+      codeModel: codeModel ?? this.codeModel,
     );
   }
 }
@@ -90,7 +98,7 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
               text: "Hi! I'm /slash. Ask me about your code!",
             ),
           ],
-        ),
+        ).copyWith(codeModel: 'openrouter'),
       );
 
   void handleExternalEdit(
@@ -274,39 +282,86 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
     String fileName,
     WidgetRef ref,
   ) async {
-    // Add user message
+    // Show user message
     final updatedMessages = List<ChatMessage>.from(state.chatMessages)
       ..add(ChatMessage(isUser: true, text: prompt));
-
-    state = state.copyWith(
-      chatMessages: updatedMessages,
-      chatLoading: true,
-      pendingEdit: null,
-    );
+    state = state.copyWith(chatMessages: updatedMessages, chatLoading: true, pendingEdit: null);
 
     try {
+      // Reuse Prompt flow: same model & keys
       final authState = ref.read(authControllerProvider);
-      final result = await _service.handleChatRequest(
-        prompt: prompt,
-        codeContext: codeContext,
-        fileName: fileName,
+      // Use code screen's local model toggle; default to authState.model if not set
+      String selectedModel = state.codeModel.isNotEmpty ? state.codeModel : authState.model;
+
+      // Mirror Prompt page validation: if user chose OpenRouter but there's no OR key stored (not exposed here),
+      // fall back to the app's working model from authState to avoid "OpenRouter key required".
+      // Validation: if user picked openrouter but we don't have key via legacy AuthController, let PromptService throw with clear message.
+      // If user picked gemini but gemini key missing, it will also throw a clear message.
+
+      // Create AI service with keys from Auth. For OpenRouter to work in code screen,
+      // ensure you have saved openrouter_api_key in Settings.
+      final aiService = ps.PromptService.createAIService(
+        model: selectedModel,
         geminiKey: authState.geminiApiKey,
         openAIApiKey: authState.openAIApiKey,
-        model: authState.model,
+        // Try to read OpenRouter key/model using the new AuthService-backed provider if available.
+        // Fallback to legacy SecureStorageService keys if not exposed via AuthController.
+        openRouterApiKey: await SecureStorageService().getApiKey('openrouter_api_key'),
+        openRouterModel: await SecureStorageService().getApiKey('openrouter_model'),
       );
 
-      final finalMessages = List<ChatMessage>.from(state.chatMessages)
-        ..add(ChatMessage(isUser: false, text: result.response));
+      // Classify the request using the same Prompt pipeline
+      final intent = await aiService.classifyIntent(prompt);
 
-      state = state.copyWith(
-        chatMessages: finalMessages,
-        chatLoading: false,
-        pendingEdit: result.pendingEdit,
-      );
+      if (intent == 'code_edit') {
+        // Summarize planned edit (assistant message)
+        final summary = await ps.PromptService.processCodeEditIntent(
+          aiService: aiService,
+          prompt: prompt,
+          files: [
+            {'name': fileName, 'content': codeContext}
+          ],
+        );
+
+        // Generate new content for this file
+        final newContent = await ps.PromptService.processCodeContent(
+          aiService: aiService,
+          prompt: prompt,
+          files: [
+            {'name': fileName, 'content': codeContext}
+          ],
+        );
+
+        final finalMessages = List<ChatMessage>.from(state.chatMessages)
+          ..add(ChatMessage(isUser: false, text: summary));
+
+        state = state.copyWith(
+          chatMessages: finalMessages,
+          chatLoading: false,
+          pendingEdit: newContent,
+        );
+      } else {
+        // General Q&A with code context
+        final answer = await ps.PromptService.processGeneralIntent(
+          aiService: aiService,
+          prompt: prompt,
+          contextFiles: [
+            {'name': fileName, 'content': codeContext}
+          ],
+        );
+
+        final finalMessages = List<ChatMessage>.from(state.chatMessages)
+          ..add(ChatMessage(isUser: false, text: answer));
+
+        state = state.copyWith(
+          chatMessages: finalMessages,
+          chatLoading: false,
+          pendingEdit: null,
+        );
+      }
     } catch (e) {
       final errorMessages = List<ChatMessage>.from(state.chatMessages)
         ..add(ChatMessage(isUser: false, text: 'Error: ${e.toString()}'));
-
       state = state.copyWith(chatMessages: errorMessages, chatLoading: false);
     }
   }

@@ -8,6 +8,7 @@ import '../file_browser/file_browser_controller.dart';
 import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
 import 'code_editor_controller.dart';
+import 'prompt_controller.dart';
 
 class CodeScreen extends ConsumerStatefulWidget {
   const CodeScreen({super.key});
@@ -156,6 +157,35 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         ),
       ),
       actions: [
+        // Model toggle for the code screen (Gemini / OpenRouter) — local to code editor
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: theme.cardColor.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black.withOpacity(0.08)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: ref.watch(codeEditorControllerProvider).codeModel,
+              hint: const SlashText('AI: Gemini', fontSize: 12),
+              items: const [
+                DropdownMenuItem(value: 'gemini', child: SlashText('Gemini', fontSize: 12)),
+                DropdownMenuItem(value: 'openrouter', child: SlashText('OpenRouter', fontSize: 12)),
+              ],
+              onChanged: (val) {
+                if (val == null) return;
+                final current = ref.read(codeEditorControllerProvider);
+                ref.read(codeEditorControllerProvider.notifier)
+                   .state = current.copyWith(codeModel: val);
+              },
+              icon: const Icon(Icons.smart_toy_outlined, size: 16),
+              dropdownColor: theme.cardColor,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ),
         if (codeState.branches.isNotEmpty)
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
@@ -503,42 +533,47 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     double clampX(double x) => x.clamp(8.0, (size.width - overlayW) - 8.0);
     double clampY(double y) => y.clamp(60.0, (size.height - overlayH) - 8.0);
 
-    return Positioned(
-      left: clampX(_chatOverlayOffset.dx),
-      top: clampY(_chatOverlayOffset.dy),
-      child: Draggable(
-        feedback: SizedBox(
-          width: overlayW,
-          height: overlayH,
-          child: _ChatOverlay(
-            messages: codeState.chatMessages,
-            loading: codeState.chatLoading,
-            controller: _chatController,
-            onSend: () => _handleChatSend(codeState),
-            onClose: () => setState(() => _showChatOverlay = false),
-            onApplyEdit: codeState.pendingEdit != null
-                ? () => ref.read(codeEditorControllerProvider.notifier).applyAICodeEdit(_codeController)
-                : null,
+    // Tap outside to close keyboard, like typical chat apps
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Positioned(
+        left: clampX(_chatOverlayOffset.dx),
+        top: clampY(_chatOverlayOffset.dy),
+        child: Draggable(
+          feedback: SizedBox(
+            width: overlayW,
+            height: overlayH,
+            child: _ChatOverlay(
+              messages: codeState.chatMessages,
+              loading: codeState.chatLoading,
+              controller: _chatController,
+              onSend: () => _handleChatSend(codeState),
+              onClose: () => setState(() => _showChatOverlay = false),
+              onApplyEdit: codeState.pendingEdit != null
+                  ? () => ref.read(codeEditorControllerProvider.notifier).applyAICodeEdit(_codeController)
+                  : null,
+            ),
           ),
-        ),
-        childWhenDragging: const SizedBox.shrink(),
-        onDragEnd: (details) {
-          setState(() {
-            _chatOverlayOffset = Offset(clampX(details.offset.dx), clampY(details.offset.dy));
-          });
-        },
-        child: SizedBox(
-          width: overlayW,
-          height: overlayH,
-          child: _ChatOverlay(
-            messages: codeState.chatMessages,
-            loading: codeState.chatLoading,
-            controller: _chatController,
-            onSend: () => _handleChatSend(codeState),
-            onClose: () => setState(() => _showChatOverlay = false),
-            onApplyEdit: codeState.pendingEdit != null
-                ? () => ref.read(codeEditorControllerProvider.notifier).applyAICodeEdit(_codeController)
-                : null,
+          childWhenDragging: const SizedBox.shrink(),
+          onDragEnd: (details) {
+            setState(() {
+              _chatOverlayOffset = Offset(clampX(details.offset.dx), clampY(details.offset.dy));
+            });
+          },
+          child: SizedBox(
+            width: overlayW,
+            height: overlayH,
+            child: _ChatOverlay(
+              messages: codeState.chatMessages,
+              loading: codeState.chatLoading,
+              controller: _chatController,
+              onSend: () => _handleChatSend(codeState),
+              onClose: () => setState(() => _showChatOverlay = false),
+              onApplyEdit: codeState.pendingEdit != null
+                  ? () => ref.read(codeEditorControllerProvider.notifier).applyAICodeEdit(_codeController)
+                  : null,
+            ),
           ),
         ),
       ),
@@ -900,20 +935,27 @@ class _ChatOverlay extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: SlashTextField(
+            child: TextField(
               controller: controller,
-              hint: 'Ask about this code…',
+              textInputAction: TextInputAction.newline, // Show "Return" on keyboard
+              onSubmitted: (_) {}, // Return inserts newline; sending via button only
+              decoration: const InputDecoration(
+                hintText: 'Ask about this code…',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
               minLines: 1,
               maxLines: 3,
             ),
           ),
           const SizedBox(width: 6),
           SizedBox(
-            width: 36,
+            width: 40,
             height: 36,
-            child: SlashButton(
-              text: 'Send',
-              onPressed: loading ? () {} : onSend,
+            child: ElevatedButton(
+              onPressed: loading ? null : onSend,
+              style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
+              child: const Icon(Icons.send, size: 18),
             ),
           ),
         ],

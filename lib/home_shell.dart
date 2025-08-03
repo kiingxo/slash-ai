@@ -5,7 +5,8 @@ import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'features/repo/repo_page.dart';
 import 'features/prompt/prompt_page.dart';
 import 'features/prompt/code_page.dart';
-
+import 'features/auth/auth_page.dart';
+import 'features/auth/auth_controller.dart';
 import 'ui/screens/settings_screen.dart';
 
 class HomeShell extends ConsumerWidget {
@@ -21,6 +22,21 @@ class HomeShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Route guard: if no credentials after logout/login, force auth screen as a clean start.
+    final auth = ref.watch(authControllerProvider);
+
+    // Consider "logged in" if at least the provider model is chosen (persisted)
+    // AND we have at least one of the AI keys or the GitHub PAT.
+    final hasProvider = (auth.model.isNotEmpty);
+    final hasAnyKey = (auth.geminiApiKey?.isNotEmpty == true) ||
+        (auth.openAIApiKey?.isNotEmpty == true) ||
+        (auth.githubPat?.isNotEmpty == true);
+
+    // Only force AuthPage when NOTHING is configured (fresh state).
+    if (!hasProvider && !hasAnyKey) {
+      return const AuthPage();
+    }
+
     final theme = Theme.of(context);
     final selectedIndex = ref.watch(tabIndexProvider);
     return Scaffold(

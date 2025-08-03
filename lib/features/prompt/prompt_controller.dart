@@ -143,7 +143,10 @@ class PromptController extends StateNotifier<PromptState> {
 
   void _initializeModel() {
     final authState = ref.read(authControllerProvider);
-    state = state.copyWith(selectedModel: authState.model);
+    // Default to OpenRouter if no persisted model, else use persisted
+    final persisted = (authState.model).toString().trim();
+    final initial = persisted.isEmpty ? 'openrouter' : persisted;
+    state = state.copyWith(selectedModel: initial);
   }
 
   void setSelectedModel(String model) {

@@ -2,18 +2,95 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import '../../features/auth/auth_controller.dart';
-import '../../services/secure_storage_service.dart';
 import '../../features/auth/auth_page.dart';
+import '../../services/secure_storage_service.dart';
 import '../../features/repo/repo_controller.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
-  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _geminiCtrl = TextEditingController();
+  final _openRouterCtrl = TextEditingController();
+  final _openRouterModelCtrl = TextEditingController();
+  final _githubPatCtrl = TextEditingController();
+  String _provider = 'gemini';
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = ref.read(authControllerProvider);
+    _provider = (auth.model.isNotEmpty ? auth.model : 'gemini');
+    _geminiCtrl.text = auth.geminiApiKey ?? '';
+    // OpenRouter is not exposed via legacy AuthController; fetch from storage to populate fields.
+    _initOpenRouterFromStorage();
+    _githubPatCtrl.text = auth.githubPat ?? '';
+  }
+
+  Future<void> _initOpenRouterFromStorage() async {
+    final storage = SecureStorageService();
+    _openRouterCtrl.text = (await storage.getApiKey('openrouter_api_key')) ?? '';
+    _openRouterModelCtrl.text = (await storage.getApiKey('openrouter_model')) ?? '';
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _geminiCtrl.dispose();
+    _openRouterCtrl.dispose();
+    _openRouterModelCtrl.dispose();
+    _githubPatCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final auth = ref.read(authControllerProvider.notifier);
+    final storage = SecureStorageService();
+
+    // Persist provider
+    await auth.saveModel(_provider);
+
+    // Persist keys
+    if (_provider == 'gemini') {
+      await auth.saveGeminiApiKey(_geminiCtrl.text.trim());
+    }
+    // Store OpenRouter keys directly (legacy AuthController lacks fields)
+    await storage.saveApiKey('openrouter_api_key', _openRouterCtrl.text.trim());
+    if (_openRouterModelCtrl.text.trim().isNotEmpty) {
+      await storage.saveApiKey('openrouter_model', _openRouterModelCtrl.text.trim());
+    }
+
+    // GitHub PAT
+    await auth.saveGitHubPat(_githubPatCtrl.text.trim());
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: SlashText('Settings saved')),
+      );
+      setState(() {});
+    }
+  }
+
+  Future<void> _logout() async {
+    // Full app reset: clear secure storage and invalidate providers; then navigate to AuthPage
     final storage = SecureStorageService();
     await storage.deleteAll();
+
+    // Invalidate all stateful providers that hold credentials or repo state
     ref.invalidate(authControllerProvider);
     ref.invalidate(repoControllerProvider);
+
+    if (!mounted) return;
+
+    // Pop any dialogs/sheets first to avoid leaving Settings in the stack
+    Navigator.of(context)
+      ..popUntil((route) => route.isFirst);
+
+    // Replace the entire stack with AuthPage (not SettingsScreen)
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthPage()),
       (route) => false,
@@ -21,24 +98,11 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authControllerProvider);
-    String mask(String? value) {
-      if (value == null || value.isEmpty) return 'Not set';
-      if (value.length <= 6) return '*' * value.length;
-      return '${value.substring(0, 3)}***${value.substring(value.length - 3)}';
-    }
-
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (authState.isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: const SlashText('Settings')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
+
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF23232A) : Colors.white,
         elevation: 1,
@@ -49,273 +113,93 @@ class SettingsScreen extends ConsumerWidget {
             const SlashText('Settings', fontWeight: FontWeight.bold),
           ],
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: ElevatedButton(
+              onPressed: _save,
+              child: const SlashText('Save'),
+            ),
+          ),
+        ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(16),
         children: [
-          // Friendly header
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: SlashText(
-              'Configure your AI provider, API keys, and GitHub access. Your credentials are stored securely on your device.',
-              color: isDark ? Colors.white70 : Colors.black87,
+          _card(
+            context: context,
+            titleIcon: Icons.tune,
+            title: 'Provider',
+            child: Row(
+              children: [
+                ChoiceChip(
+                  label: const SlashText('Gemini'),
+                  selected: _provider == 'gemini',
+                  onSelected: (_) => setState(() => _provider = 'gemini'),
+                ),
+                const SizedBox(width: 10),
+                ChoiceChip(
+                  label: const SlashText('OpenRouter'),
+                  selected: _provider == 'openrouter',
+                  onSelected: (_) => setState(() => _provider = 'openrouter'),
+                ),
+              ],
             ),
           ),
-          // AI Model Card
-          Card(
-            color: isDark ? const Color(0xFF23232A) : Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 0,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.memory,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      SlashText('AI Provider'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Radio<String>(
-                        value: 'gemini',
-                        groupValue: authState.model,
-                        onChanged: (val) {
-                          if (val != null)
-                            ref
-                                .read(authControllerProvider.notifier)
-                                .saveModel(val);
-                        },
-                      ),
-                      Image.asset('assets/slash.png', height: 24),
-                      const SizedBox(width: 6),
-                      const SlashText('Gemini'),
-                      const SizedBox(width: 24),
-                      Radio<String>(
-                        value: 'openai',
-                        groupValue: authState.model,
-                        onChanged: (val) {
-                          if (val != null)
-                            ref
-                                .read(authControllerProvider.notifier)
-                                .saveModel(val);
-                        },
-                      ),
-                      Icon(Icons.bolt, color: Colors.amber[700]),
-                      const SizedBox(width: 6),
-                      const SlashText('OpenAI'),
-                    ],
-                  ),
-                ],
+          const SizedBox(height: 12),
+          if (_provider == 'gemini') _card(
+            context: context,
+            titleIcon: Icons.vpn_key,
+            title: 'Gemini API Key',
+            child: TextField(
+              controller: _geminiCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                hintText: 'Paste your Gemini API key',
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          // API Key Card
-          Card(
-            color: isDark ? const Color(0xFF23232A) : Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+          if (_provider == 'openrouter') _card(
+            context: context,
+            titleIcon: Icons.router,
+            title: 'OpenRouter',
+            child: Column(
+              children: [
+                TextField(
+                  controller: _openRouterCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Paste your OpenRouter API key',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _openRouterModelCtrl,
+                  decoration: const InputDecoration(
+                    hintText: 'Model (e.g., openrouter/anthropic/claude-3.5-sonnet)',
+                  ),
+                ),
+              ],
             ),
-            elevation: 0,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.vpn_key,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      SlashText('API Keys'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (authState.model == 'gemini') ...[
-                    Row(
-                      children: [
-                        Image.asset('assets/slash.png', height: 22),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            obscureText: true,
-                            controller: TextEditingController(
-                              text: authState.geminiApiKey ?? '',
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: 'Enter Gemini API Key',
-                            ),
-                            onSubmitted: (val) {
-                              ref
-                                  .read(authControllerProvider.notifier)
-                                  .saveGeminiApiKey(val.trim());
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () {},
-                          child: const SlashText('Save'),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    Row(
-                      children: [
-                        Icon(Icons.bolt, color: Colors.amber[700]),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            obscureText: true,
-                            controller: TextEditingController(
-                              text: authState.openAIApiKey ?? '',
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: 'Enter OpenAI API Key',
-                            ),
-                            onSubmitted: (val) {
-                              ref
-                                  .read(authControllerProvider.notifier)
-                                  .saveOpenAIApiKey(val.trim());
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () {},
-                          child: const SlashText('Save'),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Icon(Icons.lock, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          obscureText: true,
-                          controller: TextEditingController(
-                            text: authState.githubPat ?? '',
-                          ),
-                          decoration: const InputDecoration(
-                            hintText: 'Enter GitHub PAT',
-                          ),
-                          onSubmitted: (val) {
-                            ref
-                                .read(authControllerProvider.notifier)
-                                .saveGitHubPat(val.trim());
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () {},
-                        child: const SlashText('Save'),
-                      ),
-                    ],
-                  ),
-                ],
+          ),
+          const SizedBox(height: 12),
+          _card(
+            context: context,
+            titleIcon: Icons.lock,
+            title: 'GitHub',
+            child: TextField(
+              controller: _githubPatCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                hintText: 'GitHub Personal Access Token',
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          // Status Card
-          Card(
-            color: isDark ? const Color(0xFF23232A) : Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 0,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      SlashText('Key Status'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Image.asset('assets/slash.png', height: 18),
-                      const SizedBox(width: 8),
-                      const SlashText('Gemini Key:'),
-                      const SizedBox(width: 8),
-                      SlashText(
-                        mask(authState.geminiApiKey),
-                        fontFamily: 'monospace',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.bolt, color: Colors.amber[700], size: 18),
-                      const SizedBox(width: 8),
-                      const SlashText('OpenAI Key:'),
-                      const SizedBox(width: 8),
-                      SlashText(
-                        mask(authState.openAIApiKey),
-                        fontFamily: 'monospace',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.lock, color: Colors.grey, size: 18),
-                      const SizedBox(width: 8),
-                      const SlashText('GitHub PAT:'),
-                      const SizedBox(width: 8),
-                      SlashText(
-                        mask(authState.githubPat),
-                        fontFamily: 'monospace',
-                      ),
-                    ],
-                  ),
-                  if ((authState.geminiApiKey == null ||
-                          authState.geminiApiKey!.isEmpty) &&
-                      (authState.openAIApiKey == null ||
-                          authState.openAIApiKey!.isEmpty) &&
-                      (authState.githubPat == null ||
-                          authState.githubPat!.isEmpty))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: SlashText(
-                        'No API keys found. Please log in again.',
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
-          // Logout
+          const SizedBox(height: 24),
           Center(
             child: ElevatedButton.icon(
               icon: const Icon(Icons.logout),
-              label: const SlashText('Clear Tokens / Logout'),
+              label: const SlashText('Logout & Reset'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.error,
                 foregroundColor: Colors.white,
@@ -323,16 +207,42 @@ class SettingsScreen extends ConsumerWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                textStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-                elevation: 0,
               ),
-              onPressed: () => _logout(context, ref),
+              onPressed: _logout,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _card({
+    required BuildContext context,
+    required IconData titleIcon,
+    required String title,
+    required Widget child,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Card(
+      color: isDark ? const Color(0xFF23232A) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(titleIcon, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                SlashText(title, fontWeight: FontWeight.w600),
+              ],
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
       ),
     );
   }

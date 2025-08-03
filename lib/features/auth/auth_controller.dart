@@ -40,7 +40,7 @@ class AuthController extends StateNotifier<AuthState> {
   static const _openAIKey = 'openai_api_key';
   static const _githubKey = 'github_pat';
   static const _modelKey = 'model';
-  AuthController(this._storage) : super(AuthState()) {
+  AuthController(this._storage) : super(AuthState(model: 'openrouter')) {
     _loadKeys();
   }
 
@@ -50,7 +50,7 @@ class AuthController extends StateNotifier<AuthState> {
       final gemini = await _storage.getApiKey(_geminiKey);
       final openai = await _storage.getApiKey(_openAIKey);
       final github = await _storage.getApiKey(_githubKey);
-      final model = await _storage.getApiKey(_modelKey) ?? 'gemini';
+      final model = await _storage.getApiKey(_modelKey) ?? 'openrouter';
       state = state.copyWith(isLoading: false, geminiApiKey: gemini, openAIApiKey: openai, githubPat: github, model: model);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
