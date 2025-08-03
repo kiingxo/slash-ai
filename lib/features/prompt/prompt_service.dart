@@ -174,7 +174,7 @@ Rules:
     String? selectedBranch,
   }) async {
     final storage = SecureStorageService();
-    final githubPat = await storage.getApiKey('github_pat');
+    final githubPat = await storage.getApiKey('github_token') ?? await storage.getApiKey('github_pat');
     
     if (githubPat == null) {
       throw Exception('GitHub PAT is required');
@@ -215,13 +215,11 @@ Rules:
     required String repo,
   }) async {
     final storage = SecureStorageService();
-    final pat = await storage.getApiKey('github_pat');
-    
-    if (pat == null) {
-      throw Exception('GitHub PAT is required');
+    final token = await storage.getApiKey('github_token') ?? await storage.getApiKey('github_pat');
+    if (token == null) {
+      throw Exception('GitHub token is required');
     }
-    
-    final github = GitHubService(pat);
+    final github = GitHubService(token);
     return await github.fetchBranches(owner: owner, repo: repo);
   }
 

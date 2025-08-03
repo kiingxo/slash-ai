@@ -9,6 +9,9 @@ import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
 import '../../home_shell.dart';
 import 'package:dio/dio.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../services/secure_storage_service.dart';
+import '../../services/github_oauth_service.dart';
 
 class AuthPage extends ConsumerStatefulWidget {
   const AuthPage({super.key});
@@ -91,6 +94,45 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     openRouterKeyController.dispose();
     openRouterModelController.dispose();
     super.dispose();
+  }
+
+  Future<void> _startGitHubOAuth() async {
+    setState(() {
+      successMessage = null;
+      errorMessage = null;
+    });
+    try {
+      // 1) Begin device flow
+      final dc = await GitHubOAuthService.startDeviceFlow();
+      // 2) Show the user_code clearly and open verification URL
+      final uriToOpen = dc.verificationUri;
+      final uri = Uri.parse(uriToOpen);
+      // Inform the user about the code to enter
+      setState(() {
+        successMessage = 'Device code: ${dc.userCode}\nA browser will open to ${dc.verificationUri}. Enter the code there to continue.';
+      });
+      await Future.delayed(const Duration(milliseconds: 200));
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+      // 3) Poll for token while user completes verification
+      final token = await GitHubOAuthService.pollForToken(
+        deviceCode: dc.deviceCode,
+        intervalSeconds: dc.interval,
+      );
+      // 4) Save token securely
+      final storage = SecureStorageService();
+      await storage.saveApiKey('github_token', token);
+      // Clear legacy PAT if present
+      await storage.deleteApiKey('github_pat');
+
+      setState(() => successMessage = 'GitHub connected!');
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
+      }
+    } catch (e) {
+      setState(() => errorMessage = 'GitHub sign-in failed: $e');
+    }
   }
 
   Future<void> _connect() async {
@@ -319,12 +361,40 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                           ),
                         ],
                         const SizedBox(height: 24),
-                        SlashTextField(
-                          controller: githubController,
-                          hint: 'Paste your GitHub PAT',
-                          obscure: true,
+                        // Replace PAT input with Sign in with GitHub button
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.login),
+                          label: const SlashText('Sign in with GitHub'),
+                          onPressed: _startGitHubOAuth,
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(44),
+                          ),
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 16),
+                        // Keep legacy PAT entry visible only if user prefers manual token
+                        ExpansionTile(
+                          initiallyExpanded: false,
+                          title: const SlashText('Use a GitHub Personal Access Token instead (legacy)'),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: SlashTextField(
+                                controller: githubController,
+                                hint: 'Paste your GitHub PAT',
+                                obscure: true,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              child: SlashButton(
+                                text: 'Continue with PAT',
+                                onPressed: isValid ? _connect : () {},
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
                         SlashButton(
                           text: 'Continue',
                           onPressed: isValid ? _connect : () {},

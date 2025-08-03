@@ -5,6 +5,8 @@ import '../../features/auth/auth_controller.dart';
 import '../../features/auth/auth_page.dart';
 import '../../services/secure_storage_service.dart';
 import '../../features/repo/repo_controller.dart';
+import '../../services/github_oauth_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -19,6 +21,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _openRouterModelCtrl = TextEditingController();
   final _githubPatCtrl = TextEditingController();
   String _provider = 'gemini';
+  bool _oauthInProgress = false;
 
   @override
   void initState() {
@@ -45,6 +48,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _openRouterModelCtrl.dispose();
     _githubPatCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _startGitHubOAuth() async {
+    if (_oauthInProgress) return;
+    setState(() => _oauthInProgress = true);
+    try {
+      final dc = await GitHubOAuthService.startDeviceFlow();
+      final uriToOpen = dc.verificationUriComplete.isNotEmpty
+          ? dc.verificationUriComplete
+          : dc.verificationUri;
+      final uri = Uri.parse(uriToOpen);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final token = await GitHubOAuthService.pollForToken(
+        deviceCode: dc.deviceCode,
+        intervalSeconds: dc.interval,
+      );
+      final storage = SecureStorageService();
+      await storage.saveApiKey('github_token', token);
+      await storage.deleteApiKey('github_pat');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: SlashText('GitHub connected via OAuth')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: SlashText('GitHub OAuth failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _oauthInProgress = false);
+    }
   }
 
   Future<void> _save() async {
@@ -187,12 +223,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             titleIcon: Icons.lock,
             title: 'GitHub',
-            child: TextField(
-              controller: _githubPatCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: 'GitHub Personal Access Token',
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _oauthInProgress ? null : _startGitHubOAuth,
+                  icon: const Icon(Icons.login),
+                  label: SlashText(_oauthInProgress ? 'Signing in…' : 'Sign in with GitHub'),
+                ),
+                const SizedBox(height: 10),
+                ExpansionTile(
+                  title: const SlashText('Use a Personal Access Token instead (legacy)'),
+                  children: [
+                    TextField(
+                      controller: _githubPatCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        hintText: 'GitHub Personal Access Token',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),

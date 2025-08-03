@@ -31,8 +31,8 @@ class RepoController extends StateNotifier<RepoState> {
     
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final patRaw = await _storage.getApiKey('github_pat');
-      final pat = patRaw?.trim();
+      final tokenRaw = await _storage.getApiKey('github_token') ?? await _storage.getApiKey('github_pat');
+      final pat = tokenRaw?.trim();
       if (pat == null || pat.isEmpty) throw Exception('GitHub PAT not found');
       final dio = Dio(BaseOptions(
         baseUrl: 'https://api.github.com/',
@@ -57,4 +57,4 @@ class RepoController extends StateNotifier<RepoState> {
 
 final repoControllerProvider = StateNotifierProvider<RepoController, RepoState>((ref) {
   return RepoController(SecureStorageService());
-}); 
+});

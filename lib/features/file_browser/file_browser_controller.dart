@@ -127,10 +127,11 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
     // Fetch file content if not already loaded
     if (file.content == null) {
       try {
-        final pat = await _storage.getApiKey('github_pat');
+        final token = await _storage.getApiKey('github_token') ?? await _storage.getApiKey('github_pat');
+        if (token == null || token.isEmpty) throw Exception('GitHub token not found');
         final dio = Dio(BaseOptions(
           baseUrl: 'https://api.github.com/',
-          headers: {'Authorization': 'token $pat'},
+          headers: {'Authorization': 'token $token'},
         ));
         final branchQuery = branch != null ? '?ref=$branch' : '';
         final res = await dio.get('/repos/$owner/$repo/contents/${file.path}$branchQuery');
@@ -168,11 +169,11 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
     final List<FileItem> allFiles = [];
     Future<void> recurse(String path, int depth) async {
       if (depth > maxDepth || allFiles.length > maxFiles) return;
-      final pat = await _storage.getApiKey('github_pat');
-      if (pat == null || pat.isEmpty) throw Exception('GitHub PAT not found');
+      final token = await _storage.getApiKey('github_token') ?? await _storage.getApiKey('github_pat');
+      if (token == null || token.isEmpty) throw Exception('GitHub token not found');
       final dio = Dio(BaseOptions(
         baseUrl: 'https://api.github.com/',
-        headers: {'Authorization': 'token $pat'},
+        headers: {'Authorization': 'token $token'},
       ));
       final endpoint = '/repos/$owner/$repo/contents/${path.isEmpty ? '' : path}';
       final res = await dio.get(endpoint);
@@ -202,4 +203,4 @@ final fileBrowserControllerProvider = StateNotifierProvider.family<FileBrowserCo
     repo: params.repo,
     branch: params.branch,
   );
-}); 
+});

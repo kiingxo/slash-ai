@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+/// GitHub API wrapper supporting both OAuth Device Flow tokens and PATs.
+/// For simplicity we use `Authorization: token <token>` which works for user tokens.
 class GitHubService {
-  final String pat;
-  GitHubService(this.pat);
+  final String token; // OAuth access token or PAT
+
+  GitHubService(this.token);
 
   Map<String, String> get _headers => {
-    'Authorization': 'token $pat',
+    'Authorization': 'token $token',
     'Accept': 'application/vnd.github+json',
   };
 
@@ -106,4 +109,4 @@ class GitHubService {
     final List branches = jsonDecode(res.body);
     return branches.map<String>((b) => b['name'] as String).toList();
   }
-} 
+}
