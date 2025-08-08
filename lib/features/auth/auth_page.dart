@@ -1,9 +1,9 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:slash_flutter/ui/components/option_selection.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
-import 'auth_controller.dart' as legacy_auth; // legacy controller (existing in project)
 import 'auth_service.dart' as new_auth; // new controller with OpenRouter support
 import '../../ui/components/slash_text_field.dart';
 import 'package:slash_flutter/ui/components/cool_background.dart';
@@ -30,7 +30,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   String model = 'openrouter';
   List<String> openRouterModels = const [];
   bool loadingModels = false;
-  String modelSearch = '';
+  // Model selection is now done via a bottom sheet with search
 
   @override
   void initState() {
@@ -92,6 +92,136 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     openRouterKeyController.dispose();
     openRouterModelController.dispose();
     super.dispose();
+  }
+
+  Future<void> _showModelSelectorSheet() async {
+    final key = openRouterKeyController.text.trim();
+    if (key.isEmpty) {
+      setState(() {
+        errorMessage = 'Enter your OpenRouter API key first to browse models.';
+      });
+      return;
+    }
+    if (openRouterModels.isEmpty && !loadingModels) {
+      await _loadModelsIfNeeded(key);
+      if (!mounted) return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.98),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final filtered = openRouterModels
+                .where((m) => m.toLowerCase().contains(query.toLowerCase()))
+                .toList();
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.view_list_outlined, size: 18),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Select OpenRouter model',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          autofocus: true,
+                          onChanged: (val) => setSheetState(() => query = val),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'Search models',
+                            prefixIcon: const Icon(Icons.search, size: 18),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (loadingModels)
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 1.5)),
+                        )
+                      else
+                        Expanded(
+                          child: filtered.isEmpty
+                              ? const Center(
+                                  child: Text('No models found'),
+                                )
+                              : ListView.separated(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  itemBuilder: (_, idx) {
+                                    final m = filtered[idx];
+                                    final selected = m == openRouterModelController.text;
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(
+                                        m,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                      trailing: selected
+                                          ? const Icon(Icons.check_circle, color: Colors.green, size: 18)
+                                          : null,
+                                      onTap: () {
+                                        setState(() {
+                                          openRouterModelController.text = m;
+                                        });
+                                        Navigator.of(context).pop();
+                                      },
+                                    );
+                                  },
+                                  separatorBuilder: (_, __) => const Divider(height: 1),
+                                  itemCount: filtered.length,
+                                ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _connect() async {
@@ -177,10 +307,13 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(new_auth.authControllerProvider);
     return ThemeBuilder(
       builder: (context, colors, ref) {
         return SlashBackground(
+          showGrid: false,
+          showSlashes: false,
+          overlayOpacity: 0.50,
+          animate: false,
           child: Center(
             child: SingleChildScrollView(
               child: Column(
@@ -190,11 +323,11 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                 //   size: 48,
                 //   color: Color(0xFF6366F1),
                 // ),
-                Image.asset('assets/slash2.png', width: 150, height: 150),
-                // const SizedBox(height: 24),
+                Image.asset('assets/slash2.png', width: 96, height: 96),
+                const SizedBox(height: 12),
                 SlashText(
-                  'Connect your APIs',
-                  fontSize: 24,
+                  'Connect',
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   textAlign: TextAlign.center,
                 ),
@@ -202,26 +335,53 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                 SizedBox(
                   width: 300,
                   child: SlashText(
-                    'Enter your API key for the selected model and GitHub Personal Access Token (PAT) to continue.',
-                    fontSize: 14,
+                    'Add your model key and GitHub PAT to continue.',
+                    fontSize: 13,
                     color: colors.always909090,
                     textAlign: TextAlign.center,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 400),
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: colors.always343434.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Column(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.08),
+                          ),
+                        ),
+                        child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Align(
+                          alignment: Alignment.center,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.04),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: Colors.white.withOpacity(0.08)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.lock_outline, size: 14, color: Colors.white70),
+                                SizedBox(width: 6),
+                                Text('Secure setup', style: TextStyle(fontSize: 11, color: Colors.white70)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         if (errorMessage != null) ...[
                           SlashText(
                             errorMessage!,
@@ -275,7 +435,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                             });
                           },
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 12),
                         if (model == 'gemini') ...[
                           SlashTextField(
                             controller: geminiController,
@@ -289,44 +449,38 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                             hint: 'Paste your OpenRouter API key',
                             obscure: true,
                           ),
-                          const SizedBox(height: 12),
-                          // Auto-loaded, simple dropdown once key is present
-                          DropdownButtonFormField<String>(
-                            isDense: true,
-                            value: openRouterModels.contains(openRouterModelController.text)
-                                ? openRouterModelController.text
-                                : null,
-                            items: openRouterModels
-                                .map((m) => DropdownMenuItem(
-                                      value: m,
-                                      child: Text(
-                                        m,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                    ))
-                                .toList(),
-                            onChanged: (val) {
-                              if (val != null) {
-                                openRouterModelController.text = val;
-                                _validate();
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              border: OutlineInputBorder(),
-                              labelText: 'Model',
-                              hintText: '',
+                          const SizedBox(height: 8),
+                          // Button that opens bottom sheet model selector with search
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 320),
+                              child: TextFormField(
+                                readOnly: true,
+                                controller: openRouterModelController,
+                                onTap: _showModelSelectorSheet,
+                                style: const TextStyle(fontSize: 12),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Model',
+                                  hintText: 'Select model',
+                                  suffixIcon: const Icon(Icons.arrow_drop_down, size: 18),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                ),
+                              ),
                             ),
                           ),
                         ],
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 12),
                         SlashTextField(
                           controller: githubController,
                           hint: 'Paste your GitHub PAT',
                           obscure: true,
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 20),
                         SlashButton(
                           text: 'Continue',
                           onPressed: isValid ? _connect : () {},
@@ -341,6 +495,8 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                         ],
                         // No external error from auth state; errors shown via local errorMessage
                       ],
+                        ),
+                      ),
                     ),
                   ),
                 ),

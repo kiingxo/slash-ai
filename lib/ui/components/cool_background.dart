@@ -26,6 +26,8 @@ class SlashBackground extends StatelessWidget {
   final double overlayOpacity;
   final bool animate;
   final Duration speed;
+  final bool showGrid;
+  final bool showSlashes;
 
   const SlashBackground({
     super.key,
@@ -33,6 +35,8 @@ class SlashBackground extends StatelessWidget {
     this.overlayOpacity = 0.35,
     this.animate = true,
     this.speed = const Duration(seconds: 14),
+    this.showGrid = true,
+    this.showSlashes = true,
   });
 
   @override
@@ -85,8 +89,8 @@ class SlashBackground extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         base,
-        grid,
-        slashes,
+        if (showGrid) grid,
+        if (showSlashes) slashes,
         vignette,
         Container(color: Colors.black.withOpacity(overlayOpacity)),
         child,
