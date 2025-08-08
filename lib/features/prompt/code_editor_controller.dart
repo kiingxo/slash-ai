@@ -131,6 +131,10 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
     );
   }
 
+  void setCodeModel(String model) {
+    state = state.copyWith(codeModel: model);
+  }
+
   Future<void> _fetchBranchesForRepo(dynamic repo) async {
     if (repo == null) return;
 

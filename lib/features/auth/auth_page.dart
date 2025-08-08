@@ -1,7 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:slash_flutter/ui/components/option_selection.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
 import 'auth_service.dart' as new_auth; // new controller with OpenRouter support
@@ -425,12 +424,11 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                         //     const SlashText('OpenAI'),
                         //   ],
                         // ),the
-                        OptionSelection(
-                          options: const ['OpenRouter', 'Gemini'],
-                          selectedValue: model.toLowerCase() == 'openrouter' ? 'OpenRouter' : 'Gemini',
+                        _ModelSegmentedControl(
+                          value: model,
                           onChanged: (value) {
                             setState(() {
-                              model = value.toLowerCase() == 'openrouter' ? 'openrouter' : 'gemini';
+                              model = value;
                               _validate();
                             });
                           },
@@ -556,5 +554,96 @@ class _AuthPageState extends ConsumerState<AuthPage> {
           .toList();
     }
     return const <String>[];
+  }
+}
+
+class _ModelSegmentedControl extends StatelessWidget {
+  final String value; // 'openrouter' | 'gemini'
+  final ValueChanged<String> onChanged;
+  const _ModelSegmentedControl({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isOpenRouter = value == 'openrouter';
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.12)),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          Expanded(
+            child: _Segment(
+              selected: isOpenRouter,
+              label: 'OpenRouter',
+              icon: Icons.router_outlined,
+              onTap: () => onChanged('openrouter'),
+            ),
+          ),
+          Expanded(
+            child: _Segment(
+              selected: !isOpenRouter,
+              label: 'Gemini',
+              icon: Icons.auto_awesome,
+              onTap: () => onChanged('gemini'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Segment extends StatelessWidget {
+  final bool selected;
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  const _Segment({required this.selected, required this.label, required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: selected ? theme.colorScheme.primary.withValues(alpha: 0.14) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withOpacity(0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

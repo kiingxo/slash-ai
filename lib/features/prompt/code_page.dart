@@ -5,10 +5,9 @@ import 'package:highlight/languages/dart.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
-import '../../ui/components/slash_text_field.dart';
-import '../../ui/components/slash_button.dart';
+// removed unused imports
 import 'code_editor_controller.dart';
-import 'prompt_controller.dart';
+// removed unused imports
 
 class CodeScreen extends ConsumerStatefulWidget {
   const CodeScreen({super.key});
@@ -20,6 +19,7 @@ class CodeScreen extends ConsumerStatefulWidget {
 class _CodeScreenState extends ConsumerState<CodeScreen> {
   late CodeController _codeController;
   bool _sidebarExpanded = false;
+    double _sidebarWidth = 260.0; // user-resizable on wide layouts
   bool _showChatOverlay = false;
   Offset _chatOverlayOffset = const Offset(60, 120);
   final TextEditingController _chatController = TextEditingController();
@@ -33,6 +33,120 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     _codeController = CodeController(text: '', language: dart);
   }
 
+  void _showRepoSelectorSheet(List<dynamic> repos, dynamic selectedRepo) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.98),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final filtered = repos
+                .where((r) {
+                  final name = (r['full_name'] ?? r['name'] ?? '').toString();
+                  return name.toLowerCase().contains(query.toLowerCase());
+                })
+                .toList();
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.folder_open, size: 18),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Select repository',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          autofocus: true,
+                          onChanged: (val) => setSheetState(() => query = val),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'Search repositories',
+                            prefixIcon: const Icon(Icons.search, size: 18),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(
+                                child: Text('No repositories found'),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                itemBuilder: (_, idx) {
+                                  final repo = filtered[idx];
+                                  final name = (repo['full_name'] ?? repo['name'] ?? '').toString();
+                                  final selected = selectedRepo != null &&
+                                      (selectedRepo['full_name'] == repo['full_name'] || selectedRepo['name'] == repo['name']);
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(
+                                      name,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                    trailing: selected
+                                        ? const Icon(Icons.check_circle, color: Colors.green, size: 18)
+                                        : null,
+                                    onTap: () {
+                                      ref.read(codeEditorControllerProvider.notifier).selectRepo(repo);
+                                      Navigator.of(context).pop();
+                                    },
+                                  );
+                                },
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemCount: filtered.length,
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -87,10 +201,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         selectedRepo,
         codeState,
       ),
-      floatingActionButton: _buildFloatingActionButton(
-        codeState.branches,
-        selectedRepo,
-      ),
+      // Removed FAB; AI Assistant now accessible from bottom action bar
       body: LayoutBuilder(
         builder: (context, constraints) {
           _lastBodySize = Size(constraints.maxWidth, constraints.maxHeight);
@@ -103,6 +214,11 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                   // On very small widths, collapse the sidebar
                   if (!isNarrow)
                     _buildSidebar(context, theme, isDark, params, fileBrowserState)
+                  else
+                    const SizedBox.shrink(),
+                  // Drag handle for resizing sidebar on wide layouts
+                  if (!isNarrow)
+                    _buildSidebarDragHandle()
                   else
                     _buildCollapsedSidebarButton(context, params, fileBrowserState),
                   Expanded(child: _buildEditorArea(context, theme, isDark, codeState, isNarrow: isNarrow)),
@@ -136,56 +252,40 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
             const SlashText('Code Editor', fontWeight: FontWeight.bold),
             const SizedBox(width: 24),
             if (repos.isNotEmpty)
-              DropdownButton<dynamic>(
-                value: selectedRepo,
-                items:
-                    repos.map<DropdownMenuItem<dynamic>>((repo) {
-                      return DropdownMenuItem<dynamic>(
-                        value: repo,
-                        child: SlashText(repo['full_name'] ?? repo['name']),
-                      );
-                    }).toList(),
-                onChanged: (repo) {
-                  ref
-                      .read(codeEditorControllerProvider.notifier)
-                      .selectRepo(repo);
-                },
-                style: theme.textTheme.bodyMedium,
-                dropdownColor: theme.cardColor,
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _showRepoSelectorSheet(repos, selectedRepo),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.cardColor.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.black.withOpacity(0.08)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.folder_open, size: 16, color: Color(0xFF8B5CF6)),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        child: SlashText(
+                          (selectedRepo != null
+                              ? (selectedRepo['full_name'] ?? selectedRepo['name'] ?? 'Select repo')
+                              : 'Select repo'),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.arrow_drop_down, size: 18),
+                    ],
+                  ),
+                ),
               ),
           ],
         ),
       ),
       actions: [
-        // Model toggle for the code screen (Gemini / OpenRouter) — local to code editor
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: theme.cardColor.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.black.withOpacity(0.08)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: ref.watch(codeEditorControllerProvider).codeModel,
-              hint: const SlashText('AI: Gemini', fontSize: 12),
-              items: const [
-                DropdownMenuItem(value: 'gemini', child: SlashText('Gemini', fontSize: 12)),
-                DropdownMenuItem(value: 'openrouter', child: SlashText('OpenRouter', fontSize: 12)),
-              ],
-              onChanged: (val) {
-                if (val == null) return;
-                final current = ref.read(codeEditorControllerProvider);
-                ref.read(codeEditorControllerProvider.notifier)
-                   .state = current.copyWith(codeModel: val);
-              },
-              icon: const Icon(Icons.smart_toy_outlined, size: 16),
-              dropdownColor: theme.cardColor,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ),
         if (codeState.branches.isNotEmpty)
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
@@ -211,23 +311,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     );
   }
 
-  Widget? _buildFloatingActionButton(
-    List<String> branches,
-    dynamic selectedRepo,
-  ) {
-    return (branches.isNotEmpty && selectedRepo != null)
-        ? FloatingActionButton(
-          heroTag: 'ai_assistant_fab',
-          tooltip: 'AI Assistant',
-          onPressed: () {
-            setState(() {
-              _showChatOverlay = true;
-            });
-          },
-          child: const SlashText('🤖', fontSize: 24),
-        )
-        : null;
-  }
+  // removed redundant Floating Action Button (AI access is in bottom bar)
 
   // Compact sidebar launcher on small screens
   Widget _buildCollapsedSidebarButton(BuildContext context, RepoParams? params, dynamic fileBrowserState) {
@@ -254,7 +338,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
-      width: _sidebarExpanded ? 220 : 64,
+      width: _sidebarExpanded ? _sidebarWidth.clamp(180.0, 420.0) : 64,
       color: isDark ? const Color(0xFF23232A) : Colors.grey[100],
       child: Column(
         children: [
@@ -285,6 +369,33 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                     : _buildFileList(params, fileBrowserState),
           ),
         ],
+      ),
+    );
+  }
+
+  // Slim vertical drag handle between sidebar and editor
+  Widget _buildSidebarDragHandle() {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (details) {
+        setState(() {
+          _sidebarWidth = (_sidebarWidth + details.delta.dx).clamp(180.0, 420.0);
+        });
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.resizeColumn,
+        child: Container(
+          width: 6,
+          height: double.infinity,
+          color: Colors.transparent,
+          child: Center(
+            child: Container(
+              width: 2,
+              height: double.infinity,
+              color: Colors.black.withOpacity(0.06),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -386,28 +497,14 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildTabsHeader(codeState),
-              _buildFileHeader(isDark, codeState.selectedFilePath),
-              // Add safe horizontal scroll to avoid overflow on long lines
+              // Editor starts at the very top (aligned with sidebar list)
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.all(isNarrow ? 8 : 16),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LayoutBuilder(
-                      builder: (context, c) {
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(minWidth: c.maxWidth),
-                            child: SizedBox(
-                              width: c.maxWidth,
-                              child: _buildCodeEditor(isDark: isDark, compact: isNarrow),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                  padding: EdgeInsets.zero,
+                  child: LayoutBuilder(
+                    builder: (context, c) {
+                      return _buildCodeEditor(isDark: isDark, compact: isNarrow);
+                    },
                   ),
                 ),
               ),
@@ -416,61 +513,30 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
           );
   }
 
-  Widget _buildFileHeader(bool isDark, String? selectedFilePath) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF23232A) : Colors.grey[100],
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? Colors.grey[900]! : Colors.grey[300]!,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.insert_drive_file, color: Colors.blueAccent, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SlashText(
-              selectedFilePath ?? '',
-              fontFamily: 'Fira Mono',
-              fontSize: 14,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
-          _smallChip(icon: Icons.search, label: 'Find'),
-          const SizedBox(width: 6),
-          _smallChip(icon: Icons.auto_fix_high, label: 'Refactor'),
-        ],
-      ),
-    );
-  }
+  // Removed file header to maximize vertical space and align editor top with sidebar
 
   Widget _buildCodeEditor({required bool isDark, bool compact = false}) {
+    final double editorFontSize = compact ? 14 : 17; // noticeably larger
     return CodeTheme(
       data: CodeThemeData(),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF0E0E12) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE5E7EB), width: 0.75),
         ),
         child: CodeField(
           controller: _codeController,
           textStyle: TextStyle(
             fontFamily: 'Fira Mono',
-            fontSize: compact ? 13 : 15,
+            fontSize: editorFontSize,
+            height: 1.4,
             color: isDark ? Colors.white : const Color(0xFF111827),
           ),
           expands: true,
-          lineNumberStyle: LineNumberStyle(
-            width: compact ? 32 : 40,
-            textAlign: TextAlign.right,
-          ),
           gutterStyle: GutterStyle(
-            margin: compact ? 6 : 8,
+            width: compact ? 34 : 44,
+            margin: compact ? 4 : 8,
           ),
           background: Colors.transparent,
         ),
@@ -492,36 +558,119 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
       child: Row(
         children: [
           _iconButton(
-            tooltip: 'Hide Keyboard',
-            icon: Icons.keyboard_hide,
-            onTap: () => FocusScope.of(context).unfocus(),
-          ),
-          const SizedBox(width: 8),
-          _iconButton(
             tooltip: 'AI Assistant',
             icon: Icons.smart_toy_outlined,
             onTap: () => setState(() => _showChatOverlay = true),
           ),
+          const SizedBox(width: 8),
+          // Compact AI model selector moved here to declutter AppBar
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: _openModelSelectorSheet,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.smart_toy_outlined, size: 16, color: Colors.blue),
+                  const SizedBox(width: 6),
+                  SlashText('AI: ${codeState.codeModel}', fontSize: 12, color: Colors.blue),
+                ],
+              ),
+            ),
+          ),
           const Spacer(),
           SizedBox(
-            height: 32,
+            height: 30,
             child: ElevatedButton.icon(
               icon: codeState.isCommitting
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.upload, size: 16),
-              label: SlashText(codeState.isCommitting ? 'Committing…' : 'Commit & Push', fontSize: 13),
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.cloud_upload_rounded, size: 16),
+              label: SlashText(codeState.isCommitting ? 'Pushing…' : 'Push', fontSize: 12),
               onPressed: codeState.isCommitting
                   ? null
-                  : () => ref.read(codeEditorControllerProvider.notifier).commitAndPushFile(context, _codeController.text),
+                  : () => ref
+                      .read(codeEditorControllerProvider.notifier)
+                      .commitAndPushFile(context, _codeController.text),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                visualDensity: VisualDensity.compact,
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  void _openModelSelectorSheet() {
+    final current = ref.read(codeEditorControllerProvider).codeModel;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        String selected = current;
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Select AI model', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+              RadioListTile<String>(
+                value: 'gemini',
+                groupValue: selected,
+                title: const Text('Gemini'),
+                onChanged: (v) {
+                  if (v == null) return;
+                  ref.read(codeEditorControllerProvider.notifier).setCodeModel(v);
+                  Navigator.of(context).pop();
+                },
+              ),
+              RadioListTile<String>(
+                value: 'openrouter',
+                groupValue: selected,
+                title: const Text('OpenRouter'),
+                onChanged: (v) {
+                  if (v == null) return;
+                  ref.read(codeEditorControllerProvider.notifier).setCodeModel(v);
+                  Navigator.of(context).pop();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -595,44 +744,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     _chatController.clear();
   }
 
-  // Simple tabs header for UX (single active file)
-  Widget _buildTabsHeader(CodeEditorState codeState) {
-    final filePath = codeState.selectedFilePath ?? '';
-    final fileName = filePath.split('/').isNotEmpty ? filePath.split('/').last : filePath;
-
-    return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.05))),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.04),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.description_outlined, size: 16),
-                const SizedBox(width: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 240),
-                  child: SlashText(fileName, fontSize: 13, overflow: TextOverflow.ellipsis),
-                ),
-              ],
-            ),
-          ),
-          const Spacer(),
-          // Placeholder for future tabs actions
-        ],
-      ),
-    );
-  }
+  // removed unused _buildTabsHeader to widen editor
 
   // Small UI helpers
   Widget _iconButton({required String tooltip, required IconData icon, required VoidCallback onTap}) {
@@ -655,22 +767,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
     );
   }
 
-  Widget _smallChip({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: Colors.blue),
-          const SizedBox(width: 4),
-          SlashText(label, fontSize: 12, color: Colors.blue),
-        ],
-      ),
-    );
-  }
+  // removed unused _smallChip helper
 
   // Bottom sheet for files on small screens
   void _openFilesBottomSheet(BuildContext context, RepoParams? params) {
