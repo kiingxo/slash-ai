@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 
 import '../../services/secure_storage_service.dart';
 import '../repo/repo_controller.dart';
+import 'pr_service.dart';
+import 'pr_widgets.dart';
 
 // Fetch all open PRs involving the authenticated user across repos
 final prFilterProvider = StateProvider.autoDispose<String>((_) => 'all'); // all | author | assigned | review_requested
@@ -232,8 +234,8 @@ class PRsPage extends ConsumerWidget {
           builder: (context, scrollController) {
             return SafeArea(
               top: false,
-              child: FutureBuilder<_PRDetailData>(
-                future: _fetchPRDetail(owner, repo, number),
+              child: FutureBuilder<PRDetailData>(
+                future: PRService.fetchPRDetail(owner, repo, number),
                 builder: (context, snapshot) {
                   final loading = snapshot.connectionState != ConnectionState.done;
                   final data = snapshot.data;
@@ -254,19 +256,19 @@ class PRsPage extends ConsumerWidget {
                         spacing: 6,
                         runSpacing: -8,
                         children: [
-                          _chip(
+                          statusChip(
                             icon: data?.isDraft == true ? Icons.hourglass_empty : Icons.flag_circle,
                             label: data?.isDraft == true ? 'Draft' : 'Ready',
                             color: data?.isDraft == true ? Colors.grey : Colors.indigo,
                           ),
                           if (data?.mergeableState != null)
-                            _chip(
+                            statusChip(
                               icon: data!.mergeable == true ? Icons.check_circle : Icons.block,
                               label: 'Mergeable: ${data.mergeableState}',
                               color: data.mergeable == true ? Colors.green : Colors.red,
                             ),
                           if (data?.ciState != null)
-                            _chip(
+                            statusChip(
                               icon: data!.ciState == 'success'
                                   ? Icons.verified
                                   : (data.ciState == 'failure' ? Icons.error : Icons.more_horiz),
@@ -275,7 +277,7 @@ class PRsPage extends ConsumerWidget {
                                   ? Colors.green
                                   : (data.ciState == 'failure' ? Colors.red : Colors.orange),
                             ),
-                          _chip(icon: Icons.tag, label: '#$number', color: Colors.blueGrey),
+                          statusChip(icon: Icons.tag, label: '#$number', color: Colors.blueGrey),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -336,62 +338,7 @@ class PRsPage extends ConsumerWidget {
   }
 }
 
-class _PRDetailData {
-  final bool? isDraft;
-  final bool? mergeable;
-  final String? mergeableState; // clean, blocked, unstable, dirty, unknown
-  final String? ciState; // success, failure, pending, null
-  _PRDetailData({this.isDraft, this.mergeable, this.mergeableState, this.ciState});
-}
-
-Future<_PRDetailData> _fetchPRDetail(String owner, String repo, String number) async {
-  final pat = await SecureStorageService().getApiKey('github_pat');
-  final headers = {
-    'Authorization': 'token $pat',
-    'Accept': 'application/vnd.github+json',
-  };
-  final prRes = await http.get(
-    Uri.parse('https://api.github.com/repos/$owner/$repo/pulls/$number'),
-    headers: headers,
-  );
-  if (prRes.statusCode != 200) return _PRDetailData();
-  final pr = jsonDecode(prRes.body) as Map<String, dynamic>;
-  final draft = pr['draft'] == true;
-  final mergeable = pr['mergeable'] as bool?;
-  final mergeableState = pr['mergeable_state'] as String?; // may be null/unknown
-  final sha = pr['head']?['sha'] as String?;
-  String? ciState;
-  if (sha != null) {
-    final statusRes = await http.get(
-      Uri.parse('https://api.github.com/repos/$owner/$repo/commits/$sha/status'),
-      headers: headers,
-    );
-    if (statusRes.statusCode == 200) {
-      final status = jsonDecode(statusRes.body) as Map<String, dynamic>;
-      ciState = (status['state'] as String?); // success, failure, pending
-    }
-  }
-  return _PRDetailData(isDraft: draft, mergeable: mergeable, mergeableState: mergeableState, ciState: ciState);
-}
-
-Widget _chip({required IconData icon, required String label, required Color color}) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: color.withOpacity(0.25)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 6),
-        SlashText(label, fontSize: 11, color: color),
-      ],
-    ),
-  );
-}
+// moved detail fetch and chip widgets to pr_service.dart and pr_widgets.dart
 
 class _ReviewCommentBox extends StatefulWidget {
   final Future<void> Function(String text) onSubmit;
