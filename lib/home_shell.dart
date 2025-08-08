@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:slash_flutter/features/prompt/prompt_widgets.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
-import 'features/repo/repo_page.dart';
 import 'features/prompt/prompt_page.dart';
 import 'features/prompt/code_page.dart';
 import 'features/auth/auth_page.dart';
+import 'features/review/pr_page.dart';
 import 'features/auth/auth_controller.dart';
 import 'ui/screens/settings_screen.dart';
 
@@ -13,10 +13,9 @@ class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
 
   static final List<Widget> _pages = <Widget>[
-    RepoPage(),
     PromptPage(),
     CodeScreen(),
-    Center(child: SlashText('PRs (coming soon)', fontSize: 24)),
+    PRsPage(),
     SettingsScreen(),
   ];
 
@@ -63,38 +62,31 @@ class HomeShell extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _NavBarItem(
-                    icon: Icons.folder,
-                    label: 'Repos',
+                    assetIcon: 'assets/slash2.png',
+                    label: 'Prompt',
                     selected: selectedIndex == 0,
                     onTap: () => ref.read(tabIndexProvider.notifier).state = 0,
                     theme: theme,
                   ),
                   _NavBarItem(
-                    assetIcon: 'assets/slash2.png',
-                    label: 'Prompt',
+                    icon: Icons.code,
+                    label: 'Code',
                     selected: selectedIndex == 1,
                     onTap: () => ref.read(tabIndexProvider.notifier).state = 1,
                     theme: theme,
                   ),
                   _NavBarItem(
-                    icon: Icons.code,
-                    label: 'Code',
+                    icon: Icons.merge_type,
+                    label: 'PRs',
                     selected: selectedIndex == 2,
                     onTap: () => ref.read(tabIndexProvider.notifier).state = 2,
                     theme: theme,
                   ),
                   _NavBarItem(
-                    icon: Icons.merge_type,
-                    label: 'PRs',
-                    selected: selectedIndex == 3,
-                    onTap: () => ref.read(tabIndexProvider.notifier).state = 3,
-                    theme: theme,
-                  ),
-                  _NavBarItem(
                     icon: Icons.settings,
                     label: 'Settings',
-                    selected: selectedIndex == 4,
-                    onTap: () => ref.read(tabIndexProvider.notifier).state = 4,
+                    selected: selectedIndex == 3,
+                    onTap: () => ref.read(tabIndexProvider.notifier).state = 3,
                     theme: theme,
                   ),
                 ],
