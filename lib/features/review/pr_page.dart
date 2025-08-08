@@ -11,6 +11,7 @@ import '../repo/repo_controller.dart';
 // Fetch all open PRs involving the authenticated user across repos
 final prFilterProvider = StateProvider.autoDispose<String>((_) => 'all'); // all | author | assigned | review_requested
 final prRepoScopeProvider = StateProvider.autoDispose<String?>((_) => null); // "owner/repo" or null
+final prQueryProvider = StateProvider.autoDispose<String>((_) => ''); // title/body query
 
 final prListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final pat = await SecureStorageService().getApiKey('github_pat');
@@ -30,6 +31,7 @@ final prListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((r
 
   final filter = ref.watch(prFilterProvider);
   final scopedRepo = ref.watch(prRepoScopeProvider);
+  final query = ref.watch(prQueryProvider).trim();
 
   // Build search query based on filter
   String who;
@@ -51,7 +53,8 @@ final prListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((r
       ? ' repo:${scopedRepo.trim()}'
       : '';
 
-  final q = Uri.encodeQueryComponent('is:pr is:open $who$repoQualifier');
+  final searchTerm = query.isEmpty ? '' : ' $query';
+  final q = Uri.encodeQueryComponent('is:pr is:open $who$repoQualifier$searchTerm');
   final searchUrl = Uri.parse('https://api.github.com/search/issues?q=$q&per_page=50');
   final res = await http.get(searchUrl, headers: {
     'Authorization': 'token $pat',
@@ -77,6 +80,12 @@ class PRsPage extends ConsumerWidget {
         title: const SlashText('Pull Requests', fontWeight: FontWeight.bold),
         centerTitle: false,
         actions: [
+          // quick search
+          IconButton(
+            tooltip: 'Search',
+            onPressed: () => _showSearchSheet(context, ref),
+            icon: const Icon(Icons.search),
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.filter_alt_outlined),
             initialValue: ref.read(prFilterProvider),
@@ -128,10 +137,35 @@ class PRsPage extends ConsumerWidget {
                       final repoFull = parts.length >= 2 ? '${parts[parts.length - 2]}/${parts.last}' : '';
                       final author = pr['user']?['login'] ?? 'unknown';
                       final created = DateTime.tryParse(pr['created_at'] ?? '') ?? DateTime.now();
+                      final labels = (pr['labels'] is List) ? (pr['labels'] as List).cast<Map<String, dynamic>>() : const <Map<String, dynamic>>[];
                       return ListTile(
                         dense: true,
                         leading: CircleAvatar(child: SlashText('#$number', fontSize: 11)),
-                        title: SlashText(title, fontWeight: FontWeight.w600),
+                        title: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SlashText(title, fontWeight: FontWeight.w600),
+                            if (labels.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: -8,
+                                  children: labels.take(4).map((l) {
+                                    final name = (l['name'] ?? '').toString();
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: SlashText(name, fontSize: 10, color: Colors.blue),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                          ],
+                        ),
                         subtitle: SlashText('$repoFull • $author • ${created.toLocal().toString().split(".").first}', fontSize: 12),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => _showPRDetail(context, pr),
@@ -197,6 +231,73 @@ class PRsPage extends ConsumerWidget {
       },
     );
   }
+}
+
+void _showSearchSheet(BuildContext context, WidgetRef ref) {
+  final controller = TextEditingController(text: ref.read(prQueryProvider));
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+    builder: (ctx) {
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 16 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SlashText('Search PRs', fontWeight: FontWeight.bold),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Filter by keywords (title/body)…',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onSubmitted: (_) {
+                  ref.read(prQueryProvider.notifier).state = controller.text;
+                  ref.invalidate(prListProvider);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      ref.read(prQueryProvider.notifier).state = controller.text;
+                      ref.invalidate(prListProvider);
+                      Navigator.of(ctx).pop();
+                    },
+                    child: const SlashText('Apply'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      controller.clear();
+                      ref.read(prQueryProvider.notifier).state = '';
+                      ref.invalidate(prListProvider);
+                      Navigator.of(ctx).pop();
+                    },
+                    child: const SlashText('Clear'),
+                  )
+                ],
+              )
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 
