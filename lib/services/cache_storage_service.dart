@@ -10,27 +10,31 @@ class CacheStorage {
     log('SharedPreference Initialized');
   }
 
-  static Future<void> save(String key, dynamic value) async {
-    try {
-      if (value is String) {
-        await _prefs!.setString(key, value);
-      } else if (value is int) {
-        await _prefs!.setInt(key, value);
-      } else if (value is double) {
-        await _prefs!.setDouble(key, value);
-      } else if (value is bool) {
-        await _prefs!.setBool(key, value);
-      } else if (value is List<String>) {
-        await _prefs!.setStringList(key, value);
-      } else {
-        log('unsupported cache value type.');
-      }
-    } catch (e) {
-      log(e.toString());
-      log('unable to cache data.');
-    }
+
+static Future<void> save(String key, Object? value) async {
+  if (_prefs == null) {
+    log('SharedPreferences not initialized.');
+    return;
   }
 
+  try {
+    if (value is String) {
+      await _prefs!.setString(key, value);
+    } else if (value is int) {
+      await _prefs!.setInt(key, value);
+    } else if (value is double) {
+      await _prefs!.setDouble(key, value);
+    } else if (value is bool) {
+      await _prefs!.setBool(key, value);
+    } else if (value is List<String>) {
+      await _prefs!.setStringList(key, value);
+    } else {
+      log('Unsupported cache value type: ${value.runtimeType}');
+    }
+  } catch (e, stack) {
+    log('Unable to cache data for key "$key": $e\n$stack');
+  }
+}
   static dynamic fetchString(String key) {
     try {
       return _prefs!.getString(key);
