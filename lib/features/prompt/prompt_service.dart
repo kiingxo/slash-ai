@@ -1,22 +1,24 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:slash_flutter/common/types.dart';
+import 'package:slash_flutter/features/prompt/prompts.dart';
 import '../../services/gemini_service.dart';
 import '../../services/openai_service.dart';
 import '../../services/github_service.dart';
 import '../../services/secure_storage_service.dart';
 import '../file_browser/file_browser_controller.dart';
 
+
 class PromptService {
-  static Future<List<Map<String, String>>> fetchFiles({
+  static PromptServiceType fetchFiles({
     required String owner,
     required String repo,
     required String pat,
     String? branch,
   }) async {
-    final url = branch != null
-        ? 'https://api.github.com/repos/$owner/$repo/contents/?ref=$branch'
-        : 'https://api.github.com/repos/$owner/$repo/contents';
-    
+    final baseUrl = 'https://api.github.com/repos/$owner/$repo/contents';
+    final url = branch != null ? '$baseUrl/?ref=$branch' : baseUrl;
+
     final res = await http.get(
       Uri.parse(url),
       headers: {
@@ -29,6 +31,7 @@ class PromptService {
       throw Exception('Failed to fetch files: ${res.body}');
     }
     
+   
     final List files = jsonDecode(res.body);
     List<Map<String, String>> fileContents = [];
     
@@ -133,21 +136,7 @@ class PromptService {
 
   // Global, persistent system prompt to keep behavior consistent across turns.
   static String systemPrompt() {
-    return '''
-You are /slash, an agentic coding assistant.
-
-Core behavior:
-- Understand and work with code across languages and frameworks.
-- Classify user intent implicitly each turn: code_edit, repo_question, or general.
-- For code_edit: produce a concise plan in 1-2 sentences. When given a file, output ONLY fully-updated file content when asked for content. No extra prose, no markdown fences.
-- For repo_question: answer clearly using available repo/meta context and snippets.
-- For general: be concise, plain sentences, no headings/labels.
-
-Rules:
-- Avoid headings like "Summary", "Plan", "Diff", "Analysis".
-- Prefer minimal, actionable guidance.
-- If a file context was provided in a previous turn, assume it as the current working file unless a new file is explicitly given.
-''';
+    return systemPromptText;
   }
 
   static Future<String> processGeneralIntent({
