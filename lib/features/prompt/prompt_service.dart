@@ -8,9 +8,13 @@ import '../../services/github_service.dart';
 import '../../services/secure_storage_service.dart';
 import '../file_browser/file_browser_controller.dart';
 
+typedef FileContent = Map<String, String>;
+typedef FileContents = List<FileContent>;
+typedef RepoInfo = Map<String, dynamic>;
+typedef AIService = dynamic; 
 
 class PromptService {
-  static PromptServiceType fetchFiles({
+  static Future<FileContents> fetchFiles({
     required String owner,
     required String repo,
     required String pat,
@@ -33,7 +37,7 @@ class PromptService {
     
    
     final List files = jsonDecode(res.body);
-    List<Map<String, String>> fileContents = [];
+    FileContents fileContents = [];
     
     for (final file in files) {
       if (file['type'] == 'file') {
@@ -81,7 +85,7 @@ class PromptService {
   static Future<String> processCodeEditIntent({
     required dynamic aiService,
     required String prompt,
-    required List<Map<String, String>> files,
+    required FileContents files,
   }) async {
     final fileName = files.isNotEmpty ? (files[0]['name'] ?? 'file') : 'file';
     final planPrompt =
@@ -97,7 +101,7 @@ class PromptService {
   static Future<String> processCodeContent({
     required dynamic aiService,
     required String prompt,
-    required List<Map<String, String>> files,
+    required FileContents files,
   }) async {
     final oldContent = files.isNotEmpty ? (files[0]['content'] ?? '') : '';
     final fileName = files.isNotEmpty ? (files[0]['name'] ?? 'unknown') : 'unknown';
@@ -120,7 +124,7 @@ class PromptService {
     required dynamic aiService,
     required String prompt,
     required dynamic repo,
-    required List<Map<String, String>> contextFiles,
+    required FileContents contextFiles,
   }) async {
     final repoInfo =
         'Repo name: ${repo['name']}\nDescription: ${repo['description'] ?? 'No description.'}';
@@ -142,7 +146,7 @@ class PromptService {
   static Future<String> processGeneralIntent({
     required dynamic aiService,
     required String prompt,
-    required List<Map<String, String>> contextFiles,
+    required FileContents contextFiles,
   }) async {
     final answerPrompt =
         '${systemPrompt()}\n\nUser: $prompt';
