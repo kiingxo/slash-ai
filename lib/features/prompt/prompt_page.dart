@@ -11,6 +11,7 @@ import '../../ui/components/slash_button.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
 import 'prompt_controller.dart';
+import 'prompt_service.dart';
 import '../auth/auth_controller.dart';
 
 class PromptPage extends ConsumerStatefulWidget {
@@ -106,6 +107,10 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     final promptState = ref.watch(promptControllerProvider);
     final repoController = ref.read(repoControllerProvider.notifier);
     final promptController = ref.read(promptControllerProvider.notifier);
+    final errorDetails =
+        promptState.error == null
+            ? null
+            : friendlyErrorDetails(promptState.error!);
 
     final repos = repoState.repos;
     final selectedRepo =
@@ -237,11 +242,14 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                           itemCount: promptState.messages.length,
                           itemBuilder: (context, idx) {
                             final msg = promptState.messages[idx];
-                            final isLast = idx == promptState.messages.length - 1;
+                            final isLast =
+                                idx == promptState.messages.length - 1;
 
                             if (msg.review != null) {
                               if (isLast) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
                                   _autoScrollToBottom();
                                 });
                               }
@@ -281,10 +289,13 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                 ),
 
                 // Error message
-                if (promptState.error != null)
+                if (errorDetails != null)
                   Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: SlashText(promptState.error!, color: Colors.red),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: _PromptErrorBanner(
+                      details: errorDetails,
+                      onDismiss: promptController.clearError,
+                    ),
                   ),
 
                 // Input field and send button
@@ -338,6 +349,74 @@ class _PromptPageState extends ConsumerState<PromptPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _PromptErrorBanner extends StatelessWidget {
+  final FriendlyErrorDetails details;
+  final VoidCallback onDismiss;
+
+  const _PromptErrorBanner({required this.details, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline_rounded, color: theme.colorScheme.error),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SlashText(
+                  details.title,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onErrorContainer,
+                ),
+                const SizedBox(height: 4),
+                SlashText(
+                  details.message,
+                  color: theme.colorScheme.onErrorContainer,
+                ),
+                if ((details.recovery ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SlashText(
+                    details.recovery!,
+                    fontSize: 12,
+                    color: theme.colorScheme.onErrorContainer.withValues(
+                      alpha: 0.9,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Dismiss',
+            visualDensity: VisualDensity.compact,
+            onPressed: onDismiss,
+            icon: Icon(
+              Icons.close_rounded,
+              color: theme.colorScheme.onErrorContainer,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

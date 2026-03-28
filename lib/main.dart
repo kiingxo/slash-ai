@@ -47,10 +47,19 @@ class SplashScreen extends StatelessWidget {
                   bottom: 32,
                   left: 0,
                   right: 0,
-                  child: Text(
-                    '/slash',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11, letterSpacing: 1.4),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text(
+                        'by Blueprintlabs',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          letterSpacing: 0.4,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

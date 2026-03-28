@@ -195,6 +195,13 @@ class PromptController extends StateNotifier<PromptState> {
     state = state.copyWith(repoContextFiles: updatedFiles);
   }
 
+  void clearError() {
+    if (state.error == null) {
+      return;
+    }
+    state = state.copyWith(error: null);
+  }
+
   Future<void> addRepoContext() async {
     try {
       final repo =

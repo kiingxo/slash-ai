@@ -135,6 +135,33 @@ class ProjectOverview {
     required this.stats,
     required this.summaryUsedAI,
   });
+
+  ProjectOverview copyWith({String? executiveSummary, bool? summaryUsedAI}) {
+    return ProjectOverview(
+      repoFullName: repoFullName,
+      branch: branch,
+      window: window,
+      since: since,
+      generatedAt: generatedAt,
+      healthLabel: healthLabel,
+      momentumLabel: momentumLabel,
+      executiveSummary: executiveSummary ?? this.executiveSummary,
+      engineeringSummary: engineeringSummary,
+      highlights: highlights,
+      risks: risks,
+      nextActions: nextActions,
+      mergedPullRequests: mergedPullRequests,
+      openPullRequests: openPullRequests,
+      openedIssues: openedIssues,
+      closedIssues: closedIssues,
+      releases: releases,
+      workflowFailures: workflowFailures,
+      contributors: contributors,
+      timeline: timeline,
+      stats: stats,
+      summaryUsedAI: summaryUsedAI ?? this.summaryUsedAI,
+    );
+  }
 }
 
 class ProjectInsightsService {
@@ -331,34 +358,12 @@ class ProjectInsightsService {
       stats: stats,
       contributors: contributors,
     );
-    final narrative = await _generateNarrative(
+    final executiveSummary = _heuristicExecutiveSummary(
       repoFullName: repoFullName,
-      branch: branch,
       window: window,
       stats: stats,
-      contributors: contributors,
-      mergedPullRequests: mergedPullRequests,
-      openPullRequests: openPullRequests,
-      openedIssues: openedIssues,
-      closedIssues: closedIssues,
-      workflowFailures: workflowFailures,
-      releases: releaseItems,
-      model: model,
-      openAIApiKey: openAIApiKey,
-      openAIModel: openAIModel,
-      openRouterApiKey: openRouterApiKey,
-      openRouterModel: openRouterModel,
-      fallbackExecutiveSummary: _heuristicExecutiveSummary(
-        repoFullName: repoFullName,
-        window: window,
-        stats: stats,
-        healthLabel: healthLabel,
-        momentumLabel: momentumLabel,
-      ),
-      fallbackHighlights: highlights,
-      fallbackRisks: risks,
-      fallbackNextActions: nextActions,
-      fallbackEngineeringSummary: engineeringSummary,
+      healthLabel: healthLabel,
+      momentumLabel: momentumLabel,
     );
 
     return ProjectOverview(
@@ -369,11 +374,11 @@ class ProjectInsightsService {
       generatedAt: now,
       healthLabel: healthLabel,
       momentumLabel: momentumLabel,
-      executiveSummary: narrative.executiveSummary,
-      engineeringSummary: narrative.engineeringSummary,
-      highlights: narrative.highlights,
-      risks: narrative.risks,
-      nextActions: narrative.nextActions,
+      executiveSummary: executiveSummary,
+      engineeringSummary: engineeringSummary,
+      highlights: highlights,
+      risks: risks,
+      nextActions: nextActions,
       mergedPullRequests: mergedPullRequests,
       openPullRequests: openPullRequests,
       openedIssues: openedIssues,
@@ -390,135 +395,58 @@ class ProjectInsightsService {
         releases: releaseItems,
       ),
       stats: stats,
-      summaryUsedAI: narrative.usedAI,
+      summaryUsedAI: false,
     );
   }
 
-  static Future<_ProjectNarrative> _generateNarrative({
-    required String repoFullName,
-    required String branch,
-    required ProjectWindow window,
-    required ProjectStats stats,
-    required List<ProjectContributor> contributors,
-    required List<ProjectReportItem> mergedPullRequests,
-    required List<ProjectReportItem> openPullRequests,
-    required List<ProjectReportItem> openedIssues,
-    required List<ProjectReportItem> closedIssues,
-    required List<ProjectReportItem> workflowFailures,
-    required List<ProjectReportItem> releases,
+  static Future<ProjectOverview> generateExecutiveSummary({
+    required ProjectOverview overview,
     required String model,
     required String? openAIApiKey,
     required String? openAIModel,
     required String? openRouterApiKey,
     required String? openRouterModel,
-    required String fallbackExecutiveSummary,
-    required String fallbackEngineeringSummary,
-    required List<String> fallbackHighlights,
-    required List<String> fallbackRisks,
-    required List<String> fallbackNextActions,
   }) async {
-    try {
-      final aiService = prompt_service.PromptService.createAIService(
-        model: model,
-        openAIApiKey: openAIApiKey,
-        openAIModel: openAIModel,
-        openRouterApiKey: openRouterApiKey,
-        openRouterModel: openRouterModel,
-      );
+    final aiService = prompt_service.PromptService.createAIService(
+      model: model,
+      openAIApiKey: openAIApiKey,
+      openAIModel: openAIModel,
+      openRouterApiKey: openRouterApiKey,
+      openRouterModel: openRouterModel,
+    );
 
-      final facts = {
-        'repository': repoFullName,
-        'branch': branch,
-        'window': window.longLabel,
-        'stats': {
-          'commits': stats.commitCount,
-          'merged_prs': stats.mergedPrCount,
-          'open_prs': stats.openPrCount,
-          'draft_prs': stats.draftPrCount,
-          'stale_prs': stats.stalePrCount,
-          'opened_issues': stats.openedIssueCount,
-          'closed_issues': stats.closedIssueCount,
-          'open_issues': stats.openIssueCount,
-          'failed_runs': stats.failedRunCount,
-          'successful_runs': stats.successfulRunCount,
-          'releases': stats.releaseCount,
+    final facts = _executiveSummaryFacts(overview);
+
+    final raw = await aiService.chat(
+      messages: [
+        {
+          'role': 'system',
+          'content':
+              'You are /slash project monitor writing for a founder, product lead, or engineering manager. '
+              'Use only the provided facts. Do not invent metrics, incidents, progress, or certainty. '
+              'Return plain text only, no markdown. Write a detailed executive summary in 3 concise paragraphs. '
+              'Paragraph 1 should explain delivery and momentum. Paragraph 2 should explain operational or execution risk. '
+              'Paragraph 3 should explain what leadership should pay attention to next.',
         },
-        'contributors':
-            contributors
-                .take(5)
-                .map((item) => {'name': item.name, 'commits': item.commitCount})
-                .toList(),
-        'merged_prs':
-            mergedPullRequests
-                .take(4)
-                .map((item) => _compactItem(item))
-                .toList(),
-        'open_prs':
-            openPullRequests.take(4).map((item) => _compactItem(item)).toList(),
-        'opened_issues':
-            openedIssues.take(4).map((item) => _compactItem(item)).toList(),
-        'closed_issues':
-            closedIssues.take(4).map((item) => _compactItem(item)).toList(),
-        'workflow_failures':
-            workflowFailures.take(4).map((item) => _compactItem(item)).toList(),
-        'releases': releases.take(3).map((item) => _compactItem(item)).toList(),
-      };
+        {'role': 'user', 'content': jsonEncode(facts)},
+      ],
+      maxTokens: 1100,
+      temperature: 0.2,
+      timeout: const Duration(seconds: 40),
+      maxAttempts: 1,
+    );
 
-      final raw = await aiService.chat(
-        messages: [
-          {
-            'role': 'system',
-            'content':
-                'You are /slash project monitor. Summarize repository activity '
-                'for an engineering lead or founder. Use only the provided facts. '
-                'Do not invent metrics, events, or confidence. Return valid JSON only '
-                'with keys executive_summary, engineering_summary, highlights, risks, next_actions. '
-                'Each array must contain 2 to 5 concise strings.',
-          },
-          {'role': 'user', 'content': jsonEncode(facts)},
-        ],
-        maxTokens: 900,
-        temperature: 0.2,
-        timeout: const Duration(seconds: 35),
-        maxAttempts: 1,
-        responseFormat: const {'type': 'json_object'},
-      );
-
-      final decoded = _decodeNarrativePayload(raw);
-      final executiveSummary =
-          (decoded['executive_summary'] ?? '').toString().trim();
-      final engineeringSummary =
-          (decoded['engineering_summary'] ?? '').toString().trim();
-      final highlights = _stringList(decoded['highlights']);
-      final risks = _stringList(decoded['risks']);
-      final nextActions = _stringList(decoded['next_actions']);
-
-      if (executiveSummary.isEmpty ||
-          engineeringSummary.isEmpty ||
-          highlights.isEmpty ||
-          risks.isEmpty ||
-          nextActions.isEmpty) {
-        throw const FormatException('Summary JSON missing required fields.');
-      }
-
-      return _ProjectNarrative(
-        executiveSummary: executiveSummary,
-        engineeringSummary: engineeringSummary,
-        highlights: highlights,
-        risks: risks,
-        nextActions: nextActions,
-        usedAI: true,
-      );
-    } catch (_) {
-      return _ProjectNarrative(
-        executiveSummary: fallbackExecutiveSummary,
-        engineeringSummary: fallbackEngineeringSummary,
-        highlights: fallbackHighlights,
-        risks: fallbackRisks,
-        nextActions: fallbackNextActions,
-        usedAI: false,
+    final executiveSummary = raw.trim();
+    if (executiveSummary.isEmpty) {
+      throw const FormatException(
+        'Executive summary generation returned empty.',
       );
     }
+
+    return overview.copyWith(
+      executiveSummary: executiveSummary,
+      summaryUsedAI: true,
+    );
   }
 
   static List<ProjectContributor> _buildContributorList(
@@ -571,30 +499,75 @@ class ProjectInsightsService {
     }
   }
 
-  static Map<String, dynamic> _decodeNarrativePayload(String raw) {
-    final cleaned = prompt_service.stripCodeFences(raw).trim();
-
-    dynamic decode(String input) => jsonDecode(input);
-
-    try {
-      final direct = decode(cleaned);
-      if (direct is Map<String, dynamic>) {
-        return direct;
-      }
-    } catch (_) {}
-
-    final match = RegExp(r'\{[\s\S]*\}').firstMatch(cleaned);
-    if (match != null) {
-      final extracted = match.group(0);
-      if (extracted != null && extracted.trim().isNotEmpty) {
-        final decoded = decode(extracted.trim());
-        if (decoded is Map<String, dynamic>) {
-          return decoded;
-        }
-      }
-    }
-
-    throw const FormatException('Unable to decode summary JSON.');
+  static Map<String, dynamic> _executiveSummaryFacts(ProjectOverview overview) {
+    return {
+      'repository': overview.repoFullName,
+      'branch': overview.branch,
+      'window': overview.window.longLabel,
+      'generated_at': overview.generatedAt.toUtc().toIso8601String(),
+      'health': overview.healthLabel,
+      'momentum': overview.momentumLabel,
+      'stats': {
+        'commits': overview.stats.commitCount,
+        'merged_prs': overview.stats.mergedPrCount,
+        'open_prs': overview.stats.openPrCount,
+        'draft_prs': overview.stats.draftPrCount,
+        'stale_prs': overview.stats.stalePrCount,
+        'opened_issues': overview.stats.openedIssueCount,
+        'closed_issues': overview.stats.closedIssueCount,
+        'open_issues': overview.stats.openIssueCount,
+        'failed_runs': overview.stats.failedRunCount,
+        'successful_runs': overview.stats.successfulRunCount,
+        'releases': overview.stats.releaseCount,
+      },
+      'engineering_summary': overview.engineeringSummary,
+      'highlights': overview.highlights,
+      'risks': overview.risks,
+      'next_actions': overview.nextActions,
+      'contributors':
+          overview.contributors
+              .take(5)
+              .map((item) => {'name': item.name, 'commits': item.commitCount})
+              .toList(),
+      'merged_prs':
+          overview.mergedPullRequests
+              .take(4)
+              .map((item) => _compactItem(item))
+              .toList(),
+      'open_prs':
+          overview.openPullRequests
+              .take(4)
+              .map((item) => _compactItem(item))
+              .toList(),
+      'opened_issues':
+          overview.openedIssues
+              .take(4)
+              .map((item) => _compactItem(item))
+              .toList(),
+      'closed_issues':
+          overview.closedIssues
+              .take(4)
+              .map((item) => _compactItem(item))
+              .toList(),
+      'workflow_failures':
+          overview.workflowFailures
+              .take(4)
+              .map((item) => _compactItem(item))
+              .toList(),
+      'releases':
+          overview.releases.take(3).map((item) => _compactItem(item)).toList(),
+      'timeline':
+          overview.timeline
+              .take(6)
+              .map(
+                (item) => {
+                  'kind': item.kind,
+                  'title': item.title,
+                  'subtitle': item.subtitle,
+                },
+              )
+              .toList(),
+    };
   }
 
   static List<ProjectTimelineEntry> _buildTimeline({
@@ -939,13 +912,6 @@ class ProjectInsightsService {
     return 'quiet';
   }
 
-  static List<String> _stringList(dynamic raw) {
-    return (raw as List<dynamic>? ?? const <dynamic>[])
-        .map((entry) => entry.toString().trim())
-        .where((entry) => entry.isNotEmpty)
-        .toList();
-  }
-
   static Map<String, dynamic> _compactItem(ProjectReportItem item) {
     return {
       if (item.number != null) 'number': item.number,
@@ -1016,24 +982,6 @@ class ProjectInsightsService {
     }
     return labels[month - 1];
   }
-}
-
-class _ProjectNarrative {
-  final String executiveSummary;
-  final String engineeringSummary;
-  final List<String> highlights;
-  final List<String> risks;
-  final List<String> nextActions;
-  final bool usedAI;
-
-  const _ProjectNarrative({
-    required this.executiveSummary,
-    required this.engineeringSummary,
-    required this.highlights,
-    required this.risks,
-    required this.nextActions,
-    required this.usedAI,
-  });
 }
 
 extension on String {

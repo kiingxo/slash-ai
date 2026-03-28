@@ -35,6 +35,8 @@ class OpsCommandPreset {
   const OpsCommandPreset({required this.label, required this.command});
 }
 
+enum OpsLogTargetType { container, service }
+
 class OpsConnectionPage extends ConsumerStatefulWidget {
   const OpsConnectionPage({super.key});
 
@@ -612,6 +614,32 @@ class OpsRuntimePage extends ConsumerWidget {
     await controller.connect(state.profile);
   }
 
+  void _openContainerLogs(BuildContext context, VpsContainerInfo container) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder:
+            (_) => OpsRuntimeLogsPage(
+              targetType: OpsLogTargetType.container,
+              targetName: container.name,
+              subtitle: container.image,
+            ),
+      ),
+    );
+  }
+
+  void _openServiceLogs(BuildContext context, VpsServiceInfo service) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder:
+            (_) => OpsRuntimeLogsPage(
+              targetType: OpsLogTargetType.service,
+              targetName: service.name,
+              subtitle: service.description,
+            ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(opsControllerProvider);
@@ -730,11 +758,23 @@ class OpsRuntimePage extends ConsumerWidget {
                             children: [
                               SizedBox(
                                 width: pairWidth,
-                                child: _DockerPanel(snapshot: snapshot),
+                                child: _DockerPanel(
+                                  snapshot: snapshot,
+                                  onOpenLogs:
+                                      (container) => _openContainerLogs(
+                                        context,
+                                        container,
+                                      ),
+                                ),
                               ),
                               SizedBox(
                                 width: pairWidth,
-                                child: _ServicePanel(snapshot: snapshot),
+                                child: _ServicePanel(
+                                  snapshot: snapshot,
+                                  onOpenLogs:
+                                      (service) =>
+                                          _openServiceLogs(context, service),
+                                ),
                               ),
                             ],
                           ),
@@ -743,6 +783,153 @@ class OpsRuntimePage extends ConsumerWidget {
                   },
                 ),
               ),
+    );
+  }
+}
+
+class OpsRuntimeLogsPage extends ConsumerStatefulWidget {
+  const OpsRuntimeLogsPage({
+    required this.targetType,
+    required this.targetName,
+    required this.subtitle,
+    super.key,
+  });
+
+  final OpsLogTargetType targetType;
+  final String targetName;
+  final String subtitle;
+
+  @override
+  ConsumerState<OpsRuntimeLogsPage> createState() => _OpsRuntimeLogsPageState();
+}
+
+class _OpsRuntimeLogsPageState extends ConsumerState<OpsRuntimeLogsPage> {
+  OpsCommandLogEntry? _entry;
+  String? _error;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_load);
+  }
+
+  Future<void> _load() async {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final controller = ref.read(opsControllerProvider.notifier);
+      final entry =
+          widget.targetType == OpsLogTargetType.container
+              ? await controller.fetchContainerLogs(widget.targetName)
+              : await controller.fetchServiceLogs(widget.targetName);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _entry = entry;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = error.toString().replaceFirst('Exception: ', '').trim();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isContainer = widget.targetType == OpsLogTargetType.container;
+    final accent =
+        isContainer ? const Color(0xFF60A5FA) : const Color(0xFFA78BFA);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const SlashText('Logs', fontWeight: FontWeight.w700),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh logs',
+            onPressed: _isLoading ? null : _load,
+            icon:
+                _isLoading
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    )
+                    : const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+        children: [
+          _FeatureHeroCard(
+            icon: isContainer ? Icons.inventory_2_rounded : Icons.hub_rounded,
+            eyebrow: 'Logs',
+            title: widget.targetName,
+            description:
+                widget.subtitle.trim().isEmpty
+                    ? isContainer
+                        ? 'Container logs'
+                        : 'Service logs'
+                    : widget.subtitle,
+            accent: accent,
+            chips: [
+              _HeroChip(
+                label: 'Source',
+                value: isContainer ? 'Container' : 'Service',
+              ),
+              _HeroChip(
+                label: 'Last fetch',
+                value:
+                    _entry == null ? 'Waiting' : formatOpsClock(_entry!.ranAt),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _ErrorBanner(
+                message: _error!,
+                onDismiss: () {
+                  setState(() {
+                    _error = null;
+                  });
+                },
+              ),
+            ),
+          if (_entry != null)
+            _TerminalOutput(entry: _entry!)
+          else
+            _Panel(
+              child:
+                  _isLoading
+                      ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 36),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                      : const _EmptyStateCopy(
+                        message: 'No logs were returned for this target.',
+                      ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1116,9 +1303,10 @@ class _MetricsGrid extends StatelessWidget {
 }
 
 class _DockerPanel extends StatelessWidget {
-  const _DockerPanel({required this.snapshot});
+  const _DockerPanel({required this.snapshot, required this.onOpenLogs});
 
   final VpsSnapshot snapshot;
+  final ValueChanged<VpsContainerInfo> onOpenLogs;
 
   @override
   Widget build(BuildContext context) {
@@ -1151,6 +1339,7 @@ class _DockerPanel extends StatelessWidget {
                       title: container.name,
                       subtitle: '${container.image} • ${container.status}',
                       trailing: container.ports.ifBlank('No exposed ports'),
+                      onTap: () => onOpenLogs(container),
                     ),
                   )
                   .toList(growable: false),
@@ -1162,9 +1351,10 @@ class _DockerPanel extends StatelessWidget {
 }
 
 class _ServicePanel extends StatelessWidget {
-  const _ServicePanel({required this.snapshot});
+  const _ServicePanel({required this.snapshot, required this.onOpenLogs});
 
   final VpsSnapshot snapshot;
+  final ValueChanged<VpsServiceInfo> onOpenLogs;
 
   @override
   Widget build(BuildContext context) {
@@ -1202,6 +1392,7 @@ class _ServicePanel extends StatelessWidget {
                       subtitle:
                           '${service.description} • ${service.loadState}/${service.activeState}/${service.subState}',
                       trailing: service.activeState.toUpperCase(),
+                      onTap: () => onOpenLogs(service),
                     ),
                   )
                   .toList(growable: false),
@@ -1830,17 +2021,69 @@ class _InfoRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.trailing,
+    this.onTap,
   });
 
   final Color color;
   final String title;
   final String subtitle;
   final String trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          margin: const EdgeInsets.only(top: 6),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.70),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            trailing,
+            textAlign: TextAlign.right,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.68),
+            ),
+          ),
+        ),
+        if (onTap != null) ...[
+          const SizedBox(width: 8),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.46),
+          ),
+        ],
+      ],
+    );
+
+    final content = Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1849,49 +2092,14 @@ class _InfoRow extends StatelessWidget {
           alpha: 0.28,
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.only(top: 6),
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.70),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              trailing,
-              textAlign: TextAlign.right,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.68),
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: row,
     );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return GestureDetector(onTap: onTap, child: content);
   }
 }
 

@@ -126,15 +126,44 @@ class VpsOpsService {
   }) async {
     await _ensureConnected(profile);
     final trimmedCommand = command.trim();
-    final result = await _runCommand('sh -lc ${_shellQuote(trimmedCommand)}');
-    final output = _composeCommandOutput(result);
+    return _runShellCommand(label: trimmedCommand, command: trimmedCommand);
+  }
 
-    return OpsCommandLogEntry(
-      command: trimmedCommand,
-      output: output,
-      exitCode: result.exitCode,
-      isError: (result.exitCode ?? 0) != 0,
-      ranAt: DateTime.now(),
+  Future<OpsCommandLogEntry> fetchContainerLogs({
+    required VpsConnectionProfile profile,
+    required String containerName,
+    int tailLines = 200,
+  }) async {
+    await _ensureConnected(profile);
+    final safeName = containerName.trim();
+    if (safeName.isEmpty) {
+      throw Exception('Container name is missing.');
+    }
+
+    final safeTail = math.max(50, math.min(500, tailLines));
+    return _runShellCommand(
+      label: 'docker logs --tail $safeTail $safeName',
+      command:
+          'docker logs --tail $safeTail --timestamps ${_shellQuote(safeName)}',
+    );
+  }
+
+  Future<OpsCommandLogEntry> fetchServiceLogs({
+    required VpsConnectionProfile profile,
+    required String serviceName,
+    int tailLines = 200,
+  }) async {
+    await _ensureConnected(profile);
+    final safeName = serviceName.trim();
+    if (safeName.isEmpty) {
+      throw Exception('Service name is missing.');
+    }
+
+    final safeTail = math.max(50, math.min(500, tailLines));
+    return _runShellCommand(
+      label: 'journalctl -u $safeName -n $safeTail',
+      command:
+          'journalctl -u ${_shellQuote(safeName)} -n $safeTail --no-pager -o short-iso',
     );
   }
 
@@ -157,6 +186,22 @@ class VpsOpsService {
       throw Exception('No SSH session is active.');
     }
     return client.runWithResult(command, stderr: true);
+  }
+
+  Future<OpsCommandLogEntry> _runShellCommand({
+    required String label,
+    required String command,
+  }) async {
+    final result = await _runCommand('sh -lc ${_shellQuote(command)}');
+    final output = _composeCommandOutput(result);
+
+    return OpsCommandLogEntry(
+      command: label,
+      output: output,
+      exitCode: result.exitCode,
+      isError: (result.exitCode ?? 0) != 0,
+      ranAt: DateTime.now(),
+    );
   }
 
   Map<String, String> _parseSections(String output) {

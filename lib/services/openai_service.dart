@@ -117,9 +117,7 @@ class OpenAIService implements LLMService {
     );
 
     if (response.statusCode != 200) {
-      throw Exception(
-        '${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.statusCode}: ${response.body}',
-      );
+      throw Exception(_buildProviderErrorMessage(response));
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -192,6 +190,46 @@ class OpenAIService implements LLMService {
         baseModel.startsWith('o1') ||
         baseModel.startsWith('o3') ||
         baseModel.startsWith('o4');
+  }
+
+  String _buildProviderErrorMessage(http.Response response) {
+    final provider = useOpenRouter ? 'OpenRouter' : 'OpenAI';
+    final statusCode = response.statusCode;
+    String detail = '';
+    String code = '';
+
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final error = decoded['error'];
+        if (error is Map<String, dynamic>) {
+          detail = (error['message'] ?? '').toString().trim();
+          code = (error['code'] ?? error['type'] ?? '').toString().trim();
+        }
+
+        if (detail.isEmpty) {
+          detail = (decoded['message'] ?? '').toString().trim();
+        }
+        if (code.isEmpty) {
+          code = (decoded['code'] ?? '').toString().trim();
+        }
+      }
+    } catch (_) {
+      // Fall back to the raw body when the provider response is not JSON.
+    }
+
+    if (detail.isEmpty) {
+      detail = response.body.trim();
+    }
+    if (detail.isEmpty) {
+      detail = 'Request failed.';
+    }
+    if (detail.length > 320) {
+      detail = '${detail.substring(0, 320)}...';
+    }
+
+    final codeLabel = code.isEmpty ? '' : ' ($code)';
+    return '$provider error $statusCode$codeLabel: $detail';
   }
 
   String _formatFileBlock(String name, String content) {

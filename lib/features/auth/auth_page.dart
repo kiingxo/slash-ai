@@ -432,6 +432,13 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   children: [
                     Image.asset('assets/slash2.png', width: 104, height: 104),
                     const SizedBox(height: 14),
+                    SlashText(
+                      'by Blueprintlabs',
+                      fontSize: 12,
+                      color: colors.always909090,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
                     const SlashText(
                       'Pocket Engineer Setup',
                       fontSize: 24,
@@ -439,12 +446,12 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    SlashText(
-                      'Connect an AI provider, sign in with GitHub, and ship changes without juggling API sprawl or personal access tokens.',
-                      fontSize: 13,
-                      color: colors.always909090,
-                      textAlign: TextAlign.center,
-                    ),
+                    // SlashText(
+                    //   'Connect an AI provider, sign in with GitHub, and ship changes without juggling API sprawl or personal access tokens.',
+                    //   fontSize: 13,
+                    //   color: colors.always909090,
+                    //   textAlign: TextAlign.center,
+                    // ),
                     const SizedBox(height: 18),
                     _buildGlassCard(
                       context,

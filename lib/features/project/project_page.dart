@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../ui/components/slash_text.dart';
+import '../auth/auth_controller.dart';
 import '../prompt/prompt_service.dart';
 import '../repo/repo_controller.dart';
 import 'project_controller.dart';
@@ -13,8 +14,20 @@ final _projectPdfExportingProvider = StateProvider<bool>((_) => false);
 
 enum _ProjectExportAction { previewPdf, sharePdf }
 
-class ProjectPage extends ConsumerWidget {
+enum _ProjectHeaderAction { refresh, previewPdf, sharePdf }
+
+class ProjectPage extends ConsumerStatefulWidget {
   const ProjectPage({super.key});
+
+  @override
+  ConsumerState<ProjectPage> createState() => _ProjectPageState();
+}
+
+class _ProjectPageState extends ConsumerState<ProjectPage> {
+  String? _summaryKey;
+  ProjectOverview? _generatedSummaryOverview;
+  String? _executiveSummaryError;
+  bool _isGeneratingExecutiveSummary = false;
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(projectOverviewProvider);
@@ -40,21 +53,101 @@ class ProjectPage extends ConsumerWidget {
     }
   }
 
+  String _overviewKey(ProjectOverview overview) {
+    return '${overview.repoFullName}::${overview.branch}::${overview.window.name}::${overview.generatedAt.toUtc().millisecondsSinceEpoch}';
+  }
+
+  bool _isCurrentSummaryState(ProjectOverview overview) {
+    return _summaryKey == _overviewKey(overview);
+  }
+
+  ProjectOverview _effectiveOverview(ProjectOverview overview) {
+    if (_isCurrentSummaryState(overview) && _generatedSummaryOverview != null) {
+      return _generatedSummaryOverview!;
+    }
+    return overview;
+  }
+
+  Future<ProjectOverview> _requestExecutiveSummary(
+    ProjectOverview overview,
+  ) async {
+    final key = _overviewKey(overview);
+    setState(() {
+      _summaryKey = key;
+      _executiveSummaryError = null;
+      _isGeneratingExecutiveSummary = true;
+    });
+
+    try {
+      final authState = ref.read(authControllerProvider);
+      final generated = await ProjectInsightsService.generateExecutiveSummary(
+        overview: overview,
+        model: authState.model,
+        openAIApiKey: authState.openAIApiKey,
+        openAIModel: authState.openAIModel,
+        openRouterApiKey: authState.openRouterApiKey,
+        openRouterModel: authState.openRouterModel,
+      );
+
+      if (!mounted) {
+        return generated;
+      }
+
+      setState(() {
+        _summaryKey = key;
+        _generatedSummaryOverview = generated;
+        _executiveSummaryError = null;
+        _isGeneratingExecutiveSummary = false;
+      });
+
+      return generated;
+    } catch (error) {
+      final friendly = friendlyErrorMessage(error.toString());
+      if (mounted) {
+        setState(() {
+          _summaryKey = key;
+          _executiveSummaryError = friendly;
+          _isGeneratingExecutiveSummary = false;
+        });
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _generateExecutiveSummary(ProjectOverview overview) async {
+    try {
+      await _requestExecutiveSummary(_effectiveOverview(overview));
+    } catch (_) {
+      // The section renders the friendly error inline.
+    }
+  }
+
+  Future<ProjectOverview> _ensureDetailedOverview(
+    ProjectOverview overview,
+  ) async {
+    final effective = _effectiveOverview(overview);
+    if (effective.summaryUsedAI) {
+      return effective;
+    }
+    return _requestExecutiveSummary(effective);
+  }
+
   Future<void> _exportReport({
     required BuildContext context,
-    required WidgetRef ref,
     required ProjectOverview overview,
     required dynamic repo,
     required _ProjectExportAction action,
   }) async {
-    if (ref.read(_projectPdfExportingProvider)) {
+    if (ref.read(_projectPdfExportingProvider) ||
+        _isGeneratingExecutiveSummary) {
       return;
     }
 
     ref.read(_projectPdfExportingProvider.notifier).state = true;
     try {
+      final exportOverview = await _ensureDetailedOverview(overview);
       await ProjectPdfService.exportExecutiveSummary(
-        overview: overview,
+        overview: exportOverview,
         repo: repo,
         mode:
             action == _ProjectExportAction.previewPdf
@@ -93,11 +186,13 @@ class ProjectPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final repoState = ref.watch(repoControllerProvider);
     final report = ref.watch(projectOverviewProvider);
-    final overview = report.valueOrNull;
+    final rawOverview = report.valueOrNull;
+    final overview =
+        rawOverview == null ? null : _effectiveOverview(rawOverview);
     final isExporting = ref.watch(_projectPdfExportingProvider);
     final selectedRepo =
         repoState.selectedRepo ??
@@ -119,48 +214,6 @@ class ProjectPage extends ConsumerWidget {
             ),
           ],
         ),
-        actions: [
-          if (canExport)
-            isExporting
-                ? const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.4),
-                    ),
-                  ),
-                )
-                : PopupMenuButton<_ProjectExportAction>(
-                  tooltip: 'Export executive summary PDF',
-                  icon: const Icon(Icons.picture_as_pdf_rounded),
-                  onSelected:
-                      (action) => _exportReport(
-                        context: context,
-                        ref: ref,
-                        overview: overview!,
-                        repo: selectedRepo,
-                        action: action,
-                      ),
-                  itemBuilder:
-                      (context) => const [
-                        PopupMenuItem<_ProjectExportAction>(
-                          value: _ProjectExportAction.previewPdf,
-                          child: Text('Preview PDF'),
-                        ),
-                        PopupMenuItem<_ProjectExportAction>(
-                          value: _ProjectExportAction.sharePdf,
-                          child: Text('Share PDF'),
-                        ),
-                      ],
-                ),
-          IconButton(
-            tooltip: 'Refresh report',
-            onPressed: () => _refresh(ref),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
       ),
       body:
           repoState.isLoading && repoState.repos.isEmpty
@@ -203,11 +256,19 @@ class ProjectPage extends ConsumerWidget {
                       onSelectWindow: (window) {
                         ref.read(projectWindowProvider.notifier).state = window;
                       },
-                      onExportPdf:
+                      onPreviewPdf:
                           canExport
                               ? () => _exportReport(
                                 context: context,
-                                ref: ref,
+                                overview: overview!,
+                                repo: selectedRepo,
+                                action: _ProjectExportAction.previewPdf,
+                              )
+                              : null,
+                      onSharePdf:
+                          canExport
+                              ? () => _exportReport(
+                                context: context,
                                 overview: overview!,
                                 repo: selectedRepo,
                                 action: _ProjectExportAction.sharePdf,
@@ -229,9 +290,19 @@ class ProjectPage extends ConsumerWidget {
                             onRetry: () => _refresh(ref),
                           ),
                       data: (overview) {
+                        final effectiveOverview = _effectiveOverview(overview);
                         return _ProjectOverviewContent(
-                          overview: overview,
+                          overview: effectiveOverview,
                           repo: selectedRepo,
+                          isGeneratingExecutiveSummary:
+                              _isCurrentSummaryState(overview) &&
+                              _isGeneratingExecutiveSummary,
+                          executiveSummaryError:
+                              _isCurrentSummaryState(overview)
+                                  ? _executiveSummaryError
+                                  : null,
+                          onGenerateExecutiveSummary:
+                              () => _generateExecutiveSummary(overview),
                           onOpenLink: (url) => _openExternal(context, url),
                         );
                       },
@@ -250,7 +321,8 @@ class _ProjectHeaderCard extends StatelessWidget {
   final bool isExporting;
   final ValueChanged<String> onSelectRepo;
   final ValueChanged<ProjectWindow> onSelectWindow;
-  final VoidCallback? onExportPdf;
+  final VoidCallback? onPreviewPdf;
+  final VoidCallback? onSharePdf;
   final Future<void> Function() onRefresh;
 
   const _ProjectHeaderCard({
@@ -260,7 +332,8 @@ class _ProjectHeaderCard extends StatelessWidget {
     required this.isExporting,
     required this.onSelectRepo,
     required this.onSelectWindow,
-    required this.onExportPdf,
+    required this.onPreviewPdf,
+    required this.onSharePdf,
     required this.onRefresh,
   });
 
@@ -321,10 +394,66 @@ class _ProjectHeaderCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'Refresh',
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh_rounded),
+              PopupMenuButton<_ProjectHeaderAction>(
+                tooltip: 'Project actions',
+                enabled: !isExporting,
+                onSelected: (action) async {
+                  switch (action) {
+                    case _ProjectHeaderAction.refresh:
+                      await onRefresh();
+                      break;
+                    case _ProjectHeaderAction.previewPdf:
+                      onPreviewPdf?.call();
+                      break;
+                    case _ProjectHeaderAction.sharePdf:
+                      onSharePdf?.call();
+                      break;
+                  }
+                },
+                itemBuilder: (context) {
+                  final items = <PopupMenuEntry<_ProjectHeaderAction>>[
+                    const PopupMenuItem<_ProjectHeaderAction>(
+                      value: _ProjectHeaderAction.refresh,
+                      child: Text('Refresh report'),
+                    ),
+                  ];
+
+                  if (onPreviewPdf != null) {
+                    items.add(
+                      const PopupMenuItem<_ProjectHeaderAction>(
+                        value: _ProjectHeaderAction.previewPdf,
+                        child: Text('Preview PDF'),
+                      ),
+                    );
+                  }
+
+                  if (onSharePdf != null) {
+                    items.add(
+                      const PopupMenuItem<_ProjectHeaderAction>(
+                        value: _ProjectHeaderAction.sharePdf,
+                        child: Text('Share PDF'),
+                      ),
+                    );
+                  }
+
+                  return items;
+                },
+                child:
+                    isExporting
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        )
+                        : Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.48),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(Icons.more_horiz_rounded),
+                        ),
               ),
             ],
           ),
@@ -392,21 +521,6 @@ class _ProjectHeaderCard extends StatelessWidget {
                   );
                 }).toList(),
           ),
-          const SizedBox(height: 16),
-          FilledButton.tonalIcon(
-            onPressed: onExportPdf,
-            icon:
-                isExporting
-                    ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                    : const Icon(Icons.picture_as_pdf_rounded),
-            label: Text(
-              isExporting ? 'Preparing PDF...' : 'Share Executive PDF',
-            ),
-          ),
         ],
       ),
     );
@@ -416,11 +530,17 @@ class _ProjectHeaderCard extends StatelessWidget {
 class _ProjectOverviewContent extends StatelessWidget {
   final ProjectOverview overview;
   final dynamic repo;
+  final bool isGeneratingExecutiveSummary;
+  final String? executiveSummaryError;
+  final VoidCallback onGenerateExecutiveSummary;
   final Future<void> Function(String? url) onOpenLink;
 
   const _ProjectOverviewContent({
     required this.overview,
     required this.repo,
+    required this.isGeneratingExecutiveSummary,
+    required this.executiveSummaryError,
+    required this.onGenerateExecutiveSummary,
     required this.onOpenLink,
   });
 
@@ -439,12 +559,77 @@ class _ProjectOverviewContent extends StatelessWidget {
         const SizedBox(height: 16),
         _SectionCard(
           title: 'Executive Brief',
-          trailing: _InfoPill(
-            label: overview.summaryUsedAI ? 'AI summary' : 'Rules summary',
+          trailing: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _InfoPill(
+                label: overview.summaryUsedAI ? 'AI summary' : 'On demand',
+              ),
+              FilledButton.tonalIcon(
+                onPressed:
+                    isGeneratingExecutiveSummary
+                        ? null
+                        : onGenerateExecutiveSummary,
+                icon:
+                    isGeneratingExecutiveSummary
+                        ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : Icon(
+                          overview.summaryUsedAI
+                              ? Icons.refresh_rounded
+                              : Icons.auto_awesome_rounded,
+                        ),
+                label: Text(overview.summaryUsedAI ? 'Regenerate' : 'Generate'),
+              ),
+            ],
           ),
-          child: Text(
-            overview.executiveSummary,
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (overview.summaryUsedAI)
+                Text(
+                  overview.executiveSummary,
+                  style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+                )
+              else if (isGeneratingExecutiveSummary)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Generating a detailed executive summary...',
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Text(
+                  'Generate a detailed executive summary when you want a deeper leadership readout. It will not auto-run every time this screen opens.',
+                  style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+                ),
+              if ((executiveSummaryError ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  executiveSummaryError!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -594,7 +779,7 @@ class _StartHereCard extends StatelessWidget {
         items:
             overview.highlights.isNotEmpty
                 ? overview.highlights.take(2).toList()
-                : [overview.executiveSummary],
+                : ['Recent delivery signals will surface here.'],
       ),
       _PriorityBucketData(
         title: 'Watch Closely',

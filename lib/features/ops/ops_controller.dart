@@ -253,6 +253,38 @@ class OpsController extends StateNotifier<OpsDashboardState> {
     }
   }
 
+  Future<OpsCommandLogEntry> fetchContainerLogs(
+    String containerName, {
+    int tailLines = 200,
+  }) {
+    return _runTransientCommand(
+      invalidProfileMessage:
+          'Set up your SSH connection details before loading container logs.',
+      operation:
+          (profile) => _service.fetchContainerLogs(
+            profile: profile,
+            containerName: containerName,
+            tailLines: tailLines,
+          ),
+    );
+  }
+
+  Future<OpsCommandLogEntry> fetchServiceLogs(
+    String serviceName, {
+    int tailLines = 200,
+  }) {
+    return _runTransientCommand(
+      invalidProfileMessage:
+          'Set up your SSH connection details before loading service logs.',
+      operation:
+          (profile) => _service.fetchServiceLogs(
+            profile: profile,
+            serviceName: serviceName,
+            tailLines: tailLines,
+          ),
+    );
+  }
+
   Future<void> setAutoRefresh(bool enabled) async {
     state = state.copyWith(autoRefresh: enabled);
     await _storage.saveString(StoredKeys.vpsAutoRefresh, enabled.toString());
@@ -299,6 +331,47 @@ class OpsController extends StateNotifier<OpsDashboardState> {
     return <OpsMetricPoint>[...history, point]
         .skip(math.max(0, history.length + 1 - _historyLimit))
         .toList(growable: false);
+  }
+
+  Future<OpsCommandLogEntry> _runTransientCommand({
+    required String invalidProfileMessage,
+    required Future<OpsCommandLogEntry> Function(VpsConnectionProfile profile)
+    operation,
+  }) async {
+    if (state.isConnecting || state.isRefreshing || state.isRunningCommand) {
+      throw Exception('Wait for the current Ops action to finish first.');
+    }
+
+    final profile = state.profile.normalized();
+    if (!profile.canConnect) {
+      state = state.copyWith(error: invalidProfileMessage);
+      throw Exception(invalidProfileMessage);
+    }
+
+    state = state.copyWith(
+      isRunningCommand: true,
+      error: null,
+      profile: profile,
+    );
+
+    try {
+      final entry = await operation(profile);
+      state = state.copyWith(
+        isRunningCommand: false,
+        isConnected: true,
+        profile: profile,
+      );
+      _syncRefreshTimer();
+      return entry;
+    } catch (error) {
+      final message = _friendlyError(error);
+      state = state.copyWith(
+        isRunningCommand: false,
+        isConnected: false,
+        error: message,
+      );
+      throw Exception(message);
+    }
   }
 
   String _friendlyError(Object error) {

@@ -372,6 +372,24 @@ class ProjectPdfService {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 _buildDarkCard(
+                  title: 'Detailed Executive Summary',
+                  badge:
+                      overview.summaryUsedAI
+                          ? 'AI narrative'
+                          : 'Executive snapshot',
+                  subtitle:
+                      'Longer leadership readout covering momentum, risk, and what matters next.',
+                  child: pw.Text(
+                    _truncateText(overview.executiveSummary, maxChars: 1600),
+                    style: _darkBodyStyle(
+                      size: 11.1,
+                      height: 1.55,
+                      color: _textPrimary,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 12),
+                _buildDarkCard(
                   title: 'Engineering Lens',
                   subtitle:
                       'Technical read on execution, quality, and delivery posture.',

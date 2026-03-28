@@ -1364,26 +1364,211 @@ String stripCodeFences(String input) {
   return output.trim();
 }
 
+class FriendlyErrorDetails {
+  final String title;
+  final String message;
+  final String? recovery;
+
+  const FriendlyErrorDetails({
+    required this.title,
+    required this.message,
+    this.recovery,
+  });
+}
+
+FriendlyErrorDetails friendlyErrorDetails(String error) {
+  final raw = error.replaceFirst('Exception: ', '').trim();
+  final lower = raw.toLowerCase();
+  final statusMatch = RegExp(r'\berror[: ]+(\d{3})\b').firstMatch(lower);
+  final statusCode = int.tryParse(statusMatch?.group(1) ?? '');
+
+  bool containsAny(Iterable<String> patterns) {
+    for (final pattern in patterns) {
+      if (lower.contains(pattern)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (containsAny([
+        'insufficient_quota',
+        'current quota',
+        'quota exceeded',
+        'billing_hard_limit_reached',
+        'out of credits',
+        'no credits',
+        'payment required',
+        'credits remaining',
+        'balance is too low',
+      ]) ||
+      statusCode == 402) {
+    return const FriendlyErrorDetails(
+      title: 'Quota Reached',
+      message:
+          'This AI provider has run out of quota, so /slash cannot generate a response right now.',
+      recovery:
+          'Add billing or credits for the current provider, or switch providers in Settings, then try again.',
+    );
+  }
+
+  if (containsAny([
+        'rate limit',
+        'rate_limit',
+        'too many requests',
+        'requests are being rate limited',
+      ]) ||
+      statusCode == 429) {
+    return const FriendlyErrorDetails(
+      title: 'Rate Limited',
+      message: 'Too many AI requests were sent in a short window.',
+      recovery:
+          'Wait a moment and retry, or switch to another provider if you need a response immediately.',
+    );
+  }
+
+  if (containsAny([
+    'model not found',
+    'does not have access to model',
+    'not a valid model id',
+    'unknown model',
+    'unsupported model',
+    'no endpoints found that support',
+    'access to this model is denied',
+  ])) {
+    return const FriendlyErrorDetails(
+      title: 'Model Unavailable',
+      message:
+          'The selected model is unavailable for the current provider or key.',
+      recovery:
+          'Pick a different model in Settings, or verify that your account has access to this model.',
+    );
+  }
+
+  if (containsAny([
+    'maximum context length',
+    'context length exceeded',
+    'prompt is too long',
+    'too many tokens',
+    'reduce the length',
+    'context window',
+  ])) {
+    return const FriendlyErrorDetails(
+      title: 'Request Too Large',
+      message:
+          'The prompt plus attached context is too large for the selected model.',
+      recovery:
+          'Attach fewer files, shorten the request, or switch to a model with a larger context window.',
+    );
+  }
+
+  if (containsAny([
+    'openai api key',
+    'openrouter api key',
+    'incorrect api key',
+    'invalid api key',
+    'invalid x-api-key',
+    'invalid authentication',
+    'unauthorized',
+    'authentication failed',
+  ])) {
+    return const FriendlyErrorDetails(
+      title: 'Provider Auth Failed',
+      message: 'The selected AI provider rejected the current credentials.',
+      recovery:
+          'Check the API key in Settings, confirm it matches the chosen provider, and try again.',
+    );
+  }
+
+  if (containsAny([
+    'github authentication',
+    'bad credentials',
+    'sign in again',
+  ])) {
+    return const FriendlyErrorDetails(
+      title: 'GitHub Sign-In Needed',
+      message:
+          'GitHub sign-in is required before /slash can access repositories or create changes.',
+      recovery: 'Reconnect GitHub in Settings, then retry the request.',
+    );
+  }
+
+  if (containsAny([
+    'missingpluginexception',
+    'no implementation found for method',
+  ])) {
+    return const FriendlyErrorDetails(
+      title: 'Plugin Not Ready',
+      message: 'A required native plugin is not loaded in this build yet.',
+      recovery: 'Run a full restart or rebuild, then try again.',
+    );
+  }
+
+  if (containsAny(['unable to load asset'])) {
+    return const FriendlyErrorDetails(
+      title: 'Missing App Asset',
+      message: 'A required bundled asset is missing from this build.',
+      recovery: 'Rebuild the app so the fonts and bundled assets are included.',
+    );
+  }
+
+  if (containsAny(['timed out', 'timeout'])) {
+    return const FriendlyErrorDetails(
+      title: 'Request Timed Out',
+      message:
+          'The request took too long to complete, so /slash stopped waiting for a response.',
+      recovery:
+          'Try again in a moment, or reduce the amount of attached context if the request is very large.',
+    );
+  }
+
+  if (containsAny([
+    'network',
+    'connection',
+    'socketexception',
+    'failed host lookup',
+  ])) {
+    return const FriendlyErrorDetails(
+      title: 'Network Problem',
+      message: 'The app could not reach GitHub or the AI provider.',
+      recovery: 'Check the device connection and try again.',
+    );
+  }
+
+  if (containsAny([
+        'server error',
+        'service unavailable',
+        'temporarily unavailable',
+        'upstream error',
+      ]) ||
+      const {500, 502, 503, 504}.contains(statusCode)) {
+    return const FriendlyErrorDetails(
+      title: 'Provider Unavailable',
+      message:
+          'The AI provider is having trouble processing requests right now.',
+      recovery:
+          'Wait a bit and retry, or switch providers if the issue keeps happening.',
+    );
+  }
+
+  if (containsAny(['repository'])) {
+    return const FriendlyErrorDetails(
+      title: 'Repository Access Failed',
+      message:
+          'The app could not load the requested repository or branch context.',
+      recovery:
+          'Check repository permissions, confirm the selected repo and branch, and try again.',
+    );
+  }
+
+  return const FriendlyErrorDetails(
+    title: 'Request Failed',
+    message: 'Something went wrong while processing this request.',
+    recovery:
+        'Try again, and if it keeps failing, switch providers or reduce the prompt scope.',
+  );
+}
+
 String friendlyErrorMessage(String error) {
-  if (error.contains('OpenAI API key') ||
-      error.contains('OpenRouter API key')) {
-    return 'Check your AI provider settings and try again.';
-  }
-  if (error.contains('GitHub authentication')) {
-    return 'GitHub sign-in is required before the app can access your repositories.';
-  }
-  if (error.contains('MissingPluginException') ||
-      error.contains('No implementation found for method')) {
-    return 'The PDF export plugin is not loaded yet. Run a full restart or rebuild, then try again.';
-  }
-  if (error.contains('Unable to load asset')) {
-    return 'A required PDF asset is missing from this build. Rebuild the app so the fonts and logo are bundled.';
-  }
-  if (error.contains('repository')) {
-    return 'Repository access failed. Check your GitHub permissions and selected branch.';
-  }
-  if (error.contains('network') || error.contains('connection')) {
-    return 'Network error. Check your connection and try again.';
-  }
-  return 'Something went wrong. Please try again.';
+  return friendlyErrorDetails(error).message;
 }
