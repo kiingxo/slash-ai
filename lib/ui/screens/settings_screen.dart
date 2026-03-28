@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:slash_flutter/ui/components/slash_text.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/auth_page.dart';
-import '../../services/secure_storage_service.dart';
 import '../../features/repo/repo_controller.dart';
+import '../../services/app_config.dart';
+import '../../services/github_auth_service.dart';
+import '../../ui/components/slash_text.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -14,83 +18,140 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  final _geminiCtrl = TextEditingController();
-  final _openRouterCtrl = TextEditingController();
-  final _openRouterModelCtrl = TextEditingController();
-  final _githubPatCtrl = TextEditingController();
-  String _provider = 'gemini';
+  final _openAIKeyController = TextEditingController();
+  final _openAIModelController = TextEditingController(
+    text: AppConfig.defaultOpenAIModel,
+  );
+  final _openRouterKeyController = TextEditingController();
+  final _openRouterModelController = TextEditingController(
+    text: AppConfig.defaultOpenRouterModel,
+  );
+
+  bool _seeded = false;
+  String _provider = 'openai';
 
   @override
-  void initState() {
-    super.initState();
-    final auth = ref.read(authControllerProvider);
-    _provider = (auth.model.isNotEmpty ? auth.model : 'gemini');
-    _geminiCtrl.text = auth.geminiApiKey ?? '';
-    // OpenRouter is not exposed via legacy AuthController; fetch from storage to populate fields.
-    _initOpenRouterFromStorage();
-    _githubPatCtrl.text = auth.githubPat ?? '';
-  }
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_seeded) {
+      return;
+    }
 
-  Future<void> _initOpenRouterFromStorage() async {
-    final storage = SecureStorageService();
-    _openRouterCtrl.text = (await storage.getApiKey('openrouter_api_key')) ?? '';
-    _openRouterModelCtrl.text = (await storage.getApiKey('openrouter_model')) ?? '';
-    if (mounted) setState(() {});
+    final auth = ref.read(authControllerProvider);
+    if (auth.isLoading) {
+      return;
+    }
+
+    _provider = auth.model.isNotEmpty ? auth.model : 'openai';
+    _openAIKeyController.text = auth.openAIApiKey ?? '';
+    _openAIModelController.text =
+        auth.openAIModel ?? AppConfig.defaultOpenAIModel;
+    _openRouterKeyController.text = auth.openRouterApiKey ?? '';
+    _openRouterModelController.text =
+        auth.openRouterModel ?? AppConfig.defaultOpenRouterModel;
+    _seeded = true;
   }
 
   @override
   void dispose() {
-    _geminiCtrl.dispose();
-    _openRouterCtrl.dispose();
-    _openRouterModelCtrl.dispose();
-    _githubPatCtrl.dispose();
+    _openAIKeyController.dispose();
+    _openAIModelController.dispose();
+    _openRouterKeyController.dispose();
+    _openRouterModelController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final auth = ref.read(authControllerProvider.notifier);
-    final storage = SecureStorageService();
 
-    // Persist provider
     await auth.saveModel(_provider);
-
-    // Persist keys
-    if (_provider == 'gemini') {
-      await auth.saveGeminiApiKey(_geminiCtrl.text.trim());
-    }
-    // Store OpenRouter keys directly (legacy AuthController lacks fields)
-    await storage.saveApiKey('openrouter_api_key', _openRouterCtrl.text.trim());
-    if (_openRouterModelCtrl.text.trim().isNotEmpty) {
-      await storage.saveApiKey('openrouter_model', _openRouterModelCtrl.text.trim());
+    if (_provider == 'openrouter') {
+      await auth.saveOpenRouterKey(_openRouterKeyController.text.trim());
+      await auth.saveOpenRouterModel(_openRouterModelController.text.trim());
+    } else {
+      await auth.saveOpenAIApiKey(_openAIKeyController.text.trim());
+      await auth.saveOpenAIModel(_openAIModelController.text.trim());
     }
 
-    // GitHub PAT
-    await auth.saveGitHubPat(_githubPatCtrl.text.trim());
+    if (!mounted) {
+      return;
+    }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: SlashText('Settings saved')),
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: SlashText('Settings saved')));
+  }
+
+  Future<void> _connectGitHub() async {
+    try {
+      if (!AppConfig.hasBundledGitHubClientId) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: SlashText(AppConfig.missingGitHubOAuthClientIdMessage),
+          ),
+        );
+        return;
+      }
+
+      final authController = ref.read(authControllerProvider.notifier);
+      final session = await authController.beginGitHubDeviceFlow();
+      final launchTarget =
+          session.verificationUriComplete ?? session.verificationUri;
+      final signInFuture = ref
+          .read(authControllerProvider.notifier)
+          .completeGitHubDeviceFlow(session: session);
+      await launchUrl(launchTarget, mode: LaunchMode.externalApplication);
+
+      if (!mounted) {
+        return;
+      }
+
+      final user = await showDialog<GitHubUser>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return _GitHubSettingsDialog(
+            session: session,
+            signInFuture: signInFuture,
+            onOpenBrowser: () async {
+              await launchUrl(
+                launchTarget,
+                mode: LaunchMode.externalApplication,
+              );
+            },
+          );
+        },
       );
-      setState(() {});
+
+      if (!mounted || user == null) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: SlashText('GitHub connected as @${user.login}')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: SlashText('GitHub sign-in failed: $e')));
     }
   }
 
   Future<void> _logout() async {
-    // Full app reset: clear secure storage and invalidate providers; then navigate to AuthPage
-    final storage = SecureStorageService();
-    await storage.deleteAll();
-
-    // Invalidate all stateful providers that hold credentials or repo state
+    await ref.read(authControllerProvider.notifier).resetAll();
     ref.invalidate(authControllerProvider);
     ref.invalidate(repoControllerProvider);
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
-    // Pop any dialogs/sheets first to avoid leaving Settings in the stack
-    Navigator.of(context)
-      ..popUntil((route) => route.isFirst);
-
-    // Replace the entire stack with AuthPage (not SettingsScreen)
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthPage()),
       (route) => false,
@@ -99,10 +160,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = ref.watch(authControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
+      backgroundColor:
+          isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF23232A) : Colors.white,
         elevation: 1,
@@ -129,15 +192,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _card(
             context: context,
             titleIcon: Icons.tune,
-            title: 'Provider',
-            child: Row(
+            title: 'AI Provider',
+            child: Wrap(
+              spacing: 10,
               children: [
                 ChoiceChip(
-                  label: const SlashText('Gemini'),
-                  selected: _provider == 'gemini',
-                  onSelected: (_) => setState(() => _provider = 'gemini'),
+                  label: const SlashText('OpenAI'),
+                  selected: _provider == 'openai',
+                  onSelected: (_) => setState(() => _provider = 'openai'),
                 ),
-                const SizedBox(width: 10),
                 ChoiceChip(
                   label: const SlashText('OpenRouter'),
                   selected: _provider == 'openrouter',
@@ -147,52 +210,145 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          if (_provider == 'gemini') _card(
-            context: context,
-            titleIcon: Icons.vpn_key,
-            title: 'Gemini API Key',
-            child: TextField(
-              controller: _geminiCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: 'Paste your Gemini API key',
+          if (_provider == 'openrouter')
+            _card(
+              context: context,
+              titleIcon: Icons.route_outlined,
+              title: 'OpenRouter',
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _openRouterKeyController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      hintText: 'OpenRouter API key',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _openRouterModelController,
+                    decoration: const InputDecoration(
+                      hintText: 'OpenRouter model',
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            _card(
+              context: context,
+              titleIcon: Icons.auto_awesome_outlined,
+              title: 'OpenAI',
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _openAIKeyController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      hintText: 'OpenAI API key',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _openAIModelController,
+                    decoration: const InputDecoration(hintText: 'OpenAI model'),
+                  ),
+                ],
               ),
             ),
-          ),
-          if (_provider == 'openrouter') _card(
-            context: context,
-            titleIcon: Icons.router,
-            title: 'OpenRouter',
-            child: Column(
-              children: [
-                TextField(
-                  controller: _openRouterCtrl,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    hintText: 'Paste your OpenRouter API key',
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _openRouterModelCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'Model (e.g., openrouter/anthropic/claude-3.5-sonnet)',
-                  ),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 12),
           _card(
             context: context,
-            titleIcon: Icons.lock,
+            titleIcon: Icons.account_circle_outlined,
             title: 'GitHub',
-            child: TextField(
-              controller: _githubPatCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: 'GitHub Personal Access Token',
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SlashText(
+                  AppConfig.hasBundledGitHubClientId
+                      ? 'GitHub sign-in is built into this app. Tap Sign in and finish the approval flow in your browser.'
+                      : AppConfig.missingGitHubOAuthClientIdMessage,
+                  fontSize: 12,
+                  color:
+                      AppConfig.hasBundledGitHubClientId
+                          ? Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.72)
+                          : Theme.of(context).colorScheme.error,
+                ),
+                if (auth.githubUser != null)
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundImage:
+                            auth.githubUser?.avatarUrl != null
+                                ? NetworkImage(auth.githubUser!.avatarUrl!)
+                                : null,
+                        child:
+                            auth.githubUser?.avatarUrl == null
+                                ? Text(auth.githubUser!.login[0].toUpperCase())
+                                : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SlashText(
+                              auth.githubUser?.name ?? auth.githubUser!.login,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            SlashText(
+                              '@${auth.githubUser!.login}',
+                              fontSize: 12,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.65),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  const SlashText(
+                    'No GitHub session is connected yet.',
+                    fontSize: 12,
+                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.login),
+                        label: Text(
+                          auth.hasGitHubAuth ? 'Reconnect' : 'Sign in',
+                        ),
+                        onPressed:
+                            auth.isSigningInWithGitHub ||
+                                    !AppConfig.hasBundledGitHubClientId
+                                ? null
+                                : _connectGitHub,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.link_off),
+                        label: const Text('Disconnect'),
+                        onPressed:
+                            auth.hasGitHubAuth
+                                ? () =>
+                                    ref
+                                        .read(authControllerProvider.notifier)
+                                        .disconnectGitHub()
+                                : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -244,6 +400,154 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _GitHubSettingsDialog extends StatefulWidget {
+  final GitHubDeviceCodeSession session;
+  final Future<GitHubUser> signInFuture;
+  final Future<void> Function() onOpenBrowser;
+
+  const _GitHubSettingsDialog({
+    required this.session,
+    required this.signInFuture,
+    required this.onOpenBrowser,
+  });
+
+  @override
+  State<_GitHubSettingsDialog> createState() => _GitHubSettingsDialogState();
+}
+
+class _GitHubSettingsDialogState extends State<_GitHubSettingsDialog> {
+  bool _didAutoClose = false;
+
+  void _complete(GitHubUser user) {
+    if (_didAutoClose || !mounted) {
+      return;
+    }
+    _didAutoClose = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(user);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const SlashText('Finish GitHub sign-in'),
+      content: FutureBuilder<GitHubUser>(
+        future: widget.signInFuture,
+        builder: (context, snapshot) {
+          final user = snapshot.data;
+          final waiting = snapshot.connectionState != ConnectionState.done;
+          final error = snapshot.hasError ? snapshot.error.toString() : null;
+
+          if (user != null) {
+            _complete(user);
+          }
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SlashText(
+                'Approve the request in your browser using this code. You do not need to paste a GitHub token back into /slash.',
+                fontSize: 13,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SelectableText(
+                        widget.session.userCode,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Copy code',
+                      onPressed: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: widget.session.userCode),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_all_outlined),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: waiting ? widget.onOpenBrowser : null,
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open browser again'),
+              ),
+              const SizedBox(height: 12),
+              if (waiting)
+                const Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: SlashText(
+                        'Waiting for GitHub approval...',
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                )
+              else if (error != null)
+                SlashText(error, color: Colors.red, fontSize: 13)
+              else if (user != null)
+                SlashText(
+                  'Connected as @${user.login}. Returning to /slash...',
+                  color: Colors.green,
+                  fontWeight: FontWeight.w600,
+                ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        FutureBuilder<GitHubUser>(
+          future: widget.signInFuture,
+          builder: (context, snapshot) {
+            final waiting = snapshot.connectionState != ConnectionState.done;
+            if (waiting) {
+              return TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              );
+            }
+
+            return const SizedBox.shrink();
+          },
+        ),
+      ],
     );
   }
 }

@@ -7,11 +7,14 @@ import 'package:slash_flutter/ui/components/cool_background.dart';
 import 'package:toastification/toastification.dart';
 import 'features/auth/auth_page.dart';
 import 'home_shell.dart';
+import 'services/cache_storage_service.dart';
 import 'services/secure_storage_service.dart';
 import 'dart:async';
 import 'features/repo/repo_controller.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await CacheStorage.init();
   runApp(const ProviderScope(child: SlashApp()));
 }
 
@@ -22,39 +25,37 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ThemeBuilder(
-      builder: (context, colors, ref) => SlashBackground(
-        overlayOpacity: 0.45,
-        showGrid: false,
-        showSlashes: false,
-        animate: false,
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset('assets/slash2.png', width: 120, height: 120),
-                  const SizedBox(height: 24),
-                  if (showLoader) const SlashLoading(),
-                ],
-              ),
-            ),
-            Positioned(
-              bottom: 32,
-              left: 0,
-              right: 0,
-              child: Text(
-                '/slash',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 1.4,
+      builder:
+          (context, colors, ref) => SlashBackground(
+            overlayOpacity: 0.45,
+            showGrid: false,
+            showSlashes: false,
+            animate: false,
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset('assets/slash2.png', width: 120, height: 120),
+                      const SizedBox(height: 24),
+                      if (showLoader) const SlashLoading(),
+                    ],
+                  ),
                 ),
-              ),
+                Positioned(
+                  bottom: 32,
+                  left: 0,
+                  right: 0,
+                  child: Text(
+                    '/slash',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, letterSpacing: 1.4),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 }
@@ -63,20 +64,15 @@ class SlashApp extends StatelessWidget {
   const SlashApp({super.key});
 
   Future<bool> _hasTokens() async {
-    // Gate based on new auth_service values:
-    // - model: 'gemini' requires gemini_api_key
-    // - model: 'openrouter' requires openrouter_api_key
-    // - both require github_pat
     final storage = SecureStorageService();
-    final model = await storage.getApiKey('model') ?? 'gemini';
-    final github = await storage.getApiKey('github_pat');
+    final model = await storage.getApiKey(StoredKeys.model) ?? 'openai';
+    final github = await storage.getGitHubAccessToken();
 
     String? aiKey;
     if (model == 'openrouter') {
-      aiKey = await storage.getApiKey('openrouter_api_key');
+      aiKey = await storage.getApiKey(StoredKeys.openRouterApiKey);
     } else {
-      // default to gemini
-      aiKey = await storage.getApiKey('gemini_api_key');
+      aiKey = await storage.getApiKey(StoredKeys.openAIApiKey);
     }
 
     final hasAIKey = aiKey != null && aiKey.isNotEmpty;
@@ -123,8 +119,7 @@ class _SplashGateState extends State<SplashGate> {
   Future<void> _init() async {
     await Future.delayed(const Duration(seconds: 1));
     final tokens = await widget.hasTokens();
-    if (tokens) {
-      // Wait for repos to load
+    if (tokens && mounted) {
       final container = ProviderScope.containerOf(context, listen: false);
       final repoController = container.read(repoControllerProvider.notifier);
       await repoController.whenLoaded;
@@ -152,12 +147,10 @@ class _UnFocus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => FocusManager.instance.primaryFocus?.unfocus(),
       child: child,
     );
   }
 }
-
-// com.example.slashFlutter

@@ -17,14 +17,14 @@ final prRepoScopeProvider = StateProvider.autoDispose<String?>((_) => null); // 
 final prQueryProvider = StateProvider.autoDispose<String>((_) => ''); // title/body query
 
 final prListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final pat = await SecureStorageService().getApiKey('github_pat');
+  final pat = await SecureStorageService().getGitHubAccessToken();
   if (pat == null || pat.isEmpty) return const [];
 
   // Get authenticated username
   final meRes = await http.get(
     Uri.parse('https://api.github.com/user'),
     headers: {
-      'Authorization': 'token $pat',
+      'Authorization': 'Bearer $pat',
       'Accept': 'application/vnd.github+json',
     },
   );
@@ -60,7 +60,7 @@ final prListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((r
   final q = Uri.encodeQueryComponent('is:pr is:open $who$repoQualifier$searchTerm');
   final searchUrl = Uri.parse('https://api.github.com/search/issues?q=$q&per_page=50');
   final res = await http.get(searchUrl, headers: {
-    'Authorization': 'token $pat',
+    'Authorization': 'Bearer $pat',
     'Accept': 'application/vnd.github+json',
   });
   if (res.statusCode != 200) return const [];
@@ -403,9 +403,9 @@ class _ReviewCommentBoxState extends State<_ReviewCommentBox> {
 }
 
 Future<void> _submitReview(BuildContext context, String owner, String repo, String number, String event, {String? body}) async {
-  final pat = await SecureStorageService().getApiKey('github_pat');
+  final pat = await SecureStorageService().getGitHubAccessToken();
   final headers = {
-    'Authorization': 'token $pat',
+    'Authorization': 'Bearer $pat',
     'Accept': 'application/vnd.github+json',
   };
   final res = await http.post(
@@ -422,9 +422,9 @@ Future<void> _submitReview(BuildContext context, String owner, String repo, Stri
 }
 
 Future<void> _mergePR(BuildContext context, String owner, String repo, String number) async {
-  final pat = await SecureStorageService().getApiKey('github_pat');
+  final pat = await SecureStorageService().getGitHubAccessToken();
   final headers = {
-    'Authorization': 'token $pat',
+    'Authorization': 'Bearer $pat',
     'Accept': 'application/vnd.github+json',
   };
   final res = await http.put(
@@ -509,5 +509,4 @@ void _showSearchSheet(BuildContext context, WidgetRef ref) {
     },
   );
 }
-
 

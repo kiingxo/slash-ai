@@ -49,7 +49,7 @@ flutter:
       fonts:
         - asset: assets/fonts/DMSans-Bold.ttf
           weight: 700
-        - asset: assets/fonts/DMSans-Semibold.ttf
+        - asset: assets/fonts/DMSans-SemiBold.ttf
           weight: 600
         - asset: assets/fonts/DMSans-Medium.ttf
           weight: 500

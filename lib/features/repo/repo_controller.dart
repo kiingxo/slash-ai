@@ -1,60 +1,106 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
-import '../../services/secure_storage_service.dart';
 import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../services/github_service.dart';
+import '../../services/secure_storage_service.dart';
 
 class RepoState {
   final bool isLoading;
   final String? error;
   final List<dynamic> repos;
   final dynamic selectedRepo;
-  RepoState({this.isLoading = false, this.error, this.repos = const [], this.selectedRepo});
 
-  RepoState copyWith({bool? isLoading, String? error, List<dynamic>? repos, dynamic selectedRepo}) => RepoState(
-        isLoading: isLoading ?? this.isLoading,
-        error: error,
-        repos: repos ?? this.repos,
-        selectedRepo: selectedRepo ?? this.selectedRepo,
-      );
+  const RepoState({
+    this.isLoading = false,
+    this.error,
+    this.repos = const [],
+    this.selectedRepo,
+  });
+
+  RepoState copyWith({
+    bool? isLoading,
+    Object? error = _repoUnset,
+    List<dynamic>? repos,
+    Object? selectedRepo = _repoUnset,
+  }) {
+    return RepoState(
+      isLoading: isLoading ?? this.isLoading,
+      error: identical(error, _repoUnset) ? this.error : error as String?,
+      repos: repos ?? this.repos,
+      selectedRepo:
+          identical(selectedRepo, _repoUnset)
+              ? this.selectedRepo
+              : selectedRepo,
+    );
+  }
 }
+
+const Object _repoUnset = Object();
 
 class RepoController extends StateNotifier<RepoState> {
   final SecureStorageService _storage;
   final Completer<void> _loaded = Completer<void>();
+
   Future<void> get whenLoaded => _loaded.future;
-  RepoController(this._storage) : super(RepoState()) {
+
+  RepoController(this._storage) : super(const RepoState()) {
     fetchRepos();
   }
 
+  Future<GitHubService> _gitHub() async {
+    final token = await _storage.getGitHubAccessToken();
+    if (token == null || token.trim().isEmpty) {
+      throw const GitHubApiException('GitHub authentication is required.');
+    }
+    return GitHubService(token);
+  }
+
   Future<void> fetchRepos() async {
-    print('Fetching repos...');
-    
     state = state.copyWith(isLoading: true, error: null);
+
     try {
-      final patRaw = await _storage.getApiKey('github_pat');
-      final pat = patRaw?.trim();
-      if (pat == null || pat.isEmpty) throw Exception('GitHub PAT not found');
-      final dio = Dio(BaseOptions(
-        baseUrl: 'https://api.github.com/',
-        headers: {'Authorization': 'token $pat'},
-      ));
-      final res = await dio.get('/user/repos');
-      print('Repos fetched:  res.data.length repos');
-      state = state.copyWith(isLoading: false, repos: res.data);
-      if (!_loaded.isCompleted) _loaded.complete();
+      final github = await _gitHub();
+      final repos = await github.fetchRepositories();
+      final previousSelectedFullName =
+          (state.selectedRepo?['full_name'] ?? '').toString();
+
+      dynamic selectedRepo;
+      if (previousSelectedFullName.isNotEmpty) {
+        for (final repo in repos) {
+          if ((repo['full_name'] ?? '').toString() == previousSelectedFullName) {
+            selectedRepo = repo;
+            break;
+          }
+        }
+      }
+
+      state = state.copyWith(
+        isLoading: false,
+        repos: repos,
+        selectedRepo: selectedRepo ?? (repos.isNotEmpty ? repos.first : null),
+      );
+      if (!_loaded.isCompleted) {
+        _loaded.complete();
+      }
     } catch (e) {
-      print('Error fetching repos: $e');
-      state = state.copyWith(isLoading: false, error: e.toString());
-      if (!_loaded.isCompleted) _loaded.complete();
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+        repos: const [],
+      );
+      if (!_loaded.isCompleted) {
+        _loaded.complete();
+      }
     }
   }
 
   void selectRepo(dynamic repo) {
-    print('Repo selected: owner= repo[\'owner\'][\'login\'] , name= repo[\'name\'] , full object: $repo');
     state = state.copyWith(selectedRepo: repo);
   }
 }
 
-final repoControllerProvider = StateNotifierProvider<RepoController, RepoState>((ref) {
-  return RepoController(SecureStorageService());
-}); 
+final repoControllerProvider =
+    StateNotifierProvider<RepoController, RepoState>((ref) {
+      return RepoController(SecureStorageService());
+    });

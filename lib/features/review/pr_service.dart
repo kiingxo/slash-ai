@@ -13,9 +13,9 @@ class PRDetailData {
 
 class PRService {
   static Future<PRDetailData> fetchPRDetail(String owner, String repo, String number) async {
-    final pat = await SecureStorageService().getApiKey('github_pat');
+    final pat = await SecureStorageService().getGitHubAccessToken();
     final headers = {
-      'Authorization': 'token $pat',
+      'Authorization': 'Bearer $pat',
       'Accept': 'application/vnd.github+json',
     };
     final prRes = await http.get(
@@ -49,9 +49,9 @@ class PRService {
     String event, {
     String? body,
   }) async {
-    final pat = await SecureStorageService().getApiKey('github_pat');
+    final pat = await SecureStorageService().getGitHubAccessToken();
     final headers = {
-      'Authorization': 'token $pat',
+      'Authorization': 'Bearer $pat',
       'Accept': 'application/vnd.github+json',
     };
     final res = await http.post(
@@ -68,9 +68,9 @@ class PRService {
   }
 
   static Future<void> mergePR(String owner, String repo, String number) async {
-    final pat = await SecureStorageService().getApiKey('github_pat');
+    final pat = await SecureStorageService().getGitHubAccessToken();
     final headers = {
-      'Authorization': 'token $pat',
+      'Authorization': 'Bearer $pat',
       'Accept': 'application/vnd.github+json',
     };
     final res = await http.put(
@@ -85,5 +85,4 @@ class PRService {
     }
   }
 }
-
 

@@ -1,83 +1,116 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
-/// Unified chat service for OpenAI-style and OpenRouter endpoints.
-/// - When useOpenRouter = true, it targets OpenRouter's /chat/completions with
-///   "Authorization: Bearer <OPENROUTER_API_KEY>" and supports arbitrary model ids.
-/// - When useOpenRouter = false, it targets OpenAI's /chat/completions.
-class OpenAIService {
+import 'llm_service.dart';
+
+class OpenAIService implements LLMService {
   final String apiKey;
   final String model;
   final bool useOpenRouter;
   final String baseUrl;
+  final String appName;
 
-  // Defaults maintain backward compatibility with OpenAI.
   OpenAIService(
     this.apiKey, {
-    this.model = 'gpt-3.5-turbo',
+    required this.model,
     this.useOpenRouter = false,
+    this.appName = 'Slash',
     String? baseUrl,
-  }) : baseUrl = baseUrl ??
-            (useOpenRouter
-                ? 'https://openrouter.ai/api/v1/chat/completions'
-                : 'https://api.openai.com/v1/chat/completions');
+  }) : baseUrl =
+           baseUrl ??
+           (useOpenRouter
+               ? 'https://openrouter.ai/api/v1/chat/completions'
+               : 'https://api.openai.com/v1/chat/completions');
 
+  @override
   Future<String> getCodeSuggestion({
     required String prompt,
     required List<Map<String, String>> files,
   }) async {
-    final systemPrompt = files.isNotEmpty
-        ? 'You are an expert code assistant. User prompt: $prompt\nRelevant files:\n${files.map((f) => 'File: ${f['name']}\n${_truncateContent(f['content'] ?? '')}\n---').join('\n')}\nSuggest minimal, high-quality code changes. Output only the code diff and a short summary.'
-        : 'You are an expert code assistant. User prompt: $prompt';
+    final systemPrompt =
+        'You are /slash, a production-minded software engineer. '
+        'Prefer precise, actionable answers, and only output code when the user specifically asks for code.';
+    final userPrompt = StringBuffer(prompt.trim());
 
-    final requestBody = {
-      'model': model,
-      'messages': [
-        {'role': 'system', 'content': systemPrompt},
-      ],
-      'max_tokens': 4096,
-      'temperature': 0.2,
-    };
-
-    final headers = {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $apiKey',
-      if (useOpenRouter) 'HTTP-Referer': 'https://slash', // optional for OpenRouter analytics
-      if (useOpenRouter) 'X-Title': 'Slash',               // optional
-    };
-
-    final response = await _postWithRetry(
-      Uri.parse(baseUrl),
-      headers,
-      jsonEncode(requestBody),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['choices']?[0]?['message']?['content']?.trim() ?? '';
-    } else {
-      throw Exception('${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.statusCode}: ${response.body}');
+    if (files.isNotEmpty) {
+      userPrompt.writeln();
+      userPrompt.writeln();
+      userPrompt.writeln('Attached repository context:');
+      for (final file in files) {
+        userPrompt.writeln(
+          _formatFileBlock(
+            file['name'] ?? 'unknown',
+            file['content'] ?? '',
+          ),
+        );
+      }
     }
+
+    return chat(
+      messages: [
+        {
+          'role': 'system',
+          'content': systemPrompt,
+        },
+        {
+          'role': 'user',
+          'content': userPrompt.toString(),
+        },
+      ],
+      maxTokens: 4096,
+      temperature: 0.2,
+    );
   }
 
+  @override
   Future<String> classifyIntent(String prompt) async {
-    final systemPrompt = "You are an expert code assistant. Classify the following user prompt as one of: [code_edit, repo_question, general].\n\n- code_edit: The user wants to change, improve, refactor, add, or fix code, or requests a code-related action.\n- repo_question: The user is asking about the repository, its purpose, files, or structure, but not requesting a code change.\n- general: The user is making small talk, greetings, or asking about you as an agent.\n\nOnly return the label.\nPrompt: '$prompt'";
-    
+    final response = await chat(
+      messages: [
+        {
+          'role': 'system',
+          'content':
+              'Classify the user request as exactly one label: '
+              'code_edit, repo_question, or general. '
+              'Return only the label.',
+        },
+        {
+          'role': 'user',
+          'content': prompt,
+        },
+      ],
+      maxTokens: 32,
+      temperature: 0,
+    );
+
+    final normalized = response.trim().toLowerCase();
+    if (normalized.contains('code_edit')) {
+      return 'code_edit';
+    }
+    if (normalized.contains('repo_question')) {
+      return 'repo_question';
+    }
+    return 'general';
+  }
+
+  Future<String> chat({
+    required List<Map<String, String>> messages,
+    int maxTokens = 4096,
+    double temperature = 0.2,
+  }) async {
     final requestBody = {
       'model': model,
-      'messages': [
-        {'role': 'system', 'content': systemPrompt},
-      ],
-      'max_tokens': 16,
-      'temperature': 0.0,
+      'messages': messages,
+      'max_tokens': maxTokens,
+      'temperature': temperature,
     };
-    
+
     final headers = {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $apiKey',
-      if (useOpenRouter) 'HTTP-Referer': 'https://slash',
-      if (useOpenRouter) 'X-Title': 'Slash',
+      if (useOpenRouter) 'HTTP-Referer': 'https://slash.local',
+      if (useOpenRouter) 'X-Title': appName,
     };
 
     final response = await _postWithRetry(
@@ -86,16 +119,39 @@ class OpenAIService {
       jsonEncode(requestBody),
     );
 
-    print('[OpenAIService] classifyIntent raw response: ${response.body}');
-    
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['choices']?[0]?['message']?['content']?.trim() ?? 'general';
-    } else {
-      throw Exception('${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.statusCode}: ${response.body}');
+    if (response.statusCode != 200) {
+      throw Exception(
+        '${useOpenRouter ? 'OpenRouter' : 'OpenAI'} error: ${response.statusCode}: ${response.body}',
+      );
     }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final message = data['choices'] is List && (data['choices'] as List).isNotEmpty
+        ? (data['choices'] as List).first
+        : null;
+
+    if (message is! Map<String, dynamic>) {
+      return '';
+    }
+
+    final content = message['message'];
+    if (content is Map<String, dynamic>) {
+      final rawContent = content['content'];
+      if (rawContent is String) {
+        return rawContent.trim();
+      }
+      if (rawContent is List) {
+        return rawContent
+            .whereType<Map<String, dynamic>>()
+            .map((chunk) => chunk['text']?.toString() ?? '')
+            .join()
+            .trim();
+      }
+    }
+
+    return '';
   }
-  // Retry helper with exponential backoff; increases resilience against 408/429/5xx.
+
   Future<http.Response> _postWithRetry(
     Uri uri,
     Map<String, String> headers,
@@ -105,30 +161,40 @@ class OpenAIService {
   }) async {
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        final res = await http
+        final response = await http
             .post(uri, headers: headers, body: body)
             .timeout(timeout);
 
-        // Retry on common transient statuses
-        if ([408, 409, 429, 500, 502, 503, 504].contains(res.statusCode) &&
-            attempt < maxAttempts) {
-          final backoffMs = 800 * attempt;
-          await Future.delayed(Duration(milliseconds: backoffMs));
+        if (_shouldRetry(response.statusCode) && attempt < maxAttempts) {
+          await Future<void>.delayed(Duration(milliseconds: 800 * attempt));
           continue;
         }
-        return res;
+
+        return response;
       } on TimeoutException {
-        if (attempt >= maxAttempts) rethrow;
-        final backoffMs = 800 * attempt;
-        await Future.delayed(Duration(milliseconds: backoffMs));
+        if (attempt >= maxAttempts) {
+          rethrow;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 800 * attempt));
+      }
     }
-    }
-    throw Exception('Request failed after $maxAttempts attempts');
+
+    throw Exception('Request failed after $maxAttempts attempts.');
   }
 
-  // Truncate very large file content to reduce payload size (helps avoid timeouts)
-  String _truncateContent(String content, {int maxChars = 4000}) {
-    if (content.length <= maxChars) return content;
-    return content.substring(0, maxChars) + '\n… (truncated)';
+  bool _shouldRetry(int statusCode) {
+    return const {408, 409, 429, 500, 502, 503, 504}.contains(statusCode);
+  }
+
+  String _formatFileBlock(String name, String content) {
+    final safeContent = _truncateContent(content);
+    return 'FILE: $name\n$safeContent\nEND FILE';
+  }
+
+  String _truncateContent(String content, {int maxChars = 12000}) {
+    if (content.length <= maxChars) {
+      return content;
+    }
+    return '${content.substring(0, maxChars)}\n...<truncated>';
   }
 }

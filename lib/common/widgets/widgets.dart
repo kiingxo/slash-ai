@@ -1,14 +1,14 @@
 // Common widgets for the app will go here. 
 String friendlyErrorMessage(dynamic error) {
   final msg = error?.toString() ?? '';
-  if (msg.contains('GitHub PAT not found')) {
-    return 'GitHub authentication is required. Please log in again.';
+  if (msg.contains('GitHub authentication')) {
+    return 'GitHub sign-in is required. Connect your account and try again.';
   }
   if (msg.contains('Missing API keys')) {
-    return 'API keys are missing. Please log in again.';
+    return 'Your AI provider settings are incomplete. Check OpenAI or OpenRouter and try again.';
   }
   if (msg.contains('Failed to fetch files')) {
-    return 'Could not fetch files from GitHub. Please check your connection and token.';
+    return 'Could not fetch files from GitHub. Check your connection and repository access.';
   }
   if (msg.contains('Unexpected response from GitHub API')) {
     return 'GitHub returned an unexpected response. Please try again.';
@@ -20,7 +20,7 @@ String friendlyErrorMessage(dynamic error) {
     return 'Network error. Please check your internet connection.';
   }
   if (msg.contains('401') || msg.contains('Unauthorized')) {
-    return 'Your GitHub token is invalid or expired. Please log in again.';
+    return 'Your GitHub session expired. Sign in again and retry.';
   }
   if (msg.isEmpty) {
     return 'An unknown error occurred.';

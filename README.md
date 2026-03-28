@@ -1,116 +1,74 @@
-# /slash: AI-Powered GitHub Mobile Assistant
+# /slash: Pocket Engineer For GitHub
 
-![Built by BlueprintLabs](https://img.shields.io/badge/built%20by-BlueprintLabs-0057ff?style=flat-square)
+/slash is a Flutter app for browsing repos, planning edits, rewriting files with AI, reviewing diffs, and pushing changes from one place.
 
-🤖 A beautiful, mobile-first Flutter app for managing GitHub repos, powered by Google Gemini 1.5 Flash and OpenAI.
+## What Changed
 
-## Overview
-
-/slash is a mobile coding assistant for GitHub. It lets you securely connect your GitHub account and OpenAI/Gemini API keys, browse files, create branches, commit changes, open PRs, and review AI-generated code suggestions—all from your phone, with a modern, dark-themed UI.
+- Gemini has been removed from the product flow.
+- AI providers are now `OpenAI` and `OpenRouter`.
+- GitHub uses sign-in via OAuth device flow instead of asking for a personal access token.
+- The editor now protects pushes with the file SHA it originally loaded, so stale remote changes are less likely to be overwritten accidentally.
+- Prompt mode can auto-discover likely relevant files in the repo when you do not manually attach context.
 
 ## Features
 
-- 📱 **Mobile-First UI**: Modern, dark, and responsive design
-- 🔒 **Secure Local Storage**: API keys and tokens stored securely on device
-- 🧠 **AI-Powered Code Suggestions**: Uses Gemini or OpenAI for code changes and PR summaries
-- 🗂️ **File Browser**: Browse, view, and edit files in your GitHub repos
-- 🔀 **Branch Switching**: Pick and switch between any branch in any repo, with a mobile-friendly floating action button and scrollable branch picker.
-- 📝 **Mobile Code Editor**: Edit files and AI-suggested code directly in-app, with syntax highlighting and a clean, line-number-free interface.
-- 🚀 **Commit & Push**: Commit and push changes to any branch, with a commit message dialog, all from your phone.
-- 🤖 **AI-to-Manual Edit Flow**: Instantly jump from AI code suggestions to manual editing in the main code editor tab, with a clear user prompt.
-- ⚡ **Smooth Startup & Navigation**: Splash screen waits for all data to load, and the app always starts on the Prompt screen for a seamless experience.
-- 🌿 **Branching & PRs**: Create branches, commit changes, and open pull requests
-- 📝 **Review & Approve**: Review diffs, summaries, and approve or reject AI changes
-- 🔄 **No Backend Required**: All logic runs on-device; no server needed
+- `OpenAI` or `OpenRouter` provider selection
+- GitHub device-flow sign-in
+- Repo browser with branch selection
+- AI prompt-to-review flow
+- Manual code editor with in-editor AI help
+- Pull-latest before push from the editor
+- PR creation and PR review tools
+- Secure local credential storage
 
-## Repository Structure
+## Setup
 
-```
-slash_flutter/
-├── lib/
-│   ├── common/           # Shared providers, services, widgets
-│   ├── features/         # Feature modules (auth, repo, file_browser, review, etc.)
-│   ├── services/         # API service classes (GitHub, Gemini, Secure Storage)
-│   ├── ui/               # UI components, theme, colors
-│   └── main.dart         # App entry point
-├── android/              # Android project files
-├── ios/                  # iOS project files
-├── pubspec.yaml          # Flutter dependencies
-└── README.md             # This file
-```
+### Prerequisites
 
-## Setup Instructions
+- Flutter SDK
+- An OpenAI API key or OpenRouter API key
+- A GitHub OAuth App client ID
 
-### 1. Prerequisites
+### Optional bundled GitHub OAuth client ID
 
-- [Flutter SDK](https://flutter.dev/docs/get-started/install)
-- A GitHub Personal Access Token (PAT)
-- A Gemini or OpenAI API key
-
-### 2. Clone & Install
+You can bundle the client ID at build time:
 
 ```bash
-git clone
-cd slash_flutter
+flutter run --dart-define=GITHUB_OAUTH_CLIENT_ID=your_client_id
+```
+
+You can also set default models at build time:
+
+```bash
+flutter run \
+  --dart-define=OPENAI_MODEL=gpt-4o-mini \
+  --dart-define=OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+### Run
+
+```bash
 flutter pub get
-```
-
-### 3. Run the App
-
-```bash
 flutter run
 ```
 
-### 4. Connect APIs
+## Workflow
 
-- On first launch, enter your Gemini/OpenAI API key and GitHub PAT in the app's onboarding screen.
-- Your credentials are stored securely on your device.
+1. Choose `OpenAI` or `OpenRouter`
+2. Add the provider key and preferred model
+3. Sign in with GitHub
+4. Pick a repo and branch
+5. Ask for a change or attach files directly
+6. Review the generated diff
+7. Open a PR or continue editing in the code screen
+8. Pull latest before pushing if you want to refresh the remote file first
 
-## Configuration
+## Notes
 
-- **Theme**: Dark mode by default, with vibrant purple and black
-- **API Keys**: Managed via secure local storage
-- **No backend**: All logic is client-side
-
-## Output & Workflow
-
-- **Prompt-to-PR**: Enter a prompt, review AI-generated code changes, and open a PR—all in-app
-- **Review Screen**: See a diff, summary, and approve or reject changes
-- **Branching**: PRs are created on new branches named `slash/<timestamp>`
-
-## Example Workflow
-
-1. Connect your APIs
-2. Select a repo and branch
-3. Enter a prompt (e.g., "Add dark mode toggle")
-4. Review the AI's suggestion and diff
-5. Approve to create a branch, commit, and open a PR
-6. Or tap "edit" to manually tweak the code in the editor, then commit & push
-
-## Troubleshooting
-
-- **API Errors**: Ensure your keys are valid and have the correct scopes
-- **GitHub PAT**: Needs `repo` scope for private repos
-- **Gemini/OpenAI Key**: Must have sufficient quota
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+- GitHub auth is stored locally on-device.
+- PR branches are created as `slash/<timestamp>`.
+- The prompt flow now tries to infer relevant files from the repo tree when no context is attached manually.
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Support
-
-For issues and questions:
-- Open an issue in this repository
-- Check the troubleshooting section above
-
----
-
-![Built by BlueprintLabs](https://img.shields.io/badge/built%20by-BlueprintLabs-0057ff?style=flat-square)
+MIT
