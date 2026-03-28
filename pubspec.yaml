@@ -21,6 +21,8 @@ dependencies:
   highlight: ^0.7.0
   hooks_riverpod: ^2.6.1
   http: ^1.4.0
+  pdf: ^3.11.3
+  printing: ^5.14.2
   shared_preferences: ^2.5.3
   toastification: ^3.0.3
   url_launcher: ^6.3.2
@@ -40,6 +42,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/fonts/
     - assets/icons/
     - assets/slash.png
     - assets/slash2.png

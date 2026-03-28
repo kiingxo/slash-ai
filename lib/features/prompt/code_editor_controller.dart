@@ -517,6 +517,12 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
         openRouterModel: authState.openRouterModel,
       );
       final editorPath = state.selectedFilePath ?? fileName;
+      final intent = await prompt_service.PromptService.determineIntent(
+        aiService: aiService,
+        prompt: prompt,
+        hasFileContext: true,
+        preferCodeEdit: true,
+      );
       final repoContext = await prompt_service.PromptService.resolveContext(
         prompt: prompt,
         repo:
@@ -533,6 +539,10 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
             sha: state.selectedFileSha,
           ),
         ],
+        maxFiles: intent == 'code_edit' ? 1 : 3,
+        allowAutoDiscovery: intent != 'code_edit',
+        includeRepoDigest: intent != 'code_edit',
+        preferCachedRepoIndex: intent == 'code_edit',
       );
       final contextFiles =
           repoContext.files.isNotEmpty
@@ -550,18 +560,9 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
               ? repoContext.toolSummary
               : const ['editor_context:current_file'];
 
-      final intent = await aiService.classifyIntent(prompt);
       if (intent == 'code_edit') {
-        final summary = await prompt_service
-            .PromptService.processCodeEditIntent(
-          aiService: aiService,
-          prompt: prompt,
-          files: contextFiles,
-          toolSummary: toolSummary,
-        );
-
-        final newContent = await prompt_service
-            .PromptService.processCodeContent(
+        final editPackage = await prompt_service
+            .PromptService.processCodeEditPackage(
           aiService: aiService,
           prompt: prompt,
           files: contextFiles,
@@ -569,12 +570,12 @@ class CodeEditorController extends StateNotifier<CodeEditorState> {
         );
 
         final finalMessages = List<ChatMessage>.from(state.chatMessages)
-          ..add(ChatMessage(isUser: false, text: summary));
+          ..add(ChatMessage(isUser: false, text: editPackage.summary));
 
         state = state.copyWith(
           chatMessages: finalMessages,
           chatLoading: false,
-          pendingEdit: newContent,
+          pendingEdit: editPackage.content,
         );
       } else {
         final answer = await prompt_service.PromptService.processGeneralIntent(

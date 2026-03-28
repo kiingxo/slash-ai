@@ -30,6 +30,13 @@ class PromptContextResult {
   });
 }
 
+class CodeEditPackage {
+  final String summary;
+  final String content;
+
+  const CodeEditPackage({required this.summary, required this.content});
+}
+
 class RepoIndexSnapshot {
   final String owner;
   final String repo;
@@ -161,6 +168,9 @@ class PromptService {
     required String? branch,
     required List<FileItem> selectedFiles,
     int maxFiles = 3,
+    bool allowAutoDiscovery = true,
+    bool includeRepoDigest = true,
+    bool preferCachedRepoIndex = false,
   }) async {
     final filteredSelections =
         selectedFiles
@@ -239,20 +249,24 @@ class PromptService {
       toolSummary.add('read_file:$path');
     }
 
-    final repoIndex = await _loadRepoIndex(
-      github: github,
-      owner: owner,
-      repo: repoName,
-      branch: selectedBranch,
-    );
-    toolSummary.insert(
-      0,
-      'repo_index:${repoIndex.sourceLabel}:${_shortSha(repoIndex.snapshot.commitSha)}',
-    );
+    RepoIndexLookupResult? repoIndex;
+    if (allowAutoDiscovery || includeRepoDigest) {
+      repoIndex = await _loadRepoIndex(
+        github: github,
+        owner: owner,
+        repo: repoName,
+        branch: selectedBranch,
+        preferCached: preferCachedRepoIndex,
+      );
+      toolSummary.insert(
+        0,
+        'repo_index:${repoIndex.sourceLabel}:${_shortSha(repoIndex.snapshot.commitSha)}',
+      );
+    }
 
     final remainingSlots = maxFiles - contextFiles.length;
     final rankedPaths =
-        remainingSlots > 0
+        allowAutoDiscovery && repoIndex != null && remainingSlots > 0
             ? discoverRelevantFiles(
               indexedPaths: repoIndex.snapshot.paths,
               prompt: prompt,
@@ -290,26 +304,28 @@ class PromptService {
       }
     }
 
-    final repoDigest = _buildRepoDigest(
-      repo: repo,
-      branch: selectedBranch,
-      prompt: prompt,
-      snapshot: repoIndex.snapshot,
-      selectedPaths:
-          selectedContextFiles
-              .map((file) => file['name'])
-              .whereType<String>()
-              .toList(),
-      focusedPaths:
-          contextFiles
-              .map((file) => file['name'])
-              .whereType<String>()
-              .where((path) => path != _repoDigestFileName)
-              .toList(),
-    );
-    if (repoDigest.isNotEmpty) {
-      contextFiles.add({'name': _repoDigestFileName, 'content': repoDigest});
-      toolSummary.add('repo_map:${repoIndex.snapshot.paths.length}_paths');
+    if (includeRepoDigest && repoIndex != null) {
+      final repoDigest = _buildRepoDigest(
+        repo: repo,
+        branch: selectedBranch,
+        prompt: prompt,
+        snapshot: repoIndex.snapshot,
+        selectedPaths:
+            selectedContextFiles
+                .map((file) => file['name'])
+                .whereType<String>()
+                .toList(),
+        focusedPaths:
+            contextFiles
+                .map((file) => file['name'])
+                .whereType<String>()
+                .where((path) => path != _repoDigestFileName)
+                .toList(),
+      );
+      if (repoDigest.isNotEmpty) {
+        contextFiles.add({'name': _repoDigestFileName, 'content': repoDigest});
+        toolSummary.add('repo_map:${repoIndex.snapshot.paths.length}_paths');
+      }
     }
 
     return PromptContextResult(
@@ -317,6 +333,23 @@ class PromptService {
       toolSummary: toolSummary,
       autoDiscovered: rankedPaths.isNotEmpty,
     );
+  }
+
+  static Future<String> determineIntent({
+    required AIService aiService,
+    required String prompt,
+    bool hasFileContext = false,
+    bool preferCodeEdit = false,
+  }) async {
+    final local = _inferIntentLocally(
+      prompt,
+      hasFileContext: hasFileContext,
+      preferCodeEdit: preferCodeEdit,
+    );
+    if (local != null) {
+      return local;
+    }
+    return aiService.classifyIntent(prompt);
   }
 
   static List<String> discoverRelevantFiles({
@@ -418,10 +451,79 @@ class PromptService {
 
     final newContent = await aiService.getCodeSuggestion(
       prompt: codePrompt.toString(),
-      files: files,
+      files: _editSupportFiles(files),
     );
 
     return stripCodeFences(newContent);
+  }
+
+  static Future<CodeEditPackage> processCodeEditPackage({
+    required AIService aiService,
+    required String prompt,
+    required FileContents files,
+    List<String> toolSummary = const [],
+  }) async {
+    final primaryFile = _primaryContextFile(files);
+    final oldContent = primaryFile?['content'] ?? '';
+    final fileName = primaryFile?['name'] ?? 'unknown';
+
+    final packagePrompt =
+        StringBuffer()
+          ..writeln(systemPrompt())
+          ..writeln()
+          ..writeln('Mode: rewrite_with_summary')
+          ..writeln('Target file: $fileName')
+          ..writeln('User request: $prompt')
+          ..writeln('Return exactly this format:')
+          ..writeln('<slash_summary>')
+          ..writeln('One or two concise engineering sentences.')
+          ..writeln('</slash_summary>')
+          ..writeln('<slash_file>')
+          ..writeln('The complete updated file contents only.')
+          ..writeln('</slash_file>')
+          ..writeln('Rules:')
+          ..writeln('- Do not use markdown fences.')
+          ..writeln('- Do not add any text before or after these tags.')
+          ..writeln('- Keep slash_summary short and practical.')
+          ..writeln(
+            '- Preserve existing behavior unless the request changes it.',
+          )
+          ..writeln('Original target file:')
+          ..writeln(oldContent);
+
+    if (toolSummary.isNotEmpty) {
+      packagePrompt.writeln('Context tools used: ${toolSummary.join(', ')}');
+    }
+
+    final rawResponse = await aiService.getCodeSuggestion(
+      prompt: packagePrompt.toString(),
+      files: _editSupportFiles(files),
+    );
+    final parsed = _parseCodeEditPackage(
+      rawResponse,
+      fallbackSummary: _fallbackEditSummary(fileName, prompt),
+    );
+    if (parsed != null && parsed.content.trim().isNotEmpty) {
+      return parsed;
+    }
+
+    final summary =
+        parsed?.summary.trim().isNotEmpty == true
+            ? parsed!.summary.trim()
+            : await processCodeEditIntent(
+              aiService: aiService,
+              prompt: prompt,
+              files: files,
+              toolSummary: toolSummary,
+            );
+    final content = await processCodeContent(
+      aiService: aiService,
+      prompt: prompt,
+      files: files,
+      toolSummary: toolSummary,
+    );
+
+    return CodeEditPackage(summary: summary, content: content);
   }
 
   static Future<String> processRepoQuestion({
@@ -619,6 +721,7 @@ class PromptService {
     required String owner,
     required String repo,
     required String branch,
+    bool preferCached = false,
   }) async {
     final cacheKey = _repoIndexCacheKey(
       owner: owner,
@@ -627,6 +730,11 @@ class PromptService {
     );
     final cached =
         _repoIndexMemoryCache[cacheKey] ?? _readCachedRepoIndex(cacheKey);
+
+    if (preferCached && cached != null && cached.paths.isNotEmpty) {
+      _repoIndexMemoryCache[cacheKey] = cached;
+      return RepoIndexLookupResult(snapshot: cached, sourceLabel: 'fast_cache');
+    }
 
     String commitSha;
     try {
@@ -897,6 +1005,81 @@ class PromptService {
     return files.isNotEmpty ? files.first : null;
   }
 
+  static FileContents _editSupportFiles(
+    FileContents files, {
+    int maxSupportFiles = 2,
+  }) {
+    final primary = _primaryContextFile(files);
+    final selected = <Map<String, String>>[];
+    var supportCount = 0;
+
+    for (final file in files) {
+      final name = file['name'] ?? '';
+      if (name.isEmpty || file == primary) {
+        continue;
+      }
+      if (name == _repoDigestFileName) {
+        selected.add({
+          'name': name,
+          'content': _trimContextContent(file['content'] ?? '', maxChars: 2500),
+        });
+        continue;
+      }
+      if (supportCount >= maxSupportFiles) {
+        continue;
+      }
+      selected.add({
+        'name': name,
+        'content': _trimContextContent(file['content'] ?? '', maxChars: 4000),
+        if ((file['sha'] ?? '').isNotEmpty) 'sha': file['sha']!,
+      });
+      supportCount++;
+    }
+
+    return selected;
+  }
+
+  static CodeEditPackage? _parseCodeEditPackage(
+    String raw, {
+    required String fallbackSummary,
+  }) {
+    final summary = _extractTaggedBlock(raw, 'slash_summary')?.trim();
+    final fileContent = _extractTaggedBlock(raw, 'slash_file');
+    if (fileContent != null && fileContent.trim().isNotEmpty) {
+      return CodeEditPackage(
+        summary:
+            (summary?.isNotEmpty == true) ? summary! : fallbackSummary.trim(),
+        content: stripCodeFences(fileContent.trim()),
+      );
+    }
+    return null;
+  }
+
+  static String? _extractTaggedBlock(String raw, String tag) {
+    final pattern = RegExp(
+      '<$tag>\\s*([\\s\\S]*?)\\s*</$tag>',
+      caseSensitive: false,
+    );
+    final match = pattern.firstMatch(raw);
+    return match?.group(1);
+  }
+
+  static String _fallbackEditSummary(String fileName, String prompt) {
+    final cleanPrompt = prompt.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final trimmedPrompt =
+        cleanPrompt.length <= 96
+            ? cleanPrompt
+            : '${cleanPrompt.substring(0, 96).trim()}...';
+    return 'Prepared an update for $fileName based on: $trimmedPrompt';
+  }
+
+  static String _trimContextContent(String content, {required int maxChars}) {
+    if (content.length <= maxChars) {
+      return content;
+    }
+    return '${content.substring(0, maxChars)}\n...<truncated>';
+  }
+
   static String _shortSha(String sha) {
     if (sha.length <= 7) {
       return sha;
@@ -941,6 +1124,94 @@ class PromptService {
             .toList();
 
     return parts.toSet().toList();
+  }
+
+  static String? _inferIntentLocally(
+    String prompt, {
+    required bool hasFileContext,
+    required bool preferCodeEdit,
+  }) {
+    final normalized = prompt.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return 'general';
+    }
+
+    const repoQuestionStarters = {
+      'what',
+      'why',
+      'how',
+      'where',
+      'which',
+      'who',
+      'when',
+      'explain',
+      'summarize',
+      'review',
+      'describe',
+      'walk',
+    };
+    const editVerbs = {
+      'add',
+      'change',
+      'clean',
+      'convert',
+      'edit',
+      'fix',
+      'implement',
+      'improve',
+      'optimize',
+      'patch',
+      'refactor',
+      'remove',
+      'rename',
+      'replace',
+      'rewrite',
+      'update',
+      'wire',
+    };
+
+    final words = normalized.split(RegExp(r'[^a-z0-9_./-]+'));
+    final firstWord = words.firstWhere(
+      (word) => word.isNotEmpty,
+      orElse: () => '',
+    );
+    final looksQuestion =
+        normalized.endsWith('?') ||
+        repoQuestionStarters.contains(firstWord) ||
+        normalized.startsWith('can you explain') ||
+        normalized.startsWith('help me understand') ||
+        normalized.startsWith('tell me') ||
+        normalized.startsWith('show me');
+    if (looksQuestion) {
+      return hasFileContext ? 'repo_question' : 'general';
+    }
+
+    final hasEditVerb = words.any(editVerbs.contains);
+    if (hasEditVerb && hasFileContext) {
+      return 'code_edit';
+    }
+
+    if (preferCodeEdit &&
+        hasFileContext &&
+        !normalized.contains('explain') &&
+        !normalized.contains('review') &&
+        !normalized.contains('why') &&
+        !normalized.contains('what ')) {
+      return 'code_edit';
+    }
+
+    if (hasFileContext &&
+        (normalized.contains('repo') ||
+            normalized.contains('repository') ||
+            normalized.contains('branch') ||
+            normalized.contains('workflow') ||
+            normalized.contains('issue') ||
+            normalized.contains('pull request') ||
+            normalized.contains('pr '))) {
+      return 'repo_question';
+    }
+
+    return null;
   }
 
   static bool _isUsefulRepositoryFile(String path) {
@@ -1100,6 +1371,13 @@ String friendlyErrorMessage(String error) {
   }
   if (error.contains('GitHub authentication')) {
     return 'GitHub sign-in is required before the app can access your repositories.';
+  }
+  if (error.contains('MissingPluginException') ||
+      error.contains('No implementation found for method')) {
+    return 'The PDF export plugin is not loaded yet. Run a full restart or rebuild, then try again.';
+  }
+  if (error.contains('Unable to load asset')) {
+    return 'A required PDF asset is missing from this build. Rebuild the app so the fonts and logo are bundled.';
   }
   if (error.contains('repository')) {
     return 'Repository access failed. Check your GitHub permissions and selected branch.';

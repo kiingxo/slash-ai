@@ -165,56 +165,76 @@ class ProjectInsightsService {
     );
     final sinceLabel = _dateOnly(since);
 
-    final commitsFuture = github.fetchCommits(
-      owner: owner,
-      repo: repoName,
-      branch: branch,
-      since: since,
-      perPage: 100,
+    final commitsFuture = _loadGitHubData(
+      () => github.fetchCommits(
+        owner: owner,
+        repo: repoName,
+        branch: branch,
+        since: since,
+        perPage: 100,
+      ),
+      fallback: const <Map<String, dynamic>>[],
     );
-    final mergedPrsFuture = github.searchIssuesAndPullRequests(
-      query: 'repo:$repoFullName is:pr is:merged merged:>=$sinceLabel',
-      sort: 'updated',
-      order: 'desc',
-      perPage: 10,
+    final mergedPrsFuture = _loadGitHubData(
+      () => github.searchIssuesAndPullRequests(
+        query: 'repo:$repoFullName is:pr is:merged merged:>=$sinceLabel',
+        sort: 'updated',
+        order: 'desc',
+        perPage: 10,
+      ),
+      fallback: const GitHubSearchResult(totalCount: 0, items: []),
     );
-    final openPrSearchFuture = github.searchIssuesAndPullRequests(
-      query: 'repo:$repoFullName is:pr is:open',
-      sort: 'updated',
-      order: 'desc',
-      perPage: 10,
+    final openPrSearchFuture = _loadGitHubData(
+      () => github.searchIssuesAndPullRequests(
+        query: 'repo:$repoFullName is:pr is:open',
+        sort: 'updated',
+        order: 'desc',
+        perPage: 10,
+      ),
+      fallback: const GitHubSearchResult(totalCount: 0, items: []),
     );
-    final openPrsFuture = github.fetchPullRequests(
-      owner: owner,
-      repo: repoName,
-      state: 'open',
-      sort: 'updated',
-      direction: 'desc',
-      base: branch,
-      perPage: 30,
+    final openPrsFuture = _loadGitHubData(
+      () => github.fetchPullRequests(
+        owner: owner,
+        repo: repoName,
+        state: 'open',
+        sort: 'updated',
+        direction: 'desc',
+        base: branch,
+        perPage: 30,
+      ),
+      fallback: const <Map<String, dynamic>>[],
     );
-    final openedIssuesFuture = github.searchIssuesAndPullRequests(
-      query: 'repo:$repoFullName is:issue created:>=$sinceLabel',
-      sort: 'created',
-      order: 'desc',
-      perPage: 10,
+    final openedIssuesFuture = _loadGitHubData(
+      () => github.searchIssuesAndPullRequests(
+        query: 'repo:$repoFullName is:issue created:>=$sinceLabel',
+        sort: 'created',
+        order: 'desc',
+        perPage: 10,
+      ),
+      fallback: const GitHubSearchResult(totalCount: 0, items: []),
     );
-    final closedIssuesFuture = github.searchIssuesAndPullRequests(
-      query: 'repo:$repoFullName is:issue closed:>=$sinceLabel',
-      sort: 'updated',
-      order: 'desc',
-      perPage: 10,
+    final closedIssuesFuture = _loadGitHubData(
+      () => github.searchIssuesAndPullRequests(
+        query: 'repo:$repoFullName is:issue closed:>=$sinceLabel',
+        sort: 'updated',
+        order: 'desc',
+        perPage: 10,
+      ),
+      fallback: const GitHubSearchResult(totalCount: 0, items: []),
     );
-    final workflowRunsFuture = github.fetchWorkflowRuns(
-      owner: owner,
-      repo: repoName,
-      branch: branch,
-      perPage: 30,
+    final workflowRunsFuture = _loadGitHubData(
+      () => github.fetchWorkflowRuns(
+        owner: owner,
+        repo: repoName,
+        branch: branch,
+        perPage: 30,
+      ),
+      fallback: const <Map<String, dynamic>>[],
     );
-    final releasesFuture = github.fetchReleases(
-      owner: owner,
-      repo: repoName,
-      perPage: 10,
+    final releasesFuture = _loadGitHubData(
+      () => github.fetchReleases(owner: owner, repo: repoName, perPage: 10),
+      fallback: const <Map<String, dynamic>>[],
     );
 
     final commits = await commitsFuture;
@@ -459,14 +479,12 @@ class ProjectInsightsService {
         ],
         maxTokens: 900,
         temperature: 0.2,
+        timeout: const Duration(seconds: 35),
+        maxAttempts: 1,
+        responseFormat: const {'type': 'json_object'},
       );
 
-      final cleaned = prompt_service.stripCodeFences(raw);
-      final decoded = jsonDecode(cleaned);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Unexpected summary format.');
-      }
-
+      final decoded = _decodeNarrativePayload(raw);
       final executiveSummary =
           (decoded['executive_summary'] ?? '').toString().trim();
       final engineeringSummary =
@@ -532,6 +550,51 @@ class ProjectInsightsService {
               ProjectContributor(name: entry.key, commitCount: entry.value),
         )
         .toList();
+  }
+
+  static Future<T> _loadGitHubData<T>(
+    Future<T> Function() loader, {
+    required T fallback,
+  }) async {
+    try {
+      return await loader();
+    } on GitHubApiException catch (error) {
+      final lower = error.message.toLowerCase();
+      final isAuth = error.statusCode == 401 || lower.contains('sign in again');
+      final isRateLimit = lower.contains('rate limit');
+      if (isAuth || isRateLimit) {
+        rethrow;
+      }
+      return fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  static Map<String, dynamic> _decodeNarrativePayload(String raw) {
+    final cleaned = prompt_service.stripCodeFences(raw).trim();
+
+    dynamic decode(String input) => jsonDecode(input);
+
+    try {
+      final direct = decode(cleaned);
+      if (direct is Map<String, dynamic>) {
+        return direct;
+      }
+    } catch (_) {}
+
+    final match = RegExp(r'\{[\s\S]*\}').firstMatch(cleaned);
+    if (match != null) {
+      final extracted = match.group(0);
+      if (extracted != null && extracted.trim().isNotEmpty) {
+        final decoded = decode(extracted.trim());
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+      }
+    }
+
+    throw const FormatException('Unable to decode summary JSON.');
   }
 
   static List<ProjectTimelineEntry> _buildTimeline({

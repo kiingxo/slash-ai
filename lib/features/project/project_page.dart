@@ -6,7 +6,12 @@ import '../../ui/components/slash_text.dart';
 import '../prompt/prompt_service.dart';
 import '../repo/repo_controller.dart';
 import 'project_controller.dart';
+import 'project_pdf_service.dart';
 import 'project_service.dart';
+
+final _projectPdfExportingProvider = StateProvider<bool>((_) => false);
+
+enum _ProjectExportAction { previewPdf, sharePdf }
 
 class ProjectPage extends ConsumerWidget {
   const ProjectPage({super.key});
@@ -35,15 +40,70 @@ class ProjectPage extends ConsumerWidget {
     }
   }
 
+  Future<void> _exportReport({
+    required BuildContext context,
+    required WidgetRef ref,
+    required ProjectOverview overview,
+    required dynamic repo,
+    required _ProjectExportAction action,
+  }) async {
+    if (ref.read(_projectPdfExportingProvider)) {
+      return;
+    }
+
+    ref.read(_projectPdfExportingProvider.notifier).state = true;
+    try {
+      await ProjectPdfService.exportExecutiveSummary(
+        overview: overview,
+        repo: repo,
+        mode:
+            action == _ProjectExportAction.previewPdf
+                ? ProjectPdfExportMode.preview
+                : ProjectPdfExportMode.share,
+      );
+    } catch (error) {
+      if (context.mounted) {
+        final details = error.toString().trim();
+        final friendly = friendlyErrorMessage(details);
+        final showDetails =
+            details.isNotEmpty &&
+            details != friendly &&
+            friendly == 'Something went wrong. Please try again.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              showDetails
+                  ? 'Unable to export the executive summary PDF. $details'
+                  : 'Unable to export the executive summary PDF. $friendly',
+            ),
+          ),
+        );
+      }
+    } finally {
+      ref.read(_projectPdfExportingProvider.notifier).state = false;
+    }
+  }
+
+  bool _canExport(ProjectOverview? overview, dynamic repo) {
+    if (overview == null || repo == null) {
+      return false;
+    }
+    final repoFullName = (repo['full_name'] ?? repo['name']).toString().trim();
+    return repoFullName.isNotEmpty && repoFullName == overview.repoFullName;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final repoState = ref.watch(repoControllerProvider);
     final report = ref.watch(projectOverviewProvider);
+    final overview = report.valueOrNull;
+    final isExporting = ref.watch(_projectPdfExportingProvider);
     final selectedRepo =
         repoState.selectedRepo ??
         (repoState.repos.isNotEmpty ? repoState.repos.first : null);
     final selectedWindow = ref.watch(projectWindowProvider);
+    final canExport = _canExport(overview, selectedRepo);
 
     return Scaffold(
       appBar: AppBar(
@@ -60,6 +120,41 @@ class ProjectPage extends ConsumerWidget {
           ],
         ),
         actions: [
+          if (canExport)
+            isExporting
+                ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    ),
+                  ),
+                )
+                : PopupMenuButton<_ProjectExportAction>(
+                  tooltip: 'Export executive summary PDF',
+                  icon: const Icon(Icons.picture_as_pdf_rounded),
+                  onSelected:
+                      (action) => _exportReport(
+                        context: context,
+                        ref: ref,
+                        overview: overview!,
+                        repo: selectedRepo,
+                        action: action,
+                      ),
+                  itemBuilder:
+                      (context) => const [
+                        PopupMenuItem<_ProjectExportAction>(
+                          value: _ProjectExportAction.previewPdf,
+                          child: Text('Preview PDF'),
+                        ),
+                        PopupMenuItem<_ProjectExportAction>(
+                          value: _ProjectExportAction.sharePdf,
+                          child: Text('Share PDF'),
+                        ),
+                      ],
+                ),
           IconButton(
             tooltip: 'Refresh report',
             onPressed: () => _refresh(ref),
@@ -91,6 +186,7 @@ class ProjectPage extends ConsumerWidget {
                       repos: repoState.repos,
                       selectedRepo: selectedRepo,
                       selectedWindow: selectedWindow,
+                      isExporting: isExporting,
                       onSelectRepo: (fullName) {
                         for (final repo in repoState.repos) {
                           final candidate =
@@ -107,6 +203,16 @@ class ProjectPage extends ConsumerWidget {
                       onSelectWindow: (window) {
                         ref.read(projectWindowProvider.notifier).state = window;
                       },
+                      onExportPdf:
+                          canExport
+                              ? () => _exportReport(
+                                context: context,
+                                ref: ref,
+                                overview: overview!,
+                                repo: selectedRepo,
+                                action: _ProjectExportAction.sharePdf,
+                              )
+                              : null,
                       onRefresh: () => _refresh(ref),
                     ),
                     const SizedBox(height: 16),
@@ -119,6 +225,7 @@ class ProjectPage extends ConsumerWidget {
                       error:
                           (error, _) => _ErrorCard(
                             message: friendlyErrorMessage(error.toString()),
+                            details: error.toString(),
                             onRetry: () => _refresh(ref),
                           ),
                       data: (overview) {
@@ -140,16 +247,20 @@ class _ProjectHeaderCard extends StatelessWidget {
   final List<dynamic> repos;
   final dynamic selectedRepo;
   final ProjectWindow selectedWindow;
+  final bool isExporting;
   final ValueChanged<String> onSelectRepo;
   final ValueChanged<ProjectWindow> onSelectWindow;
+  final VoidCallback? onExportPdf;
   final Future<void> Function() onRefresh;
 
   const _ProjectHeaderCard({
     required this.repos,
     required this.selectedRepo,
     required this.selectedWindow,
+    required this.isExporting,
     required this.onSelectRepo,
     required this.onSelectWindow,
+    required this.onExportPdf,
     required this.onRefresh,
   });
 
@@ -280,6 +391,21 @@ class _ProjectHeaderCard extends StatelessWidget {
                     onSelected: (_) => onSelectWindow(window),
                   );
                 }).toList(),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.tonalIcon(
+            onPressed: onExportPdf,
+            icon:
+                isExporting
+                    ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Icon(Icons.picture_as_pdf_rounded),
+            label: Text(
+              isExporting ? 'Preparing PDF...' : 'Share Executive PDF',
+            ),
           ),
         ],
       ),
@@ -1150,9 +1276,14 @@ class _PriorityBucket extends StatelessWidget {
 
 class _ErrorCard extends StatelessWidget {
   final String message;
+  final String? details;
   final Future<void> Function() onRetry;
 
-  const _ErrorCard({required this.message, required this.onRetry});
+  const _ErrorCard({
+    required this.message,
+    this.details,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1172,6 +1303,18 @@ class _ErrorCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(message, style: theme.textTheme.bodyMedium),
+          if ((details ?? '').trim().isNotEmpty &&
+              details!.trim() != message.trim()) ...[
+            const SizedBox(height: 10),
+            SelectableText(
+              details!.trim(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer.withValues(
+                  alpha: 0.78,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           ElevatedButton.icon(
             onPressed: onRetry,

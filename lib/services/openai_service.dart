@@ -40,24 +40,15 @@ class OpenAIService implements LLMService {
       userPrompt.writeln('Attached repository context:');
       for (final file in files) {
         userPrompt.writeln(
-          _formatFileBlock(
-            file['name'] ?? 'unknown',
-            file['content'] ?? '',
-          ),
+          _formatFileBlock(file['name'] ?? 'unknown', file['content'] ?? ''),
         );
       }
     }
 
     return chat(
       messages: [
-        {
-          'role': 'system',
-          'content': systemPrompt,
-        },
-        {
-          'role': 'user',
-          'content': userPrompt.toString(),
-        },
+        {'role': 'system', 'content': systemPrompt},
+        {'role': 'user', 'content': userPrompt.toString()},
       ],
       maxTokens: 4096,
       temperature: 0.2,
@@ -75,13 +66,12 @@ class OpenAIService implements LLMService {
               'code_edit, repo_question, or general. '
               'Return only the label.',
         },
-        {
-          'role': 'user',
-          'content': prompt,
-        },
+        {'role': 'user', 'content': prompt},
       ],
       maxTokens: 32,
       temperature: 0,
+      timeout: const Duration(seconds: 12),
+      maxAttempts: 1,
     );
 
     final normalized = response.trim().toLowerCase();
@@ -98,12 +88,17 @@ class OpenAIService implements LLMService {
     required List<Map<String, String>> messages,
     int maxTokens = 4096,
     double temperature = 0.2,
+    Duration timeout = const Duration(seconds: 60),
+    int maxAttempts = 2,
+    Map<String, dynamic>? responseFormat,
   }) async {
-    final requestBody = {
+    final requestBody = <String, dynamic>{
       'model': model,
       'messages': messages,
-      'max_tokens': maxTokens,
       'temperature': temperature,
+      if (_usesMaxCompletionTokens()) 'max_completion_tokens': maxTokens,
+      if (!_usesMaxCompletionTokens()) 'max_tokens': maxTokens,
+      if (responseFormat != null) 'response_format': responseFormat,
     };
 
     final headers = {
@@ -117,6 +112,8 @@ class OpenAIService implements LLMService {
       Uri.parse(baseUrl),
       headers,
       jsonEncode(requestBody),
+      timeout: timeout,
+      maxAttempts: maxAttempts,
     );
 
     if (response.statusCode != 200) {
@@ -126,9 +123,10 @@ class OpenAIService implements LLMService {
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final message = data['choices'] is List && (data['choices'] as List).isNotEmpty
-        ? (data['choices'] as List).first
-        : null;
+    final message =
+        data['choices'] is List && (data['choices'] as List).isNotEmpty
+            ? (data['choices'] as List).first
+            : null;
 
     if (message is! Map<String, dynamic>) {
       return '';
@@ -156,7 +154,7 @@ class OpenAIService implements LLMService {
     Uri uri,
     Map<String, String> headers,
     Object body, {
-    int maxAttempts = 3,
+    int maxAttempts = 2,
     Duration timeout = const Duration(seconds: 60),
   }) async {
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -184,6 +182,16 @@ class OpenAIService implements LLMService {
 
   bool _shouldRetry(int statusCode) {
     return const {408, 409, 429, 500, 502, 503, 504}.contains(statusCode);
+  }
+
+  bool _usesMaxCompletionTokens() {
+    final normalized = model.trim().toLowerCase();
+    final baseModel =
+        normalized.contains('/') ? normalized.split('/').last : normalized;
+    return baseModel.startsWith('gpt-5') ||
+        baseModel.startsWith('o1') ||
+        baseModel.startsWith('o3') ||
+        baseModel.startsWith('o4');
   }
 
   String _formatFileBlock(String name, String content) {

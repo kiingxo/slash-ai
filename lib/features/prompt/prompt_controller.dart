@@ -345,14 +345,25 @@ class PromptController extends StateNotifier<PromptState> {
     final repo =
         state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
     final aiService = _createAiService(authState);
-
-    final intent = await aiService.classifyIntent(prompt);
+    final hasPinnedContext =
+        explicitFiles.isNotEmpty || _latestReview() != null;
+    final hasContextForIntent = hasPinnedContext || repo != null;
+    final intent = await PromptService.determineIntent(
+      aiService: aiService,
+      prompt: prompt,
+      hasFileContext: hasContextForIntent,
+      preferCodeEdit: hasPinnedContext,
+    );
     state = state.copyWith(lastIntent: intent);
 
     final repoContext = await _resolveContext(
       prompt: prompt,
       repo: repo,
       explicitFiles: explicitFiles,
+      maxFiles: intent == 'code_edit' ? 1 : 3,
+      allowAutoDiscovery: intent != 'code_edit' || !hasPinnedContext,
+      includeRepoDigest: intent != 'code_edit' || !hasPinnedContext,
+      preferCachedRepoIndex: intent == 'code_edit',
     );
 
     final contextFiles = repoContext.files;
@@ -363,19 +374,20 @@ class PromptController extends StateNotifier<PromptState> {
 
     switch (intent) {
       case 'code_edit':
-        response = await PromptService.processCodeEditIntent(
+        final editPackage = await PromptService.processCodeEditPackage(
           aiService: aiService,
           prompt: prompt,
           files: contextFiles,
           toolSummary: toolSummary,
         );
+        response = editPackage.summary;
 
         if (contextFiles.isNotEmpty) {
           review = await _buildReview(
             prompt: prompt,
             explicitFiles: explicitFiles,
             resolvedContext: repoContext,
-            summaryOverride: response,
+            editOverride: editPackage,
           );
         }
         break;
@@ -416,18 +428,20 @@ class PromptController extends StateNotifier<PromptState> {
     required String prompt,
     required List<FileItem> explicitFiles,
     PromptContextResult? resolvedContext,
-    String? summaryOverride,
+    CodeEditPackage? editOverride,
   }) async {
-    final authState = ref.read(authControllerProvider);
     final repo =
         state.selectedRepo ?? ref.read(repoControllerProvider).selectedRepo;
-    final aiService = _createAiService(authState);
     final context =
         resolvedContext ??
         await _resolveContext(
           prompt: prompt,
           repo: repo,
           explicitFiles: explicitFiles,
+          maxFiles: 1,
+          allowAutoDiscovery: false,
+          includeRepoDigest: false,
+          preferCachedRepoIndex: true,
         );
 
     if (context.files.isEmpty) {
@@ -436,21 +450,18 @@ class PromptController extends StateNotifier<PromptState> {
       );
     }
 
-    final summary =
-        summaryOverride ??
-        await PromptService.processCodeEditIntent(
-          aiService: aiService,
-          prompt: prompt,
-          files: context.files,
-          toolSummary: context.toolSummary,
-        );
-
-    final newContent = await PromptService.processCodeContent(
-      aiService: aiService,
-      prompt: prompt,
-      files: context.files,
-      toolSummary: context.toolSummary,
-    );
+    final editPackage =
+        editOverride ??
+        await (() async {
+          final authState = ref.read(authControllerProvider);
+          final aiService = _createAiService(authState);
+          return PromptService.processCodeEditPackage(
+            aiService: aiService,
+            prompt: prompt,
+            files: context.files,
+            toolSummary: context.toolSummary,
+          );
+        })();
 
     final targetFile = context.files.firstWhere(
       (file) => (file['name'] ?? '') != '.slash/repo-map.txt',
@@ -475,8 +486,8 @@ class PromptController extends StateNotifier<PromptState> {
     return ReviewData(
       fileName: fileName,
       oldContent: oldContent,
-      newContent: newContent,
-      summary: summary,
+      newContent: editPackage.content,
+      summary: editPackage.summary,
       sourcePrompt: prompt,
       repo: repo,
       branch: state.selectedBranch,
@@ -488,6 +499,10 @@ class PromptController extends StateNotifier<PromptState> {
     required String prompt,
     required dynamic repo,
     required List<FileItem> explicitFiles,
+    int maxFiles = 3,
+    bool allowAutoDiscovery = true,
+    bool includeRepoDigest = true,
+    bool preferCachedRepoIndex = false,
   }) async {
     if (explicitFiles.isNotEmpty) {
       return PromptService.resolveContext(
@@ -495,6 +510,10 @@ class PromptController extends StateNotifier<PromptState> {
         repo: repo == null ? null : Map<String, dynamic>.from(repo),
         branch: state.selectedBranch,
         selectedFiles: explicitFiles,
+        maxFiles: maxFiles,
+        allowAutoDiscovery: allowAutoDiscovery,
+        includeRepoDigest: includeRepoDigest,
+        preferCachedRepoIndex: preferCachedRepoIndex,
       );
     }
 
@@ -527,6 +546,10 @@ class PromptController extends StateNotifier<PromptState> {
                 sha: latestReview.baseSha,
               ),
             ],
+            maxFiles: maxFiles,
+            allowAutoDiscovery: allowAutoDiscovery,
+            includeRepoDigest: includeRepoDigest,
+            preferCachedRepoIndex: preferCachedRepoIndex,
           );
 
           return PromptContextResult(
@@ -542,6 +565,10 @@ class PromptController extends StateNotifier<PromptState> {
             repo: Map<String, dynamic>.from(repo),
             branch: state.selectedBranch,
             selectedFiles: const [],
+            maxFiles: maxFiles,
+            allowAutoDiscovery: allowAutoDiscovery,
+            includeRepoDigest: includeRepoDigest,
+            preferCachedRepoIndex: preferCachedRepoIndex,
           );
         }
       }
@@ -567,6 +594,10 @@ class PromptController extends StateNotifier<PromptState> {
       repo: repo == null ? null : Map<String, dynamic>.from(repo),
       branch: state.selectedBranch,
       selectedFiles: explicitFiles,
+      maxFiles: maxFiles,
+      allowAutoDiscovery: allowAutoDiscovery,
+      includeRepoDigest: includeRepoDigest,
+      preferCachedRepoIndex: preferCachedRepoIndex,
     );
   }
 
