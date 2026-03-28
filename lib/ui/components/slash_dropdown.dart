@@ -13,7 +13,7 @@ class SlashDropDown extends StatefulWidget {
   final double? width;
   final bool filled;
   final Widget? prefix;
-  final String? value;
+  final dynamic value;
   final void Function(dynamic)? onChanged;
   final String? prefixText;
   final String? headerText;

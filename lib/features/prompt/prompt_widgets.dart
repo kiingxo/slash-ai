@@ -12,7 +12,7 @@ import 'package:slash_flutter/ui/components/slash_button.dart';
 import 'package:slash_flutter/ui/components/slash_diff_viewer.dart';
 
 // Tab index provider - moved here to be accessible by widgets
-final tabIndexProvider = StateProvider<int>((ref) => 1); // 1 = prompt, 2 = code
+final tabIndexProvider = StateProvider<int>((ref) => 0);
 
 // Intent tag widget
 class IntentTag extends StatelessWidget {
@@ -164,7 +164,7 @@ class ReviewBubble extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -193,12 +193,15 @@ class ReviewBubble extends ConsumerWidget {
                             // Summary text
                             SlashText(summary),
                             const SizedBox(height: 8),
-                            
+
                             // Task completed + File info row
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.green[50],
                                     borderRadius: BorderRadius.circular(4),
@@ -212,7 +215,10 @@ class ReviewBubble extends ConsumerWidget {
                                 ),
                                 const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.blue[50],
                                     borderRadius: BorderRadius.circular(4),
@@ -226,7 +232,7 @@ class ReviewBubble extends ConsumerWidget {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            
+
                             // Tap to review
                             GestureDetector(
                               onTap: () => controller.toggleReviewExpanded(),
@@ -253,7 +259,7 @@ class ReviewBubble extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  
+
                   // Expanded review section (your existing code)
                   if (promptState.reviewExpanded && isLast) ...[
                     const SizedBox(height: 12),
@@ -268,9 +274,9 @@ class ReviewBubble extends ConsumerWidget {
               ),
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // Inline accept/reject buttons beside the bubble
           Column(
             children: [
@@ -284,18 +290,19 @@ class ReviewBubble extends ConsumerWidget {
                 child: IconButton(
                   icon: const Icon(Icons.check, color: Colors.green, size: 20),
                   tooltip: 'Quick Accept',
-                  onPressed: promptState.isLoading 
-                      ? null 
-                      : () => controller.approveReview(review, summary),
+                  onPressed:
+                      promptState.isLoading
+                          ? null
+                          : () => controller.approveReview(review),
                   constraints: const BoxConstraints(
                     minWidth: 36,
                     minHeight: 36,
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 8),
-              
+
               // Quick reject button
               Container(
                 decoration: BoxDecoration(
@@ -306,9 +313,8 @@ class ReviewBubble extends ConsumerWidget {
                 child: IconButton(
                   icon: const Icon(Icons.close, color: Colors.red, size: 20),
                   tooltip: 'Quick Reject',
-                  onPressed: promptState.isLoading 
-                      ? null 
-                      : controller.rejectReview,
+                  onPressed:
+                      promptState.isLoading ? null : controller.rejectReview,
                   constraints: const BoxConstraints(
                     minWidth: 36,
                     minHeight: 36,
@@ -371,6 +377,7 @@ class ReviewActionButtons extends ConsumerWidget {
                     );
 
                     if (confirm != true) return;
+                    if (!context.mounted) return;
 
                     // Set the external edit request and switch to code tab
                     final container = ProviderScope.containerOf(
@@ -382,9 +389,12 @@ class ReviewActionButtons extends ConsumerWidget {
                         .state = ExternalEditRequest(
                       fileName: review.fileName,
                       code: review.newContent,
+                      originalContent: review.oldContent,
+                      repo: review.repo,
+                      branch: review.branch,
+                      baseSha: review.baseSha,
                     );
-                    container.read(tabIndexProvider.notifier).state =
-                        2; // Switch to code tab
+                    container.read(tabIndexProvider.notifier).state = 1;
                   },
         ),
         const SizedBox(width: 8),
@@ -394,7 +404,7 @@ class ReviewActionButtons extends ConsumerWidget {
           onPressed:
               promptState.isLoading
                   ? null
-                  : () => controller.approveReview(review, summary),
+                  : () => controller.approveReview(review),
         ),
         const SizedBox(width: 8),
         IconButton(
@@ -406,6 +416,7 @@ class ReviewActionButtons extends ConsumerWidget {
     );
   }
 }
+
 // Thinking widget (animated ellipsis)
 class ThinkingWidget extends StatefulWidget {
   const ThinkingWidget({super.key});
@@ -518,12 +529,15 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
       });
     } else if (selected.length < 3) {
       await controller.selectFile(file);
+      final latestState = ref.read(
+        fileBrowserControllerProvider(widget.params),
+      );
       setState(() {
-        final idx = controller.state.selectedFiles.indexWhere(
+        final idx = latestState.selectedFiles.indexWhere(
           (f) => f.path == file.path,
         );
         if (idx != -1) {
-          selected.add(controller.state.selectedFiles[idx]);
+          selected.add(latestState.selectedFiles[idx]);
         } else {
           selected.add(file);
         }
@@ -610,7 +624,7 @@ class _LazyFilePickerModalState extends ConsumerState<LazyFilePickerModal> {
         constraints: BoxConstraints(maxHeight: maxHeight),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).dialogBackgroundColor,
+          color: Theme.of(context).dialogTheme.backgroundColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
@@ -771,7 +785,7 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
             border: Border.all(color: borderColor, width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.18),
+                color: Colors.black.withValues(alpha: 0.18),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -789,7 +803,7 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
                   color: Colors.white,
                 ),
                 expands: true,
-                lineNumberStyle: LineNumberStyle(
+                gutterStyle: GutterStyle(
                   width: 32,
                   textAlign: TextAlign.right,
                   textStyle: TextStyle(
@@ -799,6 +813,8 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
                   ),
                   background: gutterColor,
                   margin: 6.0,
+                  showErrors: false,
+                  showFoldingHandles: false,
                 ),
                 background: Colors.transparent,
               ),

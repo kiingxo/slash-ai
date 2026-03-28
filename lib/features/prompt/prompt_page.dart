@@ -22,11 +22,8 @@ class PromptPage extends ConsumerStatefulWidget {
 
 class _PromptPageState extends ConsumerState<PromptPage> {
   late TextEditingController _promptTextController;
-  final TextEditingController _searchController = TextEditingController();
-
   // Chat scroll behavior
   final ScrollController _chatController = ScrollController();
-  bool _userScrolling = false;
 
   void _autoScrollToBottom() {
     if (!_chatController.hasClients) return;
@@ -57,7 +54,6 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   @override
   void dispose() {
     _promptTextController.dispose();
-    _searchController.dispose();
     _chatController.dispose();
     super.dispose();
   }
@@ -141,19 +137,20 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: OptionSelection(
-                  options: ["Gemini", "OpenRouter"],
+                  options: const ["OpenAI", "OpenRouter"],
                   margin: 0,
                   padding: 8,
                   unselectedColor: Colors.transparent,
-                  // Force default OpenRouter on first mount if nothing persisted yet:
-                  selectedValue: (promptState.selectedModel.isEmpty
-                      ? 'openrouter'
-                      : promptState.selectedModel),
+                  selectedValue:
+                      promptState.selectedModel.isEmpty
+                          ? 'openai'
+                          : promptState.selectedModel,
                   onChanged: (val) {
-                    // Persist into auth so next reload uses the saved choice
-                    promptController.setSelectedModel(val);
-                    // Mirror to auth storage to survive reloads
-                    ref.read(authControllerProvider.notifier).saveModel(val.toLowerCase());
+                    final normalized = val.toLowerCase();
+                    promptController.setSelectedModel(normalized);
+                    ref
+                        .read(authControllerProvider.notifier)
+                        .saveModel(normalized);
                   },
                 ),
               ),
@@ -173,6 +170,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
                       Expanded(
                         child: SlashDropDown(
                           hintText: 'Select Repository',
+                          value: selectedRepo,
                           items:
                               repos.map<DropdownMenuItem<dynamic>>((repo) {
                                 return DropdownMenuItem<dynamic>(

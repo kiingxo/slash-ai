@@ -1,13 +1,18 @@
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
+
+import '../../services/github_service.dart';
 import '../../services/secure_storage_service.dart';
 
 class RepoParams {
   final String owner;
   final String repo;
   final String? branch;
-  const RepoParams({required this.owner, required this.repo, this.branch});
+
+  const RepoParams({
+    required this.owner,
+    required this.repo,
+    this.branch,
+  });
 
   @override
   bool operator ==(Object other) =>
@@ -15,10 +20,11 @@ class RepoParams {
       other is RepoParams &&
           runtimeType == other.runtimeType &&
           owner == other.owner &&
-          repo == other.repo;
+          repo == other.repo &&
+          branch == other.branch;
 
   @override
-  int get hashCode => owner.hashCode ^ repo.hashCode;
+  int get hashCode => Object.hash(owner, repo, branch);
 }
 
 class FileItem {
@@ -26,15 +32,43 @@ class FileItem {
   final String path;
   final String type; // 'file' or 'dir'
   final String? content;
-  FileItem({required this.name, required this.path, required this.type, this.content});
+  final String? sha;
+
+  const FileItem({
+    required this.name,
+    required this.path,
+    required this.type,
+    this.content,
+    this.sha,
+  });
+
+  FileItem copyWith({
+    String? name,
+    String? path,
+    String? type,
+    Object? content = _unsetFileItem,
+    Object? sha = _unsetFileItem,
+  }) {
+    return FileItem(
+      name: name ?? this.name,
+      path: path ?? this.path,
+      type: type ?? this.type,
+      content:
+          identical(content, _unsetFileItem) ? this.content : content as String?,
+      sha: identical(sha, _unsetFileItem) ? this.sha : sha as String?,
+    );
+  }
 
   factory FileItem.fromJson(Map<String, dynamic> json) => FileItem(
-    name: json['name'],
-    path: json['path'],
-    type: json['type'],
-    content: json['content'],
+    name: (json['name'] ?? '').toString(),
+    path: (json['path'] ?? '').toString(),
+    type: (json['type'] ?? '').toString(),
+    content: json['content'] as String?,
+    sha: json['sha'] as String?,
   );
 }
+
+const Object _unsetFileItem = Object();
 
 class FileBrowserState {
   final bool isLoading;
@@ -42,7 +76,8 @@ class FileBrowserState {
   final List<FileItem> items;
   final List<String> pathStack;
   final List<FileItem> selectedFiles;
-  FileBrowserState({
+
+  const FileBrowserState({
     this.isLoading = false,
     this.error,
     this.items = const [],
@@ -52,17 +87,19 @@ class FileBrowserState {
 
   FileBrowserState copyWith({
     bool? isLoading,
-    String? error,
+    Object? error = _unsetFileItem,
     List<FileItem>? items,
     List<String>? pathStack,
     List<FileItem>? selectedFiles,
-  }) => FileBrowserState(
-    isLoading: isLoading ?? this.isLoading,
-    error: error,
-    items: items ?? this.items,
-    pathStack: pathStack ?? this.pathStack,
-    selectedFiles: selectedFiles ?? this.selectedFiles,
-  );
+  }) {
+    return FileBrowserState(
+      isLoading: isLoading ?? this.isLoading,
+      error: identical(error, _unsetFileItem) ? this.error : error as String?,
+      items: items ?? this.items,
+      pathStack: pathStack ?? this.pathStack,
+      selectedFiles: selectedFiles ?? this.selectedFiles,
+    );
+  }
 }
 
 class FileBrowserController extends StateNotifier<FileBrowserState> {
@@ -70,42 +107,54 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
   final String owner;
   final String repo;
   final String? branch;
-  FileBrowserController(this._storage, {required this.owner, required this.repo, this.branch}) : super(FileBrowserState()) {
+
+  FileBrowserController(
+    this._storage, {
+    required this.owner,
+    required this.repo,
+    this.branch,
+  }) : super(const FileBrowserState()) {
     fetchDir();
   }
 
-  String get currentPath => state.pathStack.isEmpty ? '' : state.pathStack.join('/');
+  String get currentPath =>
+      state.pathStack.isEmpty ? '' : state.pathStack.join('/');
+
+  Future<GitHubService> _gitHub() async {
+    final token = await _storage.getGitHubAccessToken();
+    if (token == null || token.isEmpty) {
+      throw const GitHubApiException('GitHub authentication is required.');
+    }
+    return GitHubService(token);
+  }
 
   Future<void> fetchDir([String? path]) async {
-    print('FileBrowser: fetchDir called for owner=$owner, repo=$repo, branch=$branch, path=${path ?? currentPath}');
+    final normalizedPath = (path ?? currentPath).replaceAll(RegExp(r'^/+'), '');
     state = state.copyWith(isLoading: true, error: null);
+
     try {
-      final pat = await _storage.getApiKey('github_pat');
-      if (pat == null || pat.isEmpty) throw Exception('GitHub PAT not found');
-      final dio = Dio(BaseOptions(
-        baseUrl: 'https://api.github.com/',
-        headers: {'Authorization': 'token $pat'},
-      ));
-      final endpoint = '/repos/$owner/$repo/contents/${path ?? currentPath}${branch != null ? '?ref=$branch' : ''}';
-      print('FileBrowser: GET $endpoint');
-      final res = await dio.get(endpoint);
-      final data = res.data;
-      print('FileBrowser: Response type: ${data.runtimeType}, value: ${data is List ? "List with ${data.length} items" : data.toString()}');
-      if (data is List) {
-        final items = data.map((e) => FileItem.fromJson(e)).toList();
-        print('FileBrowser: Parsed items: ${items.map((e) => e.name).toList()}');
-        state = state.copyWith(isLoading: false, items: items);
-      } else if (data is Map && data['type'] == 'file') {
-      
-        state = state.copyWith(isLoading: false, error: 'This is a file, not a directory.');
-      } else {
-        print('FileBrowser: Unexpected response: $data');
-        state = state.copyWith(isLoading: false, error: 'Unexpected response from GitHub API.');
-      }
-    } catch (e, st) {
-      print('File browser error: $e');
-      print('Stack trace: $st');
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final github = await _gitHub();
+      final entries = await github.fetchDirectory(
+        owner: owner,
+        repo: repo,
+        path: normalizedPath,
+        branch: branch,
+      );
+
+      final items = entries
+          .map((entry) => FileItem.fromJson(entry))
+          .where((item) => item.name.isNotEmpty && item.path.isNotEmpty)
+          .toList();
+
+      state = state.copyWith(
+        isLoading: false,
+        items: items,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
     }
   }
 
@@ -116,90 +165,123 @@ class FileBrowserController extends StateNotifier<FileBrowserState> {
   }
 
   void goUp() {
-    if (state.pathStack.isNotEmpty) {
-      final newStack = List<String>.from(state.pathStack)..removeLast();
-      state = state.copyWith(pathStack: newStack);
-      fetchDir();
+    if (state.pathStack.isEmpty) {
+      return;
     }
+
+    final newStack = List<String>.from(state.pathStack)..removeLast();
+    state = state.copyWith(pathStack: newStack);
+    fetchDir();
   }
 
   Future<void> selectFile(FileItem file) async {
-    // Fetch file content if not already loaded
-    if (file.content == null) {
-      try {
-        final pat = await _storage.getApiKey('github_pat');
-        final dio = Dio(BaseOptions(
-          baseUrl: 'https://api.github.com/',
-          headers: {'Authorization': 'token $pat'},
-        ));
-        final branchQuery = branch != null ? '?ref=$branch' : '';
-        final res = await dio.get('/repos/$owner/$repo/contents/${file.path}$branchQuery');
-        final content = res.data['content'];
-        final decoded = String.fromCharCodes(
-          base64Decode(content.replaceAll('\n', '')),
-        );
-        final updatedFile = FileItem(
-          name: file.name,
-          path: file.path,
-          type: file.type,
-          content: decoded,
-        );
-        final newSelected = List<FileItem>.from(state.selectedFiles)..add(updatedFile);
-        // Also update the items list so the file browser and code editor see the new content
-        final newItems = state.items.map((f) => f.path == file.path ? updatedFile : f).toList();
-        state = state.copyWith(selectedFiles: newSelected, items: newItems);
-      } catch (e, st) {
-        print('File select error: $e\n$st');
-        state = state.copyWith(error: e.toString());
+    try {
+      final resolvedFile =
+          file.content != null && file.sha != null
+              ? file
+              : await fetchFile(file.path);
+
+      final newSelected = List<FileItem>.from(state.selectedFiles);
+      final selectedIndex = newSelected.indexWhere(
+        (selected) => selected.path == resolvedFile.path,
+      );
+      if (selectedIndex == -1) {
+        newSelected.add(resolvedFile);
+      } else {
+        newSelected[selectedIndex] = resolvedFile;
       }
-    } else {
-      final newSelected = List<FileItem>.from(state.selectedFiles)..add(file);
-      state = state.copyWith(selectedFiles: newSelected);
+
+      final newItems =
+          state.items
+              .map(
+                (candidate) =>
+                    candidate.path == resolvedFile.path ? resolvedFile : candidate,
+              )
+              .toList();
+
+      state = state.copyWith(
+        selectedFiles: newSelected,
+        items: newItems,
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
     }
+  }
+
+  Future<FileItem> fetchFile(String path) async {
+    final github = await _gitHub();
+    final file = await github.fetchFileContent(
+      owner: owner,
+      repo: repo,
+      path: path,
+      branch: branch,
+    );
+
+    return FileItem(
+      name: file.name,
+      path: file.path,
+      type: 'file',
+      content: file.content,
+      sha: file.sha,
+    );
   }
 
   void deselectFile(FileItem file) {
-    final newSelected = List<FileItem>.from(state.selectedFiles)..removeWhere((f) => f.path == file.path);
+    final newSelected = List<FileItem>.from(state.selectedFiles)
+      ..removeWhere((candidate) => candidate.path == file.path);
     state = state.copyWith(selectedFiles: newSelected);
   }
 
-  // Recursively list all files in the repo, with depth and file count limits
-  Future<List<FileItem>> listAllFiles({int maxDepth = 5, int maxFiles = 200}) async {
-    final List<FileItem> allFiles = [];
-    Future<void> recurse(String path, int depth) async {
-      if (depth > maxDepth || allFiles.length > maxFiles) return;
-      final pat = await _storage.getApiKey('github_pat');
-      if (pat == null || pat.isEmpty) throw Exception('GitHub PAT not found');
-      final dio = Dio(BaseOptions(
-        baseUrl: 'https://api.github.com/',
-        headers: {'Authorization': 'token $pat'},
-      ));
-      final endpoint = '/repos/$owner/$repo/contents/${path.isEmpty ? '' : path}';
-      final res = await dio.get(endpoint);
-      final data = res.data;
-      if (data is List) {
-        for (final e in data) {
-          final item = FileItem.fromJson(e);
-          if (item.type == 'file') {
-            allFiles.add(item);
-            if (allFiles.length >= maxFiles) return;
-          } else if (item.type == 'dir') {
-            await recurse(item.path, depth + 1);
-            if (allFiles.length >= maxFiles) return;
-          }
-        }
+  Future<List<FileItem>> listAllFiles({
+    int maxDepth = 5,
+    int maxFiles = 200,
+  }) async {
+    final github = await _gitHub();
+    final resolvedBranch = branch ?? 'main';
+    final tree = await github.fetchRepositoryTree(
+      owner: owner,
+      repo: repo,
+      branch: resolvedBranch,
+    );
+
+    final files = <FileItem>[];
+    for (final entry in tree) {
+      if (entry.type != 'blob') {
+        continue;
+      }
+
+      final depth = '/'.allMatches(entry.path).length;
+      if (depth > maxDepth) {
+        continue;
+      }
+
+      files.add(
+        FileItem(
+          name: entry.path.split('/').last,
+          path: entry.path,
+          type: 'file',
+        ),
+      );
+
+      if (files.length >= maxFiles) {
+        break;
       }
     }
-    await recurse('', 0);
-    return allFiles;
+
+    return files;
   }
 }
 
-final fileBrowserControllerProvider = StateNotifierProvider.family<FileBrowserController, FileBrowserState, RepoParams>((ref, params) {
+final fileBrowserControllerProvider = StateNotifierProvider.family<
+  FileBrowserController,
+  FileBrowserState,
+  RepoParams
+>((ref, params) {
   return FileBrowserController(
     SecureStorageService(),
     owner: params.owner,
     repo: params.repo,
     branch: params.branch,
   );
-}); 
+});
