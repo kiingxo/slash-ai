@@ -25,37 +25,36 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ThemeBuilder(
-      builder:
-          (context, colors, ref) => SlashBackground(
-            overlayOpacity: 0.45,
-            showGrid: false,
-            showSlashes: false,
-            animate: false,
-            child: Stack(
-              children: [
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset('assets/slash2.png', width: 120, height: 120),
-                      const SizedBox(height: 24),
-                      if (showLoader) const SlashLoading(),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  bottom: 32,
-                  left: 0,
-                  right: 0,
-                  child: Text(
-                    '/slash',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11, letterSpacing: 1.4),
-                  ),
-                ),
-              ],
+      builder: (context, colors, ref) => SlashBackground(
+        overlayOpacity: 0.45,
+        showGrid: false,
+        showSlashes: false,
+        animate: false,
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset('assets/slash2.png', width: 120, height: 120),
+                  const SizedBox(height: 24),
+                  if (showLoader) const SlashLoading(),
+                ],
+              ),
             ),
-          ),
+            Positioned(
+              bottom: 32,
+              left: 0,
+              right: 0,
+              child: Text(
+                '/slash',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, letterSpacing: 1.4),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -67,17 +66,10 @@ class SlashApp extends StatelessWidget {
     final storage = SecureStorageService();
     final model = await storage.getApiKey(StoredKeys.model) ?? 'openai';
     final github = await storage.getGitHubAccessToken();
-
-    String? aiKey;
-    if (model == 'openrouter') {
-      aiKey = await storage.getApiKey(StoredKeys.openRouterApiKey);
-    } else {
-      aiKey = await storage.getApiKey(StoredKeys.openAIApiKey);
-    }
-
-    final hasAIKey = aiKey != null && aiKey.isNotEmpty;
-    final hasGitHub = github != null && github.isNotEmpty;
-    return hasAIKey && hasGitHub;
+    final aiKey = model == 'openrouter'
+        ? await storage.getApiKey(StoredKeys.openRouterApiKey)
+        : await storage.getApiKey(StoredKeys.openAIApiKey);
+    return (aiKey != null && aiKey.isNotEmpty) && (github != null && github.isNotEmpty);
   }
 
   @override
@@ -89,9 +81,7 @@ class SlashApp extends StatelessWidget {
         darkTheme: AppTheme.buildAppTheme(Brightness.dark),
         themeMode: AppTheme.dark().mode,
         debugShowCheckedModeBanner: false,
-        builder: (_, child) {
-          return _UnFocus(child: child!);
-        },
+        builder: (_, child) => _UnFocus(child: child!),
         home: SplashGate(_hasTokens),
       ),
     );
