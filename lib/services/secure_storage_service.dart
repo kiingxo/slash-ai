@@ -12,6 +12,14 @@ class StoredKeys {
   static const String githubUserName = 'github_user_name';
   static const String githubUserAvatarUrl = 'github_user_avatar_url';
   static const String githubUserHtmlUrl = 'github_user_html_url';
+  static const String vpsHost = 'vps_host';
+  static const String vpsPort = 'vps_port';
+  static const String vpsUsername = 'vps_username';
+  static const String vpsAuthMode = 'vps_auth_mode';
+  static const String vpsPassword = 'vps_password';
+  static const String vpsPrivateKey = 'vps_private_key';
+  static const String vpsPassphrase = 'vps_passphrase';
+  static const String vpsAutoRefresh = 'vps_auto_refresh';
 
   // Migration fallback for older builds.
   static const String legacyGitHubPat = 'github_pat';

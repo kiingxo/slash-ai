@@ -1,3 +1,4 @@
+import 'package:slash_flutter/features/ops/ops_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:slash_flutter/features/project/project_page.dart';
@@ -29,6 +30,7 @@ class HomeShell extends ConsumerWidget {
           PromptPage(),
           CodeScreen(),
           ProjectPage(),
+          OpsPage(),
           PRsPage(),
           SettingsScreen(),
         ],
@@ -76,17 +78,24 @@ class HomeShell extends ConsumerWidget {
                     theme: theme,
                   ),
                   _NavBarItem(
-                    icon: Icons.merge_type,
-                    label: 'PRs',
+                    icon: Icons.terminal_rounded,
+                    label: 'Ops',
                     selected: selectedIndex == 3,
                     onTap: () => ref.read(tabIndexProvider.notifier).state = 3,
                     theme: theme,
                   ),
                   _NavBarItem(
-                    icon: Icons.settings,
-                    label: 'Settings',
+                    icon: Icons.merge_type,
+                    label: 'PRs',
                     selected: selectedIndex == 4,
                     onTap: () => ref.read(tabIndexProvider.notifier).state = 4,
+                    theme: theme,
+                  ),
+                  _NavBarItem(
+                    icon: Icons.settings,
+                    label: 'Settings',
+                    selected: selectedIndex == 5,
+                    onTap: () => ref.read(tabIndexProvider.notifier).state = 5,
                     theme: theme,
                   ),
                 ],
