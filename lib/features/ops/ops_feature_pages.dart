@@ -130,22 +130,12 @@ class _OpsConnectionPageState extends ConsumerState<OpsConnectionPage> {
     final state = ref.watch(opsControllerProvider);
     _seedFromState(state);
 
-    final theme = Theme.of(context);
     final snapshot = state.snapshot;
     final controller = ref.read(opsControllerProvider.notifier);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SlashText('Connection', fontWeight: FontWeight.w700),
-            SlashText(
-              'Save SSH access and manage the live session',
-              fontSize: 12,
-            ),
-          ],
-        ),
+        title: const SlashText('Connection', fontWeight: FontWeight.w700),
         actions: [
           IconButton(
             tooltip:
@@ -173,12 +163,12 @@ class _OpsConnectionPageState extends ConsumerState<OpsConnectionPage> {
                 children: [
                   _FeatureHeroCard(
                     icon: Icons.dns_rounded,
-                    eyebrow: 'SSH Profile',
+                    eyebrow: 'Connection',
                     title:
                         snapshot?.endpointLabel ?? state.profile.endpointLabel,
                     description:
                         snapshot == null
-                            ? 'Save your VPS access once, then reconnect from the Ops hub whenever you need it.'
+                            ? 'Saved SSH profile'
                             : '${snapshot.osSummary} • ${snapshot.uptime}',
                     accent:
                         state.isConnected
@@ -230,8 +220,7 @@ class _OpsConnectionPageState extends ConsumerState<OpsConnectionPage> {
                         const _SectionHeading(
                           icon: Icons.admin_panel_settings_outlined,
                           title: 'Connection Details',
-                          subtitle:
-                              'This is the only place you need to manage host, auth, and auto-refresh preferences.',
+                          subtitle: 'Host and auth',
                         ),
                         const SizedBox(height: 18),
                         LayoutBuilder(
@@ -341,57 +330,10 @@ class _OpsConnectionPageState extends ConsumerState<OpsConnectionPage> {
                               ),
                             ],
                           ),
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.42),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: theme.colorScheme.outline.withValues(
-                                alpha: 0.16,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.shield_outlined,
-                                color: theme.colorScheme.primary,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SlashText(
-                                      'Stored in secure storage',
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Secrets stay on this device. Auto-refresh polls every 20 seconds while the tunnel is connected.',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: theme.colorScheme.onSurface
-                                                .withValues(alpha: 0.72),
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                         const SizedBox(height: 10),
                         SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Auto refresh dashboard'),
-                          subtitle: const Text(
-                            'Builds CPU, memory, disk, and container trend graphs while connected.',
-                          ),
                           value: state.autoRefresh,
                           onChanged: controller.setAutoRefresh,
                         ),
@@ -471,13 +413,7 @@ class OpsOverviewPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SlashText('Overview', fontWeight: FontWeight.w700),
-            SlashText('CPU, memory, disk, and process telemetry', fontSize: 12),
-          ],
-        ),
+        title: const SlashText('Overview', fontWeight: FontWeight.w700),
         actions: [
           IconButton(
             tooltip:
@@ -517,13 +453,13 @@ class OpsOverviewPage extends ConsumerWidget {
                       children: [
                         _FeatureHeroCard(
                           icon: Icons.monitor_heart_outlined,
-                          eyebrow: 'Server Pulse',
+                          eyebrow: 'Overview',
                           title:
                               snapshot?.hostname ??
                               state.profile.host.ifBlank('Connect a VPS'),
                           description:
                               snapshot == null
-                                  ? 'This screen focuses only on health, trend, and process telemetry.'
+                                  ? 'CPU, memory, disk'
                                   : '${snapshot.osSummary} • ${snapshot.uptime}',
                           accent:
                               snapshot == null
@@ -571,10 +507,9 @@ class OpsOverviewPage extends ConsumerWidget {
                         if (snapshot == null)
                           _MissingDataPanel(
                             icon: Icons.monitor_heart_outlined,
-                            title: 'No live overview yet',
-                            description:
-                                'Connect from the Connection screen or use the saved profile refresh button to start collecting health telemetry.',
-                            actionLabel: 'Open connection',
+                            title: 'No data yet',
+                            description: 'Connect',
+                            actionLabel: 'Connection',
                             onAction:
                                 () => Navigator.of(context).push(
                                   MaterialPageRoute<void>(
@@ -685,13 +620,7 @@ class OpsRuntimePage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SlashText('Runtime', fontWeight: FontWeight.w700),
-            SlashText('Docker containers and running services', fontSize: 12),
-          ],
-        ),
+        title: const SlashText('Runtime', fontWeight: FontWeight.w700),
         actions: [
           IconButton(
             tooltip:
@@ -731,14 +660,14 @@ class OpsRuntimePage extends ConsumerWidget {
                       children: [
                         _FeatureHeroCard(
                           icon: Icons.inventory_2_rounded,
-                          eyebrow: 'Runtime Inventory',
+                          eyebrow: 'Runtime',
                           title:
                               snapshot?.endpointLabel ??
                               state.profile.endpointLabel,
                           description:
                               snapshot == null
-                                  ? 'Split out of the dashboard so you can focus only on containers and services.'
-                                  : 'Docker and systemd inventory from the latest poll.',
+                                  ? 'Containers and services'
+                                  : 'Docker and systemd inventory',
                           accent: const Color(0xFF60A5FA),
                           chips: [
                             _HeroChip(
@@ -784,10 +713,9 @@ class OpsRuntimePage extends ConsumerWidget {
                         if (snapshot == null)
                           _MissingDataPanel(
                             icon: Icons.inventory_2_outlined,
-                            title: 'No runtime data yet',
-                            description:
-                                'Connect from the saved profile first, then this screen will show Docker containers and running services in isolation.',
-                            actionLabel: 'Open connection',
+                            title: 'No data yet',
+                            description: 'Connect',
+                            actionLabel: 'Connection',
                             onAction:
                                 () => Navigator.of(context).push(
                                   MaterialPageRoute<void>(
@@ -848,16 +776,7 @@ class _OpsTerminalPageState extends ConsumerState<OpsTerminalPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SlashText('Terminal', fontWeight: FontWeight.w700),
-            SlashText(
-              '',
-              fontSize: 12,
-            ),
-          ],
-        ),
+        title: const SlashText('Terminal', fontWeight: FontWeight.w700),
       ),
       body:
           state.isHydrating
@@ -867,14 +786,12 @@ class _OpsTerminalPageState extends ConsumerState<OpsTerminalPage> {
                 children: [
                   _FeatureHeroCard(
                     icon: Icons.terminal_rounded,
-                    eyebrow: 'Command Console',
+                    eyebrow: 'Terminal',
                     title:
                         state.snapshot?.endpointLabel ??
                         state.profile.endpointLabel,
                     description:
-                        state.isConnected
-                            ? 'The SSH session is hot. Fire targeted commands without the rest of the dashboard crowding you.'
-                            : 'This screen is dedicated to ad-hoc inspection. It will connect using the saved profile when needed.',
+                        state.isConnected ? 'Session live' : 'Saved profile',
                     accent: const Color(0xFF22C55E),
                     chips: [
                       _HeroChip(
@@ -906,8 +823,8 @@ class _OpsTerminalPageState extends ConsumerState<OpsTerminalPage> {
                     commandController: _commandController,
                     onRun: _run,
                     onPresetSelected: (command) {
-                  _commandController.text= command;
-                    controller.runCommand(command);
+                      _commandController.text = command;
+                      controller.runCommand(command);
                     },
                   ),
                 ],
@@ -945,7 +862,7 @@ class _FeatureHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -964,7 +881,7 @@ class _FeatureHeroCard extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -972,11 +889,11 @@ class _FeatureHeroCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: accent.withValues(alpha: 0.32)),
                   ),
                   child: Icon(icon, color: accent),
@@ -998,29 +915,30 @@ class _FeatureHeroCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       SlashText(
                         title,
-                        fontSize: 24,
+                        fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        description,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.74),
-                          height: 1.45,
+                      if (description.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.70),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
               ],
             ),
             if (chips.isNotEmpty) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Wrap(spacing: 12, runSpacing: 12, children: chips),
             ],
             if (primaryActionLabel != null || secondaryActionLabel != null) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -1114,30 +1032,11 @@ class _MissingDataPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _SectionHeading(icon: icon, title: title, subtitle: description),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary.withValues(alpha: 0.10),
-                  const Color(0xFFF97316).withValues(alpha: 0.08),
-                ],
-              ),
-            ),
-            child: Text(
-              'Connect once, then this screen stays focused on just this feature instead of pulling every ops surface into one giant view.',
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: onAction,
@@ -1164,8 +1063,7 @@ class _MetricsGrid extends StatelessWidget {
           const _SectionHeading(
             icon: Icons.speed_rounded,
             title: 'Operational Snapshot',
-            subtitle:
-                'Current server pressure, storage burn, and service posture from the latest poll.',
+            subtitle: 'Latest poll',
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -1232,21 +1130,15 @@ class _DockerPanel extends StatelessWidget {
             icon: Icons.inventory_2_rounded,
             title: 'Running Containers',
             subtitle:
-                snapshot.dockerAvailable
-                    ? 'Live output from docker ps.'
-                    : 'Docker was not detected on this host.',
+                snapshot.dockerAvailable ? 'docker ps' : 'Docker not found',
           ),
           const SizedBox(height: 16),
           if (!snapshot.dockerAvailable)
             const _EmptyStateCopy(
-              message:
-                  'Install Docker or connect to a containerized host to populate this panel.',
+              message: 'Docker is not available on this host.',
             )
           else if (snapshot.containers.isEmpty)
-            const _EmptyStateCopy(
-              message:
-                  'Docker is available, but there are no running containers right now.',
-            )
+            const _EmptyStateCopy(message: 'No running containers.')
           else
             Column(
               children: snapshot.containers
@@ -1287,19 +1179,16 @@ class _ServicePanel extends StatelessWidget {
             title: 'Running Services',
             subtitle:
                 snapshot.systemdAvailable
-                    ? 'systemctl units currently reporting active + running.'
-                    : 'systemd was not detected on this host.',
+                    ? 'systemctl active units'
+                    : 'systemd not found',
           ),
           const SizedBox(height: 16),
           if (!snapshot.systemdAvailable)
             const _EmptyStateCopy(
-              message:
-                  'Use a systemd-managed distro to see live service status here.',
+              message: 'systemd is not available on this host.',
             )
           else if (visibleServices.isEmpty)
-            const _EmptyStateCopy(
-              message: 'No running services were returned from systemctl.',
-            )
+            const _EmptyStateCopy(message: 'No running services.')
           else
             Column(
               children: visibleServices
@@ -1338,13 +1227,11 @@ class _ProcessPanel extends StatelessWidget {
           const _SectionHeading(
             icon: Icons.memory_rounded,
             title: 'Top Processes',
-            subtitle: 'Sorted by CPU usage from the latest process sample.',
+            subtitle: 'Latest CPU sample',
           ),
           const SizedBox(height: 16),
           if (snapshot.topProcesses.isEmpty)
-            const _EmptyStateCopy(
-              message: 'No process telemetry was returned by ps.',
-            )
+            const _EmptyStateCopy(message: 'No process data.')
           else
             Column(
               children: [
@@ -1484,8 +1371,7 @@ class _TerminalPanel extends StatelessWidget {
                 fontSize: 13,
               ),
               decoration: InputDecoration(
-                hintText:
-                    'Type any safe SSH command, like docker logs app -n 100',
+                hintText: 'Run SSH command',
                 hintStyle: TextStyle(
                   color: Colors.white.withValues(alpha: 0.36),
                   fontFamily: 'monospace',
@@ -1533,9 +1419,7 @@ class _TerminalPanel extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    state.isConnected
-                        ? 'Session is live'
-                        : 'A command run will connect first if the profile is valid',
+                    state.isConnected ? 'Live session' : 'Connects on run',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: Colors.white.withValues(alpha: 0.64),
                     ),
@@ -1553,7 +1437,7 @@ class _TerminalPanel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'Command output will appear here once you run something.',
+                  'Output appears here.',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.72),
                     fontFamily: 'monospace',

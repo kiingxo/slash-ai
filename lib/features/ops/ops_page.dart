@@ -27,31 +27,25 @@ class OpsPage extends ConsumerWidget {
     final state = ref.watch(opsControllerProvider);
     final snapshot = state.snapshot;
     final controller = ref.read(opsControllerProvider.notifier);
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SlashText('Ops', fontWeight: FontWeight.w700),
-            SlashText(
-              'Choose the exact surface you want instead of one giant wall',
-              fontSize: 12,
-            ),
-          ],
-        ),
+        title: const SlashText('Ops', fontWeight: FontWeight.w700),
         actions: [
           IconButton(
             tooltip:
                 state.isConnected
-                    ? 'Refresh saved profile data'
-                    : 'Connect from saved profile',
+                    ? 'Refresh'
+                    : state.profile.canConnect
+                    ? 'Connect'
+                    : 'Open connection',
             onPressed:
                 state.isHydrating || state.isConnecting || state.isRefreshing
                     ? null
-                    : () => _refresh(ref, state),
+                    : state.profile.canConnect
+                    ? () => _refresh(ref, state)
+                    : () => _openFeature(context, const OpsConnectionPage()),
             icon:
                 state.isRefreshing || state.isConnecting
                     ? const SizedBox(
@@ -67,203 +61,103 @@ class OpsPage extends ConsumerWidget {
           state.isHydrating
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-                onRefresh: () => _refresh(ref, state),
+                onRefresh:
+                    state.profile.canConnect
+                        ? () => _refresh(ref, state)
+                        : () async {},
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   children: [
-                    _OpsHubHero(
-                      state: state,
-                      snapshot: snapshot,
-                      onPrimaryAction:
-                          state.profile.canConnect
-                              ? () => _refresh(ref, state)
-                              : () => _openFeature(
-                                context,
-                                const OpsConnectionPage(),
-                              ),
-                      onSecondaryAction:
-                          state.isConnected ? controller.disconnect : null,
-                    ),
-                    const SizedBox(height: 16),
                     if (state.error != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
-                        child: _HubErrorBanner(
+                        child: _ErrorBanner(
                           message: state.error!,
                           onDismiss: controller.clearError,
                         ),
                       ),
-                    _HubSection(
-                      title: 'Feature Routes',
-                      subtitle:
-                          'Each card opens a dedicated screen, so you can stay inside one ops task at a time.',
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final wide = constraints.maxWidth >= 900;
-                          final cardWidth =
-                              wide
-                                  ? (constraints.maxWidth - 14) / 2
-                                  : constraints.maxWidth;
-
-                          return Wrap(
-                            spacing: 14,
-                            runSpacing: 14,
-                            children: [
-                              SizedBox(
-                                width: cardWidth,
-                                child: _HubFeatureCard(
-                                  icon: Icons.dns_rounded,
-                                  title: 'Connection',
-                                  subtitle:
-                                      'Host, auth mode, saved profile, and reconnect controls live here now.',
-                                  accent: const Color(0xFFF97316),
-                                  meta: state.profile.host.ifBlank(
-                                    'No host saved yet',
-                                  ),
-                                  statLabel: 'Session',
-                                  statValue:
-                                      state.isConnected ? 'Live' : 'Offline',
-                                  onTap:
-                                      () => _openFeature(
-                                        context,
-                                        const OpsConnectionPage(),
-                                      ),
-                                ),
+                    _MenuPanel(
+                      children: [
+                        _MenuTile(
+                          icon: Icons.dns_rounded,
+                          title: 'Connection',
+                          subtitle:
+                              snapshot?.hostname ??
+                              state.profile.host.ifBlank('No VPS saved'),
+                          trailing:
+                              state.isConnected
+                                  ? 'Live'
+                                  : state.profile.canConnect
+                                  ? 'Saved'
+                                  : 'Setup',
+                          onTap:
+                              () => _openFeature(
+                                context,
+                                const OpsConnectionPage(),
                               ),
-                              SizedBox(
-                                width: cardWidth,
-                                child: _HubFeatureCard(
-                                  icon: Icons.monitor_heart_outlined,
-                                  title: 'Overview',
-                                  subtitle:
-                                      'CPU, memory, disk trends and hot processes without the rest of the clutter.',
-                                  accent: const Color(0xFF22C55E),
-                                  meta:
-                                      snapshot == null
-                                          ? 'No live health snapshot'
-                                          : '${snapshot.cpuLoadPercent.toStringAsFixed(0)}% CPU • ${snapshot.memoryUsagePercent.toStringAsFixed(0)}% RAM',
-                                  statLabel: 'Processes',
-                                  statValue:
-                                      snapshot == null
-                                          ? '--'
-                                          : '${snapshot.topProcesses.length}',
-                                  onTap:
-                                      () => _openFeature(
-                                        context,
-                                        const OpsOverviewPage(),
-                                      ),
-                                ),
+                        ),
+                        _MenuTile(
+                          icon: Icons.monitor_heart_outlined,
+                          title: 'Overview',
+                          subtitle:
+                              snapshot == null
+                                  ? 'CPU, memory, disk'
+                                  : '${snapshot.cpuLoadPercent.toStringAsFixed(0)}% CPU • ${snapshot.memoryUsagePercent.toStringAsFixed(0)}% RAM',
+                          trailing: snapshot == null ? 'Stats' : 'Live',
+                          onTap:
+                              () => _openFeature(
+                                context,
+                                const OpsOverviewPage(),
                               ),
-                              SizedBox(
-                                width: cardWidth,
-                                child: _HubFeatureCard(
-                                  icon: Icons.inventory_2_rounded,
-                                  title: 'Runtime',
-                                  subtitle:
-                                      'A focused screen for Docker containers and running system services.',
-                                  accent: const Color(0xFF60A5FA),
-                                  meta:
-                                      snapshot == null
-                                          ? 'No runtime inventory yet'
-                                          : '${snapshot.runningContainers} containers • ${snapshot.runningServices} services',
-                                  statLabel: 'Docker',
-                                  statValue:
-                                      snapshot == null
-                                          ? '--'
-                                          : snapshot.dockerAvailable
-                                          ? 'Yes'
-                                          : 'No',
-                                  onTap:
-                                      () => _openFeature(
-                                        context,
-                                        const OpsRuntimePage(),
-                                      ),
-                                ),
+                        ),
+                        _MenuTile(
+                          icon: Icons.inventory_2_rounded,
+                          title: 'Runtime',
+                          subtitle:
+                              snapshot == null
+                                  ? 'Containers and services'
+                                  : '${snapshot.runningContainers} containers • ${snapshot.runningServices} services',
+                          trailing:
+                              snapshot == null
+                                  ? 'Runtime'
+                                  : snapshot.dockerAvailable
+                                  ? 'Docker'
+                                  : 'Services',
+                          onTap:
+                              () =>
+                                  _openFeature(context, const OpsRuntimePage()),
+                        ),
+                        _MenuTile(
+                          icon: Icons.terminal_rounded,
+                          title: 'Terminal',
+                          subtitle:
+                              state.terminalHistory.isEmpty
+                                  ? 'Run commands'
+                                  : state.terminalHistory.first.command,
+                          trailing: state.isConnected ? 'SSH' : 'Shell',
+                          onTap:
+                              () => _openFeature(
+                                context,
+                                const OpsTerminalPage(),
                               ),
-                              SizedBox(
-                                width: cardWidth,
-                                child: _HubFeatureCard(
-                                  icon: Icons.terminal_rounded,
-                                  title: 'Terminal',
-                                  subtitle:
-                                      'Preset commands, ad-hoc inspection, and recent output live on their own screen.',
-                                  accent: const Color(0xFFA78BFA),
-                                  meta:
-                                      state.terminalHistory.isEmpty
-                                          ? 'No commands run yet'
-                                          : state.terminalHistory.first.command,
-                                  statLabel: 'History',
-                                  statValue: '${state.terminalHistory.length}',
-                                  onTap:
-                                      () => _openFeature(
-                                        context,
-                                        const OpsTerminalPage(),
-                                      ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
-                    _HubSection(
-                      title: 'Quick Snapshot',
-                      subtitle:
-                          'A tiny status strip stays here so the hub still tells you what is alive at a glance.',
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _MiniMetric(
-                            title: 'Host',
-                            value:
-                                snapshot?.hostname ??
-                                state.profile.host.ifBlank('Not connected'),
-                            color: const Color(0xFF0F172A),
-                          ),
-                          _MiniMetric(
-                            title: 'CPU',
-                            value:
-                                snapshot == null
-                                    ? '--'
-                                    : '${snapshot.cpuLoadPercent.toStringAsFixed(0)}%',
-                            color: const Color(0xFFFB7185),
-                          ),
-                          _MiniMetric(
-                            title: 'Containers',
-                            value:
-                                snapshot == null
-                                    ? '--'
-                                    : '${snapshot.runningContainers}',
-                            color: const Color(0xFF60A5FA),
-                          ),
-                          _MiniMetric(
-                            title: 'Last sync',
-                            value:
-                                snapshot == null
-                                    ? 'Waiting'
-                                    : formatOpsClock(snapshot.collectedAt),
-                            color: const Color(0xFF22C55E),
-                          ),
-                        ],
-                      ),
+                    _StatusCard(
+                      state: state,
+                      snapshot: snapshot,
+                      onOpenConnection:
+                          () =>
+                              _openFeature(context, const OpsConnectionPage()),
+                      onRefresh:
+                          state.profile.canConnect
+                              ? () => _refresh(ref, state)
+                              : null,
+                      onDisconnect:
+                          state.isConnected ? controller.disconnect : null,
                     ),
-                    const SizedBox(height: 16),
-                    // Container(
-                    //   padding: const EdgeInsets.all(18),
-                    //   decoration: BoxDecoration(
-                    //     borderRadius: BorderRadius.circular(24),
-                    //     gradient: LinearGradient(
-                    //       colors: [
-                    //         theme.colorScheme.primary.withValues(alpha: 0.10),
-                    //         const Color(0xFFF97316).withValues(alpha: 0.08),
-                    //       ],
-                    //     ),
-                    //   ),
-                 
-                    // ),
                   ],
                 ),
               ),
@@ -271,197 +165,28 @@ class OpsPage extends ConsumerWidget {
   }
 }
 
-class _OpsHubHero extends StatelessWidget {
-  const _OpsHubHero({
+class _StatusCard extends StatelessWidget {
+  const _StatusCard({
     required this.state,
     required this.snapshot,
-    required this.onPrimaryAction,
-    required this.onSecondaryAction,
+    required this.onOpenConnection,
+    required this.onRefresh,
+    required this.onDisconnect,
   });
 
   final OpsDashboardState state;
   final VpsSnapshot? snapshot;
-  final VoidCallback onPrimaryAction;
-  final VoidCallback? onSecondaryAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent =
-        state.isConnected ? const Color(0xFF34D399) : const Color(0xFFF97316);
-    final target = snapshot?.endpointLabel ?? state.profile.endpointLabel;
-    final description =
-        snapshot == null
-            ? 'Pick a feature lane below and only open the surface you actually need.'
-            : '${snapshot!.osSummary} • ${snapshot!.uptime}';
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF0F172A),
-            const Color(0xFF111827),
-            accent.withValues(alpha: 0.24),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.16),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: accent.withValues(alpha: 0.32)),
-                  ),
-                  child: Icon(Icons.route_rounded, color: accent),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'OPS HUB',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.54),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      // const SlashText(
-                      //   'Choose Your Lane',
-                      //   fontSize: 24,
-                      //   fontWeight: FontWeight.w700,
-                      //   color: Colors.white,
-                      // ),
-                      const SizedBox(height: 6),
-                      SlashText(
-                        target,
-                        fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.86),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.72),
-                          height: 1.45,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _HubStatusPill(
-                  label: state.isConnected ? 'LIVE' : 'OFFLINE',
-                  color: accent,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _HeroMetric(
-                  label: 'Host',
-                  value:
-                      snapshot?.hostname ??
-                      state.profile.host.ifBlank('Not set'),
-                ),
-                _HeroMetric(
-                  label: 'Containers',
-                  value:
-                      snapshot == null
-                          ? '--'
-                          : '${snapshot!.runningContainers}',
-                ),
-                _HeroMetric(
-                  label: 'Services',
-                  value:
-                      snapshot == null ? '--' : '${snapshot!.runningServices}',
-                ),
-                _HeroMetric(
-                  label: 'Commands',
-                  value: '${state.terminalHistory.length}',
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF0F172A),
-                  ),
-                  onPressed: onPrimaryAction,
-                  icon: Icon(
-                    state.profile.canConnect
-                        ? Icons.sync_rounded
-                        : Icons.dns_rounded,
-                  ),
-                  label: Text(
-                    state.profile.canConnect
-                        ? 'Refresh / Connect'
-                        : 'Set up connection',
-                  ),
-                ),
-                if (onSecondaryAction != null)
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.24),
-                      ),
-                    ),
-                    onPressed: onSecondaryAction,
-                    icon: const Icon(Icons.link_off_rounded),
-                    label: const Text('Disconnect'),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HubSection extends StatelessWidget {
-  const _HubSection({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
-
-  final String title;
-  final String subtitle;
-  final Widget child;
+  final VoidCallback onOpenConnection;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onDisconnect;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final connected = state.isConnected;
+    final accent =
+        connected ? const Color(0xFF22C55E) : const Color(0xFFF97316);
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
@@ -482,137 +207,91 @@ class _HubSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
-              ),
-            ),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HubFeatureCard extends StatelessWidget {
-  const _HubFeatureCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-    required this.meta,
-    required this.statLabel,
-    required this.statValue,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color accent;
-  final String meta;
-  final String statLabel;
-  final String statValue;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: Ink(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              accent.withValues(alpha: 0.12),
-              accent.withValues(alpha: 0.03),
-            ],
-          ),
-          border: Border.all(color: accent.withValues(alpha: 0.18)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
             Row(
               children: [
                 Container(
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.14),
+                    color: accent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(icon, color: accent),
+                  child: Icon(Icons.cloud_outlined, color: accent),
                 ),
-                const Spacer(),
-                const Icon(Icons.arrow_forward_rounded),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        connected ? 'Connected' : 'Not connected',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        snapshot?.endpointLabel ?? state.profile.endpointLabel,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.68,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _StatusPill(label: connected ? 'LIVE' : 'IDLE', color: accent),
               ],
             ),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.74),
-                height: 1.42,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              meta,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.64),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.46),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    statLabel,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.64,
-                      ),
-                    ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _InlineStat(
+                  label: 'Host',
+                  value:
+                      snapshot?.hostname ??
+                      state.profile.host.ifBlank('Not set'),
+                ),
+                _InlineStat(
+                  label: 'Last sync',
+                  value:
+                      snapshot == null
+                          ? 'Waiting'
+                          : formatOpsClock(snapshot!.collectedAt),
+                ),
+                if (snapshot != null)
+                  _InlineStat(
+                    label: 'CPU',
+                    value: '${snapshot!.cpuLoadPercent.toStringAsFixed(0)}%',
                   ),
-                  const Spacer(),
-                  Text(
-                    statValue,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                FilledButton.icon(
+                  onPressed: onOpenConnection,
+                  icon: const Icon(Icons.dns_rounded),
+                  label: const Text('Connection'),
+                ),
+                if (onRefresh != null)
+                  OutlinedButton.icon(
+                    onPressed: onRefresh,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: Text(connected ? 'Refresh' : 'Connect'),
                   ),
-                ],
-              ),
+                if (onDisconnect != null)
+                  TextButton.icon(
+                    onPressed: onDisconnect,
+                    icon: const Icon(Icons.link_off_rounded),
+                    label: const Text('Disconnect'),
+                  ),
+              ],
             ),
           ],
         ),
@@ -621,81 +300,142 @@ class _HubFeatureCard extends StatelessWidget {
   }
 }
 
-class _MiniMetric extends StatelessWidget {
-  const _MiniMetric({
-    required this.title,
-    required this.value,
-    required this.color,
-  });
+class _MenuPanel extends StatelessWidget {
+  const _MenuPanel({required this.children});
 
-  final String title;
-  final String value;
-  final Color color;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      constraints: const BoxConstraints(minWidth: 140),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          colors: [
-            color.withValues(alpha: 0.10),
-            color.withValues(alpha: 0.03),
-          ],
+        borderRadius: BorderRadius.circular(24),
+        color: theme.colorScheme.surface,
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
-          const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
         ],
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+class _MenuTile extends StatelessWidget {
+  const _MenuTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.66,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                trailing,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.56),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-class _HeroMetric extends StatelessWidget {
-  const _HeroMetric({required this.label, required this.value});
+class _InlineStat extends StatelessWidget {
+  const _InlineStat({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      constraints: const BoxConstraints(minWidth: 132),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.26,
+        ),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.58),
-              fontSize: 12,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.56),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 3),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -705,8 +445,8 @@ class _HeroMetric extends StatelessWidget {
   }
 }
 
-class _HubStatusPill extends StatelessWidget {
-  const _HubStatusPill({required this.label, required this.color});
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -716,25 +456,25 @@ class _HubStatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: color,
           fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
           fontSize: 12,
+          letterSpacing: 0.8,
         ),
       ),
     );
   }
 }
 
-class _HubErrorBanner extends StatelessWidget {
-  const _HubErrorBanner({required this.message, required this.onDismiss});
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message, required this.onDismiss});
 
   final String message;
   final VoidCallback onDismiss;
