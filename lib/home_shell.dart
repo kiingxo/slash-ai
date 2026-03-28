@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:slash_flutter/features/project/project_page.dart';
 import 'package:slash_flutter/features/prompt/prompt_widgets.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'features/prompt/prompt_page.dart';
@@ -12,43 +13,35 @@ import 'ui/screens/settings_screen.dart';
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
 
-  static final List<Widget> _pages = <Widget>[
-    PromptPage(),
-    CodeScreen(),
-    PRsPage(),
-    SettingsScreen(),
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Route guard: if no credentials after logout/login, force auth screen as a clean start.
     final auth = ref.watch(authControllerProvider);
-
-    // Consider "logged in" if at least the provider model is chosen (persisted)
-    // AND we have at least one of the AI keys or the GitHub PAT.
-    final hasProvider = (auth.model.isNotEmpty);
-    final hasAnyKey = (auth.geminiApiKey?.isNotEmpty == true) ||
-        (auth.openAIApiKey?.isNotEmpty == true) ||
-        (auth.githubPat?.isNotEmpty == true);
-
-    // Only force AuthPage when NOTHING is configured (fresh state).
-    if (!hasProvider && !hasAnyKey) {
+    if (!auth.isLoading && !auth.isReady) {
       return const AuthPage();
     }
 
     final theme = Theme.of(context);
     final selectedIndex = ref.watch(tabIndexProvider);
     return Scaffold(
-      body: _pages[selectedIndex],
+      body: IndexedStack(
+        index: selectedIndex,
+        children: const [
+          PromptPage(),
+          CodeScreen(),
+          ProjectPage(),
+          PRsPage(),
+          SettingsScreen(),
+        ],
+      ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Container(
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withOpacity(0.95),
+            color: theme.colorScheme.surface.withValues(alpha: 0.95),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.10),
+                color: Colors.black.withValues(alpha: 0.10),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
@@ -76,17 +69,24 @@ class HomeShell extends ConsumerWidget {
                     theme: theme,
                   ),
                   _NavBarItem(
-                    icon: Icons.merge_type,
-                    label: 'PRs',
+                    icon: Icons.insights_rounded,
+                    label: 'Project',
                     selected: selectedIndex == 2,
                     onTap: () => ref.read(tabIndexProvider.notifier).state = 2,
                     theme: theme,
                   ),
                   _NavBarItem(
-                    icon: Icons.settings,
-                    label: 'Settings',
+                    icon: Icons.merge_type,
+                    label: 'PRs',
                     selected: selectedIndex == 3,
                     onTap: () => ref.read(tabIndexProvider.notifier).state = 3,
+                    theme: theme,
+                  ),
+                  _NavBarItem(
+                    icon: Icons.settings,
+                    label: 'Settings',
+                    selected: selectedIndex == 4,
+                    onTap: () => ref.read(tabIndexProvider.notifier).state = 4,
                     theme: theme,
                   ),
                 ],
@@ -137,7 +137,7 @@ class _NavBarItem extends StatelessWidget {
                 decoration: BoxDecoration(
                   color:
                       selected
-                          ? theme.colorScheme.primary.withOpacity(0.12)
+                          ? theme.colorScheme.primary.withValues(alpha: 0.12)
                           : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
@@ -152,8 +152,8 @@ class _NavBarItem extends StatelessWidget {
                             color:
                                 selected
                                     ? theme.colorScheme.primary
-                                    : theme.colorScheme.onSurface.withOpacity(
-                                      0.7,
+                                    : theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.7,
                                     ),
                           ),
                         )
@@ -163,8 +163,8 @@ class _NavBarItem extends StatelessWidget {
                           color:
                               selected
                                   ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurface.withOpacity(
-                                    0.7,
+                                  : theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.7,
                                   ),
                         ),
               ),
