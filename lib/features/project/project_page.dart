@@ -49,6 +49,7 @@ class ProjectPage extends ConsumerWidget {
       appBar: AppBar(
         centerTitle: false,
         title: const Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SlashText('Project', fontWeight: FontWeight.w700),
@@ -304,6 +305,8 @@ class _ProjectOverviewContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _StartHereCard(overview: overview),
+        const SizedBox(height: 16),
         _StatusStrip(overview: overview),
         const SizedBox(height: 16),
         _MetricGrid(overview: overview),
@@ -449,6 +452,129 @@ class _ProjectOverviewContent extends StatelessWidget {
   }
 }
 
+class _StartHereCard extends StatelessWidget {
+  final ProjectOverview overview;
+
+  const _StartHereCard({required this.overview});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final buckets = <_PriorityBucketData>[
+      _PriorityBucketData(
+        title: 'What Changed',
+        icon: Icons.auto_awesome_rounded,
+        color: const Color(0xFF0F766E),
+        items:
+            overview.highlights.isNotEmpty
+                ? overview.highlights.take(2).toList()
+                : [overview.executiveSummary],
+      ),
+      _PriorityBucketData(
+        title: 'Watch Closely',
+        icon: Icons.warning_amber_rounded,
+        color: const Color(0xFFB45309),
+        items:
+            overview.risks.isNotEmpty
+                ? overview.risks.take(2).toList()
+                : ['No major risks were flagged in this window.'],
+      ),
+      _PriorityBucketData(
+        title: 'Do Next',
+        icon: Icons.task_alt_rounded,
+        color: theme.colorScheme.primary,
+        items:
+            overview.nextActions.isNotEmpty
+                ? overview.nextActions.take(2).toList()
+                : ['No immediate follow-up actions are suggested right now.'],
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SlashText('Start Here', fontWeight: FontWeight.w700),
+          const SizedBox(height: 6),
+          Text(
+            'The most important updates are surfaced first so you do not have to hunt for them.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final columns =
+                  width >= 960
+                      ? 3
+                      : width >= 620
+                      ? 2
+                      : 1;
+              final totalSpacing = 12.0 * (columns - 1);
+              final cardWidth = (width - totalSpacing) / columns;
+
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children:
+                    buckets.map((bucket) {
+                      return SizedBox(
+                        width: cardWidth.clamp(0.0, width),
+                        child: _PriorityBucket(data: bucket),
+                      );
+                    }).toList(),
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.7,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.south_rounded,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Scroll for metrics, PR queue, issues, workflow failures, releases, and the activity timeline.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatusStrip extends StatelessWidget {
   final ProjectOverview overview;
 
@@ -535,32 +661,27 @@ class _MetricGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final crossAxisCount =
+        final columns =
             width >= 900
                 ? 4
                 : width >= 640
                 ? 3
-                : 2;
-        final aspectRatio =
-            width >= 900
-                ? 1.7
-                : width >= 640
-                ? 1.5
-                : 1.35;
+                : width >= 420
+                ? 2
+                : 1;
+        final totalSpacing = 12.0 * (columns - 1);
+        final cardWidth = (width - totalSpacing) / columns;
 
-        return GridView.builder(
-          itemCount: items.length,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: aspectRatio,
-          ),
-          itemBuilder: (context, index) {
-            return _MetricCard(data: items[index]);
-          },
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children:
+              items.map((item) {
+                return SizedBox(
+                  width: cardWidth.clamp(0.0, width),
+                  child: _MetricCard(data: item),
+                );
+              }).toList(),
         );
       },
     );
@@ -587,11 +708,39 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(child: SlashText(title, fontWeight: FontWeight.w700)),
-              if (trailing != null) trailing!,
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackHeader =
+                  trailing != null && constraints.maxWidth < 420;
+
+              if (stackHeader) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SlashText(title, fontWeight: FontWeight.w700),
+                    const SizedBox(height: 10),
+                    trailing!,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(
+                    child: SlashText(title, fontWeight: FontWeight.w700),
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: trailing!,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
           child,
@@ -630,56 +779,78 @@ class _ReportList extends StatelessWidget {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
                   onTap: item.url == null ? null : () => onOpenLink(item.url),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withValues(
-                              alpha: 0.10,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Text(
-                              item.number == null ? '•' : '#${item.number}',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.title,
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.w600,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final status = (item.status ?? '').trim();
+                      final stackStatus =
+                          status.isNotEmpty && constraints.maxWidth < 430;
+
+                      return Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary.withValues(
+                                      alpha: 0.10,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      item.number == null
+                                          ? '•'
+                                          : '#${item.number}',
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                item.subtitle,
-                                style: theme.textTheme.bodySmall,
-                              ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.title,
+                                        style: theme.textTheme.bodyLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        item.subtitle,
+                                        style: theme.textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (!stackStatus && status.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8),
+                                    child: _InfoPill(label: status),
+                                  ),
+                              ],
+                            ),
+                            if (stackStatus) ...[
+                              const SizedBox(height: 10),
+                              _InfoPill(label: status),
                             ],
-                          ),
+                          ],
                         ),
-                        if ((item.status ?? '').isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: _InfoPill(label: item.status!),
-                          ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -870,7 +1041,7 @@ class _MetricCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 40,
@@ -881,7 +1052,7 @@ class _MetricCard extends StatelessWidget {
             ),
             child: Icon(data.icon, color: accent),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
             data.value,
             style: theme.textTheme.headlineSmall?.copyWith(
@@ -889,7 +1060,88 @@ class _MetricCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(data.label, style: theme.textTheme.bodySmall),
+          Text(
+            data.label,
+            style: theme.textTheme.bodySmall,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriorityBucket extends StatelessWidget {
+  final _PriorityBucketData data;
+
+  const _PriorityBucket({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: data.color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: data.color.withValues(alpha: 0.20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: data.color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(data.icon, size: 18, color: data.color),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  data.title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: data.color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...data.items.map((item) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.only(top: 7),
+                    decoration: BoxDecoration(
+                      color: data.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -983,6 +1235,20 @@ class _MetricCardData {
     required this.value,
     required this.icon,
     this.accent,
+  });
+}
+
+class _PriorityBucketData {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final List<String> items;
+
+  const _PriorityBucketData({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.items,
   });
 }
 
