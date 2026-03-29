@@ -1943,26 +1943,18 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                   children: [
                     headerIcon,
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: buildHeaderSummary(compact: true),
-                    ),
+                    Expanded(child: buildHeaderSummary(compact: true)),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
-                  children: actionButtons,
-                ),
+                Wrap(spacing: 4, runSpacing: 4, children: actionButtons),
               ] else
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     headerIcon,
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: buildHeaderSummary(compact: false),
-                    ),
+                    Expanded(child: buildHeaderSummary(compact: false)),
                     ...actionButtons,
                   ],
                 ),
@@ -1979,8 +1971,9 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                   if ((codeState.selectedBranch ?? '').isNotEmpty)
                     _MetaPill(
                       label: codeState.selectedBranch!,
-                      color:
-                          theme.colorScheme.secondary.withValues(alpha: 0.12),
+                      color: theme.colorScheme.secondary.withValues(
+                        alpha: 0.12,
+                      ),
                       foregroundColor: theme.colorScheme.secondary,
                     ),
                   if (codeState.pendingEdit != null)
@@ -2227,10 +2220,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: [
-                    dismissButton,
-                    applyButton,
-                  ],
+                  children: [dismissButton, applyButton],
                 ),
               ],
             );
@@ -2238,10 +2228,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
 
           return Row(
             children: [
-              const Icon(
-                Icons.auto_fix_high_rounded,
-                color: Color(0xFF1D4ED8),
-              ),
+              const Icon(Icons.auto_fix_high_rounded, color: Color(0xFF1D4ED8)),
               const SizedBox(width: 12),
               Expanded(child: bannerSummary),
               dismissButton,
