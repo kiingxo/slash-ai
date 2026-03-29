@@ -1,18 +1,36 @@
-import 'package:slash_flutter/features/ops/ops_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:slash_flutter/features/project/project_page.dart';
-import 'package:slash_flutter/features/prompt/prompt_widgets.dart';
-import 'package:slash_flutter/ui/components/slash_text.dart';
+
+import 'common/nav_preferences.dart';
+import 'features/auth/auth_page.dart';
+import 'features/auth/auth_controller.dart';
+import 'features/ops/ops_page.dart';
+import 'features/project/project_page.dart';
 import 'features/prompt/prompt_page.dart';
 import 'features/prompt/code_page.dart';
-import 'features/auth/auth_page.dart';
 import 'features/review/pr_page.dart';
-import 'features/auth/auth_controller.dart';
+import 'ui/components/slash_text.dart';
 import 'ui/screens/settings_screen.dart';
 
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
+
+  static Widget _pageForFeature(SlashFeature feature) {
+    switch (feature) {
+      case SlashFeature.prompt:
+        return const PromptPage();
+      case SlashFeature.code:
+        return const CodeScreen();
+      case SlashFeature.project:
+        return const ProjectPage();
+      case SlashFeature.ops:
+        return const OpsPage();
+      case SlashFeature.reviews:
+        return const PRsPage();
+      case SlashFeature.settings:
+        return const SettingsScreen();
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,18 +40,21 @@ class HomeShell extends ConsumerWidget {
     }
 
     final theme = Theme.of(context);
-    final selectedIndex = ref.watch(tabIndexProvider);
+    final activeFeatures = ref.watch(activeNavFeaturesProvider);
+    final selectedFeature = ref.watch(selectedFeatureProvider);
+
+    // Clamp selection to a valid feature if the active set changed.
+    final safeFeature =
+        activeFeatures.contains(selectedFeature)
+            ? selectedFeature
+            : activeFeatures.first;
+
+    final selectedIndex = activeFeatures.indexOf(safeFeature);
+
     return Scaffold(
       body: IndexedStack(
         index: selectedIndex,
-        children: const [
-          PromptPage(),
-          CodeScreen(),
-          ProjectPage(),
-          OpsPage(),
-          PRsPage(),
-          SettingsScreen(),
-        ],
+        children: [for (final f in activeFeatures) _pageForFeature(f)],
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -56,48 +77,17 @@ class HomeShell extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _NavBarItem(
-                    assetIcon: 'assets/slash2.png',
-                    label: 'Prompt',
-                    selected: selectedIndex == 0,
-                    onTap: () => ref.read(tabIndexProvider.notifier).state = 0,
-                    theme: theme,
-                  ),
-                  _NavBarItem(
-                    icon: Icons.code,
-                    label: 'Code',
-                    selected: selectedIndex == 1,
-                    onTap: () => ref.read(tabIndexProvider.notifier).state = 1,
-                    theme: theme,
-                  ),
-                  _NavBarItem(
-                    icon: Icons.insights_rounded,
-                    label: 'Project',
-                    selected: selectedIndex == 2,
-                    onTap: () => ref.read(tabIndexProvider.notifier).state = 2,
-                    theme: theme,
-                  ),
-                  _NavBarItem(
-                    icon: Icons.terminal_rounded,
-                    label: 'Ops',
-                    selected: selectedIndex == 3,
-                    onTap: () => ref.read(tabIndexProvider.notifier).state = 3,
-                    theme: theme,
-                  ),
-                  _NavBarItem(
-                    icon: Icons.merge_type,
-                    label: 'PRs',
-                    selected: selectedIndex == 4,
-                    onTap: () => ref.read(tabIndexProvider.notifier).state = 4,
-                    theme: theme,
-                  ),
-                  _NavBarItem(
-                    icon: Icons.settings,
-                    label: 'Settings',
-                    selected: selectedIndex == 5,
-                    onTap: () => ref.read(tabIndexProvider.notifier).state = 5,
-                    theme: theme,
-                  ),
+                  for (final feature in activeFeatures)
+                    _NavBarItem(
+                      feature: feature,
+                      selected: safeFeature == feature,
+                      onTap:
+                          () =>
+                              ref
+                                  .read(selectedFeatureProvider.notifier)
+                                  .state = feature,
+                      theme: theme,
+                    ),
                 ],
               ),
             ),
@@ -109,16 +99,13 @@ class HomeShell extends ConsumerWidget {
 }
 
 class _NavBarItem extends StatelessWidget {
-  final IconData? icon;
-  final String? assetIcon;
-  final String label;
+  final SlashFeature feature;
   final bool selected;
   final VoidCallback onTap;
   final ThemeData theme;
+
   const _NavBarItem({
-    this.icon,
-    this.assetIcon,
-    required this.label,
+    required this.feature,
     required this.selected,
     required this.onTap,
     required this.theme,
@@ -126,6 +113,9 @@ class _NavBarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final meta = kFeatureMeta[feature]!;
+    final hasAsset = meta.assetIcon != null;
+
     return Flexible(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -141,8 +131,8 @@ class _NavBarItem extends StatelessWidget {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOut,
-                width: assetIcon != null ? 50 : 40,
-                height: assetIcon != null ? 50 : 36,
+                width: hasAsset ? 50 : 40,
+                height: hasAsset ? 50 : 36,
                 decoration: BoxDecoration(
                   color:
                       selected
@@ -151,10 +141,10 @@ class _NavBarItem extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child:
-                    assetIcon != null
+                    hasAsset
                         ? Center(
                           child: Image.asset(
-                            assetIcon!,
+                            meta.assetIcon!,
                             width: 80,
                             height: 80,
                             fit: BoxFit.contain,
@@ -167,7 +157,7 @@ class _NavBarItem extends StatelessWidget {
                           ),
                         )
                         : Icon(
-                          icon,
+                          meta.icon,
                           size: 24,
                           color:
                               selected
@@ -178,9 +168,9 @@ class _NavBarItem extends StatelessWidget {
                         ),
               ),
               const SizedBox(height: 2),
-              if (selected && assetIcon == null)
+              if (selected && !hasAsset)
                 SlashText(
-                  label,
+                  meta.label,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                   color: theme.colorScheme.primary,

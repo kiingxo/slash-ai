@@ -608,7 +608,7 @@ class _ProjectOverviewContent extends StatelessWidget {
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Generating a detailed executive summary...',
+                          'Generating executive summary and code analysis...',
                         ),
                       ),
                     ],
@@ -619,6 +619,33 @@ class _ProjectOverviewContent extends StatelessWidget {
                   'Generate a detailed executive summary when you want a deeper leadership readout. It will not auto-run every time this screen opens.',
                   style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
                 ),
+              if (overview.summaryUsedAI &&
+                  overview.codeSummary.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Divider(color: theme.dividerColor.withValues(alpha: 0.4)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.code_rounded,
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'What Changed in the Codebase',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  overview.codeSummary,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+                ),
+              ],
               if ((executiveSummaryError ?? '').trim().isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Text(

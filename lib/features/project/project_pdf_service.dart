@@ -380,7 +380,7 @@ class ProjectPdfService {
                   subtitle:
                       'Longer leadership readout covering momentum, risk, and what matters next.',
                   child: pw.Text(
-                    _truncateText(overview.executiveSummary, maxChars: 1600),
+                    _truncateText(overview.executiveSummary, maxChars: 1400),
                     style: _darkBodyStyle(
                       size: 11.1,
                       height: 1.55,
@@ -388,6 +388,23 @@ class ProjectPdfService {
                     ),
                   ),
                 ),
+                if (overview.codeSummary.isNotEmpty) ...[
+                  pw.SizedBox(height: 12),
+                  _buildDarkCard(
+                    title: 'What Changed in the Codebase',
+                    badge: 'AI code analysis',
+                    subtitle:
+                        'Technical breakdown of what was built, fixed, and refactored during this window.',
+                    child: pw.Text(
+                      _truncateText(overview.codeSummary, maxChars: 900),
+                      style: _darkBodyStyle(
+                        size: 11.1,
+                        height: 1.55,
+                        color: _textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
                 pw.SizedBox(height: 12),
                 _buildDarkCard(
                   title: 'Engineering Lens',

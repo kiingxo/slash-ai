@@ -110,6 +110,7 @@ class ProjectOverview {
   final List<ProjectTimelineEntry> timeline;
   final ProjectStats stats;
   final bool summaryUsedAI;
+  final String codeSummary;
 
   const ProjectOverview({
     required this.repoFullName,
@@ -134,9 +135,14 @@ class ProjectOverview {
     required this.timeline,
     required this.stats,
     required this.summaryUsedAI,
+    this.codeSummary = '',
   });
 
-  ProjectOverview copyWith({String? executiveSummary, bool? summaryUsedAI}) {
+  ProjectOverview copyWith({
+    String? executiveSummary,
+    String? codeSummary,
+    bool? summaryUsedAI,
+  }) {
     return ProjectOverview(
       repoFullName: repoFullName,
       branch: branch,
@@ -160,6 +166,7 @@ class ProjectOverview {
       timeline: timeline,
       stats: stats,
       summaryUsedAI: summaryUsedAI ?? this.summaryUsedAI,
+      codeSummary: codeSummary ?? this.codeSummary,
     );
   }
 }
@@ -422,21 +429,49 @@ class ProjectInsightsService {
         {
           'role': 'system',
           'content':
-              'You are /slash project monitor writing for a founder, product lead, or engineering manager. '
-              'Use only the provided facts. Do not invent metrics, incidents, progress, or certainty. '
-              'Return plain text only, no markdown. Write a detailed executive summary in 3 concise paragraphs. '
-              'Paragraph 1 should explain delivery and momentum. Paragraph 2 should explain operational or execution risk. '
-              'Paragraph 3 should explain what leadership should pay attention to next.',
+              'You are /slash project monitor. Use only the provided facts. '
+              'Do not invent metrics, incidents, or certainty. '
+              'Return a JSON object with exactly two keys:\n'
+              '"executive": A 3-paragraph plain-text executive summary for a founder, product lead, or engineering manager. '
+              'Paragraph 1 covers delivery and momentum. Paragraph 2 covers operational or execution risk. '
+              'Paragraph 3 covers what leadership should focus on next.\n'
+              '"code_changes": A 2-paragraph plain-text technical summary of what actually changed in the codebase. '
+              'Based on the commit messages, PR titles, and releases, describe what was built, fixed, or refactored. '
+              'Group changes by theme where possible. Write for a developer audience.\n'
+              'No markdown. No bullet points. Only the JSON object.',
         },
         {'role': 'user', 'content': jsonEncode(facts)},
       ],
-      maxTokens: 1100,
+      maxTokens: 1400,
       temperature: 0.2,
-      timeout: const Duration(seconds: 40),
+      timeout: const Duration(seconds: 50),
       maxAttempts: 1,
     );
 
-    final executiveSummary = raw.trim();
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      throw const FormatException(
+        'Executive summary generation returned empty.',
+      );
+    }
+
+    String executiveSummary;
+    String codeSummary;
+    try {
+      // Strip optional markdown code fences if the model wrapped its output.
+      final jsonStr = trimmed
+          .replaceAll(RegExp(r'^```json\s*', multiLine: true), '')
+          .replaceAll(RegExp(r'^```\s*', multiLine: true), '')
+          .trim();
+      final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
+      executiveSummary = (decoded['executive'] ?? '').toString().trim();
+      codeSummary = (decoded['code_changes'] ?? '').toString().trim();
+    } catch (_) {
+      // Fallback: treat the whole response as the executive summary.
+      executiveSummary = trimmed;
+      codeSummary = '';
+    }
+
     if (executiveSummary.isEmpty) {
       throw const FormatException(
         'Executive summary generation returned empty.',
@@ -445,6 +480,7 @@ class ProjectInsightsService {
 
     return overview.copyWith(
       executiveSummary: executiveSummary,
+      codeSummary: codeSummary,
       summaryUsedAI: true,
     );
   }
@@ -558,7 +594,7 @@ class ProjectInsightsService {
           overview.releases.take(3).map((item) => _compactItem(item)).toList(),
       'timeline':
           overview.timeline
-              .take(6)
+              .take(10)
               .map(
                 (item) => {
                   'kind': item.kind,
@@ -566,6 +602,12 @@ class ProjectInsightsService {
                   'subtitle': item.subtitle,
                 },
               )
+              .toList(),
+      'commit_messages':
+          overview.timeline
+              .where((item) => item.kind == 'Commit')
+              .take(15)
+              .map((item) => item.title)
               .toList(),
     };
   }

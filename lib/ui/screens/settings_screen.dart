@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../common/nav_preferences.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/auth_page.dart';
 import '../../features/repo/repo_controller.dart';
@@ -26,6 +27,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _openRouterModelController = TextEditingController(
     text: AppConfig.defaultOpenRouterModel,
   );
+  final _githubClientIdController = TextEditingController();
 
   bool _seeded = false;
   String _provider = 'openai';
@@ -49,6 +51,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _openRouterKeyController.text = auth.openRouterApiKey ?? '';
     _openRouterModelController.text =
         auth.openRouterModel ?? AppConfig.defaultOpenRouterModel;
+    if (!AppConfig.hasBundledGitHubClientId) {
+      _githubClientIdController.text = auth.githubOAuthClientId ?? '';
+    }
     _seeded = true;
   }
 
@@ -58,6 +63,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _openAIModelController.dispose();
     _openRouterKeyController.dispose();
     _openRouterModelController.dispose();
+    _githubClientIdController.dispose();
     super.dispose();
   }
 
@@ -72,6 +78,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await auth.saveOpenAIApiKey(_openAIKeyController.text.trim());
       await auth.saveOpenAIModel(_openAIModelController.text.trim());
     }
+    if (!AppConfig.hasBundledGitHubClientId) {
+      await auth.saveGitHubOAuthClientId(
+        _githubClientIdController.text.trim(),
+      );
+    }
 
     if (!mounted) {
       return;
@@ -84,18 +95,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _connectGitHub() async {
     try {
-      if (!AppConfig.hasBundledGitHubClientId) {
-        if (!mounted) {
-          return;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: SlashText(AppConfig.missingGitHubOAuthClientIdMessage),
-          ),
-        );
-        return;
-      }
-
       final authController = ref.read(authControllerProvider.notifier);
       final session = await authController.beginGitHubDeviceFlow();
       final launchTarget =
@@ -265,17 +264,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SlashText(
-                  AppConfig.hasBundledGitHubClientId
-                      ? 'GitHub sign-in is built into this app. Tap Sign in and finish the approval flow in your browser.'
-                      : AppConfig.missingGitHubOAuthClientIdMessage,
+                  'GitHub sign-in uses the OAuth device flow. Tap Sign in and approve the request in your browser.',
                   fontSize: 12,
-                  color:
-                      AppConfig.hasBundledGitHubClientId
-                          ? Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.72)
-                          : Theme.of(context).colorScheme.error,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.72),
                 ),
+                if (!AppConfig.hasBundledGitHubClientId) ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _githubClientIdController,
+                    decoration: const InputDecoration(
+                      hintText: 'GitHub OAuth App Client ID',
+                      helperText:
+                          'Create an OAuth App at github.com/settings/developers',
+                    ),
+                  ),
+                ],
                 if (auth.githubUser != null)
                   Row(
                     children: [
@@ -327,7 +332,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                         onPressed:
                             auth.isSigningInWithGitHub ||
-                                    !AppConfig.hasBundledGitHubClientId
+                                    !auth.canSignInWithGitHub
                                 ? null
                                 : _connectGitHub,
                       ),
@@ -351,6 +356,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          const _NavFeaturesCard(),
           const SizedBox(height: 24),
           Center(
             child: ElevatedButton.icon(
@@ -548,6 +555,133 @@ class _GitHubSettingsDialogState extends State<_GitHubSettingsDialog> {
           },
         ),
       ],
+    );
+  }
+}
+
+// ── Navigation features card ───────────────────────────────────────────────
+
+class _NavFeaturesCard extends ConsumerWidget {
+  const _NavFeaturesCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefs = ref.watch(navPreferencesProvider);
+    final pickable = SlashFeature.values
+        .where((f) => kFeatureMeta[f]?.showInPicker == true)
+        .toList();
+
+    return Card(
+      color: isDark ? const Color(0xFF23232A) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.grid_view_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                const SlashText('Navigation', fontWeight: FontWeight.w600),
+              ],
+            ),
+            const SizedBox(height: 4),
+            SlashText(
+              'Choose which features appear on your bottom nav bar.',
+              fontSize: 12,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 12),
+            for (final feature in pickable)
+              _FeatureToggleRow(
+                feature: feature,
+                enabled: prefs.contains(feature),
+                onToggle:
+                    () =>
+                        ref.read(navPreferencesProvider.notifier).toggle(
+                          feature,
+                        ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureToggleRow extends StatelessWidget {
+  final SlashFeature feature;
+  final bool enabled;
+  final VoidCallback onToggle;
+
+  const _FeatureToggleRow({
+    required this.feature,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = kFeatureMeta[feature]!;
+    final isRequired = meta.required;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          if (meta.assetIcon != null)
+            Image.asset(
+              meta.assetIcon!,
+              width: 20,
+              height: 20,
+              color: Theme.of(context).colorScheme.onSurface.withValues(
+                alpha: 0.72,
+              ),
+            )
+          else
+            Icon(
+              meta.icon,
+              size: 20,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.72),
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: SlashText(
+              meta.label,
+              fontSize: 14,
+              color:
+                  isRequired
+                      ? Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.45)
+                      : null,
+            ),
+          ),
+          if (isRequired)
+            SlashText(
+              'Always on',
+              fontSize: 11,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.4),
+            )
+          else
+            Switch(
+              value: enabled,
+              onChanged: (_) => onToggle(),
+            ),
+        ],
+      ),
     );
   }
 }

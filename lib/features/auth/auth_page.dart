@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../common/nav_preferences.dart';
+import '../../features/onboarding/feature_picker_page.dart';
 import '../../home_shell.dart';
 import '../../services/app_config.dart';
 import '../../services/github_auth_service.dart';
@@ -120,9 +122,14 @@ class _AuthPageState extends ConsumerState<AuthPage> {
       return;
     }
 
+    final destination =
+        NavPreferencesNotifier.isSetupDone
+            ? const HomeShell()
+            : const FeaturePickerPage();
+
     Navigator.of(
       context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
+    ).pushReplacement(MaterialPageRoute(builder: (_) => destination));
   }
 
   Future<void> _startGitHubSignIn() async {
@@ -132,12 +139,6 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     });
 
     final authController = ref.read(authControllerProvider.notifier);
-    if (!AppConfig.hasBundledGitHubClientId) {
-      setState(() {
-        _errorMessage = AppConfig.missingGitHubOAuthClientIdMessage;
-      });
-      return;
-    }
 
     try {
       final session = await authController.beginGitHubDeviceFlow();
@@ -445,13 +446,6 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                       fontWeight: FontWeight.bold,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 8),
-                    // SlashText(
-                    //   'Connect an AI provider, sign in with GitHub, and ship changes without juggling API sprawl or personal access tokens.',
-                    //   fontSize: 13,
-                    //   color: colors.always909090,
-                    //   textAlign: TextAlign.center,
-                    // ),
                     const SizedBox(height: 18),
                     _buildGlassCard(
                       context,
@@ -552,22 +546,13 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                               color: Colors.white.withValues(alpha: 0.04),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color:
-                                    AppConfig.hasBundledGitHubClientId
-                                        ? Colors.white.withValues(alpha: 0.08)
-                                        : Theme.of(context).colorScheme.error
-                                            .withValues(alpha: 0.35),
+                                color: Colors.white.withValues(alpha: 0.08),
                               ),
                             ),
                             child: SlashText(
-                              AppConfig.hasBundledGitHubClientId
-                                  ? 'GitHub sign-in is built into this app. Tap the button below and finish the GitHub approval flow in your browser.'
-                                  : AppConfig.missingGitHubOAuthClientIdMessage,
+                              'GitHub sign-in uses the OAuth device flow. Tap the button below and approve the request in your browser.',
                               fontSize: 12,
-                              color:
-                                  AppConfig.hasBundledGitHubClientId
-                                      ? colors.always909090
-                                      : Theme.of(context).colorScheme.error,
+                              color: colors.always909090,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -648,7 +633,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                                     : _startGitHubSignIn,
                             validator:
                                 () =>
-                                    AppConfig.hasBundledGitHubClientId &&
+                                    auth.canSignInWithGitHub &&
                                     !auth.isSigningInWithGitHub,
                           ),
                           const SizedBox(height: 18),

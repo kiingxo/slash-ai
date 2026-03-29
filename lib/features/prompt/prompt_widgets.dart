@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:highlight/languages/dart.dart';
+import 'package:slash_flutter/common/nav_preferences.dart';
 import 'package:slash_flutter/features/file_browser/file_browser_controller.dart';
 import 'package:slash_flutter/features/prompt/code_editor_controller.dart';
 import 'package:slash_flutter/features/prompt/prompt_controller.dart';
@@ -10,9 +11,6 @@ import 'package:slash_flutter/ui/components/slash_loading.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'package:slash_flutter/ui/components/slash_button.dart';
 import 'package:slash_flutter/ui/components/slash_diff_viewer.dart';
-
-// Tab index provider - moved here to be accessible by widgets
-final tabIndexProvider = StateProvider<int>((ref) => 0);
 
 // Intent tag widget
 class IntentTag extends StatelessWidget {
@@ -394,7 +392,8 @@ class ReviewActionButtons extends ConsumerWidget {
                       branch: review.branch,
                       baseSha: review.baseSha,
                     );
-                    container.read(tabIndexProvider.notifier).state = 1;
+                    container.read(selectedFeatureProvider.notifier).state =
+                        SlashFeature.code;
                   },
         ),
         const SizedBox(width: 8),

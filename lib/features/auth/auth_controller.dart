@@ -39,6 +39,10 @@ class AuthState {
 
   bool get hasGitHubAuth => githubAccessToken?.isNotEmpty == true;
 
+  bool get canSignInWithGitHub =>
+      AppConfig.hasBundledGitHubClientId ||
+      (githubOAuthClientId?.isNotEmpty == true);
+
   bool get hasAiCredentials {
     if (model == 'openrouter') {
       return openRouterApiKey?.isNotEmpty == true;
@@ -131,10 +135,15 @@ class AuthController extends StateNotifier<AuthState> {
           await _storage.readString(StoredKeys.openRouterModel) ??
           AppConfig.defaultOpenRouterModel;
       final githubAccessToken = await _storage.getGitHubAccessToken();
+      final storedClientId = await _storage.readString(
+        StoredKeys.githubOAuthClientId,
+      );
       final githubOAuthClientId =
           AppConfig.hasBundledGitHubClientId
               ? AppConfig.githubOAuthClientId.trim()
-              : null;
+              : (storedClientId?.trim().isNotEmpty == true
+                  ? storedClientId!.trim()
+                  : null);
 
       GitHubUser? githubUser;
       final githubLogin = await _storage.readString(StoredKeys.githubUserLogin);
@@ -207,13 +216,19 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> setOpenRouterModel(String modelId) =>
       saveOpenRouterModel(modelId);
 
-  Future<void> saveGitHubOAuthClientId(String ignoredClientId) async {
-    await _storage.deleteApiKey(StoredKeys.githubOAuthClientId);
+  Future<void> saveGitHubOAuthClientId(String clientId) async {
+    final trimmed = clientId.trim();
+    if (AppConfig.hasBundledGitHubClientId) {
+      // Bundled ID takes precedence; no need to store a custom one.
+      state = state.copyWith(
+        githubOAuthClientId: AppConfig.githubOAuthClientId.trim(),
+        error: null,
+      );
+      return;
+    }
+    await _storage.saveString(StoredKeys.githubOAuthClientId, trimmed);
     state = state.copyWith(
-      githubOAuthClientId:
-          AppConfig.hasBundledGitHubClientId
-              ? AppConfig.githubOAuthClientId.trim()
-              : null,
+      githubOAuthClientId: trimmed.isEmpty ? null : trimmed,
       error: null,
     );
   }
@@ -226,7 +241,10 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> saveGitHubPat(String token) => saveGitHubAccessToken(token);
 
   Future<GitHubDeviceCodeSession> beginGitHubDeviceFlow() async {
-    final clientId = AppConfig.githubOAuthClientId.trim();
+    final clientId =
+        AppConfig.hasBundledGitHubClientId
+            ? AppConfig.githubOAuthClientId.trim()
+            : (state.githubOAuthClientId ?? '');
     if (clientId.isEmpty) {
       throw GitHubAuthException(AppConfig.missingGitHubOAuthClientIdMessage);
     }
@@ -254,7 +272,10 @@ class AuthController extends StateNotifier<AuthState> {
     GitHubDeviceCodeSession? session,
   }) async {
     final resolvedSession = session ?? state.pendingGitHubSession;
-    final clientId = AppConfig.githubOAuthClientId.trim();
+    final clientId =
+        AppConfig.hasBundledGitHubClientId
+            ? AppConfig.githubOAuthClientId.trim()
+            : (state.githubOAuthClientId ?? '');
 
     if (resolvedSession == null) {
       throw const GitHubAuthException('No GitHub sign-in session is active.');
