@@ -40,7 +40,6 @@ const Map<SlashFeature, SlashFeatureMeta> kFeatureMeta = {
     assetIcon: 'assets/slash2.png',
     description:
         'AI chat with full codebase context. Write, review, and explain code inline.',
-    required: true,
   ),
   SlashFeature.code: SlashFeatureMeta(
     feature: SlashFeature.code,
@@ -61,7 +60,7 @@ const Map<SlashFeature, SlashFeatureMeta> kFeatureMeta = {
     label: 'Ops',
     icon: Icons.terminal_rounded,
     description:
-        'Connect to your VPS over SSH and monitor CPU, memory, and services.',
+        'Connect to your VPS over SSH and monitor CPU, memory, and services without GitHub.',
   ),
   SlashFeature.reviews: SlashFeatureMeta(
     feature: SlashFeature.reviews,
@@ -100,16 +99,14 @@ class NavPreferencesNotifier extends StateNotifier<Set<SlashFeature>> {
     _load();
   }
 
-  static Set<SlashFeature> _defaultFeatures() =>
-      SlashFeature.values.toSet();
+  static Set<SlashFeature> _defaultFeatures() => SlashFeature.values.toSet();
 
   void _load() {
     final raw = CacheStorage.fetchString(_enabledKey);
     if (raw != null && raw.isNotEmpty) {
       final ids = raw.split(',').map((e) => e.trim()).toSet();
-      final resolved = SlashFeature.values
-          .where((f) => ids.contains(f.name))
-          .toSet();
+      final resolved =
+          SlashFeature.values.where((f) => ids.contains(f.name)).toSet();
       // Always ensure required features are present.
       for (final f in SlashFeature.values) {
         if (kFeatureMeta[f]?.required == true) {
@@ -153,8 +150,7 @@ class NavPreferencesNotifier extends StateNotifier<Set<SlashFeature>> {
     CacheStorage.save(_enabledKey, ids);
   }
 
-  static bool get isSetupDone =>
-      CacheStorage.fetchBool(_setupDoneKey) == true;
+  static bool get isSetupDone => CacheStorage.fetchBool(_setupDoneKey) == true;
 }
 
 // ── Providers ─────────────────────────────────────────────────────────────────

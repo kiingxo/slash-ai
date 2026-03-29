@@ -79,9 +79,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await auth.saveOpenAIModel(_openAIModelController.text.trim());
     }
     if (!AppConfig.hasBundledGitHubClientId) {
-      await auth.saveGitHubOAuthClientId(
-        _githubClientIdController.text.trim(),
-      );
+      await auth.saveGitHubOAuthClientId(_githubClientIdController.text.trim());
     }
 
     if (!mounted) {
@@ -263,13 +261,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SlashText(
-                  'GitHub sign-in uses the OAuth device flow. Tap Sign in and approve the request in your browser.',
-                  fontSize: 12,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.72),
-                ),
+                if (auth.guestModeEnabled && !auth.hasGitHubAuth) ...[
+                  const SlashText(
+                    'Ops-first mode is active. Connect GitHub when you want repo-aware features like Prompt, Code, Project, and PRs.',
+                    fontSize: 12,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                // SlashText(
+                //   'GitHub sign-in uses the OAuth device flow. Tap Sign in and approve the request in your browser.',
+                //   fontSize: 12,
+                //   color: Theme.of(
+                //     context,
+                //   ).colorScheme.onSurface.withValues(alpha: 0.72),
+                // ),
                 if (!AppConfig.hasBundledGitHubClientId) ...[
                   const SizedBox(height: 10),
                   TextField(
@@ -460,10 +465,10 @@ class _GitHubSettingsDialogState extends State<_GitHubSettingsDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SlashText(
-                'Approve the request in your browser using this code. You do not need to paste a GitHub token back into /slash.',
-                fontSize: 13,
-              ),
+              // const SlashText(
+              //   'Approve the request in your browser using this code. You do not need to paste a GitHub token back into /slash.',
+              //   fontSize: 13,
+              // ),
               const SizedBox(height: 14),
               Container(
                 width: double.infinity,
@@ -566,11 +571,13 @@ class _NavFeaturesCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final prefs = ref.watch(navPreferencesProvider);
-    final pickable = SlashFeature.values
-        .where((f) => kFeatureMeta[f]?.showInPicker == true)
-        .toList();
+    final pickable =
+        SlashFeature.values
+            .where((f) => kFeatureMeta[f]?.showInPicker == true)
+            .toList();
 
     return Card(
       color: isDark ? const Color(0xFF23232A) : Colors.white,
@@ -599,16 +606,25 @@ class _NavFeaturesCard extends ConsumerWidget {
                 context,
               ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
+            if (!auth.hasGitHubAuth) ...[
+              const SizedBox(height: 8),
+              SlashText(
+                'Ops works without GitHub. Prompt, Code, Project, and PRs light up after you connect GitHub.',
+                fontSize: 12,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.56),
+              ),
+            ],
             const SizedBox(height: 12),
             for (final feature in pickable)
               _FeatureToggleRow(
                 feature: feature,
                 enabled: prefs.contains(feature),
                 onToggle:
-                    () =>
-                        ref.read(navPreferencesProvider.notifier).toggle(
-                          feature,
-                        ),
+                    () => ref
+                        .read(navPreferencesProvider.notifier)
+                        .toggle(feature),
               ),
           ],
         ),
@@ -642,9 +658,9 @@ class _FeatureToggleRow extends StatelessWidget {
               meta.assetIcon!,
               width: 20,
               height: 20,
-              color: Theme.of(context).colorScheme.onSurface.withValues(
-                alpha: 0.72,
-              ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.72),
             )
           else
             Icon(
@@ -676,10 +692,7 @@ class _FeatureToggleRow extends StatelessWidget {
               ).colorScheme.onSurface.withValues(alpha: 0.4),
             )
           else
-            Switch(
-              value: enabled,
-              onChanged: (_) => onToggle(),
-            ),
+            Switch(value: enabled, onChanged: (_) => onToggle()),
         ],
       ),
     );

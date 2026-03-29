@@ -81,6 +81,17 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     return _openAIKeyController.text.trim().isNotEmpty;
   }
 
+  Future<void> _persistAiConfig(AuthController authController) async {
+    await authController.saveModel(_provider);
+    if (_provider == 'openrouter') {
+      await authController.saveOpenRouterKey(_openRouterKeyController.text);
+      await authController.saveOpenRouterModel(_openRouterModelController.text);
+    } else {
+      await authController.saveOpenAIApiKey(_openAIKeyController.text);
+      await authController.saveOpenAIModel(_openAIModelController.text);
+    }
+  }
+
   Future<void> _saveAndContinue() async {
     setState(() {
       _errorMessage = null;
@@ -105,14 +116,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
       return;
     }
 
-    await authController.saveModel(_provider);
-    if (_provider == 'openrouter') {
-      await authController.saveOpenRouterKey(_openRouterKeyController.text);
-      await authController.saveOpenRouterModel(_openRouterModelController.text);
-    } else {
-      await authController.saveOpenAIApiKey(_openAIKeyController.text);
-      await authController.saveOpenAIModel(_openAIModelController.text);
-    }
+    await _persistAiConfig(authController);
 
     setState(() {
       _successMessage = 'Workspace connected.';
@@ -130,6 +134,27 @@ class _AuthPageState extends ConsumerState<AuthPage> {
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => destination));
+  }
+
+  Future<void> _continueOpsFirst() async {
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    final authController = ref.read(authControllerProvider.notifier);
+    await _persistAiConfig(authController);
+    await authController.enableGuestMode();
+    ref.read(navPreferencesProvider.notifier).saveAll({SlashFeature.ops});
+    ref.read(selectedFeatureProvider.notifier).state = SlashFeature.ops;
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
   }
 
   Future<void> _startGitHubSignIn() async {
@@ -439,30 +464,13 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                       color: colors.always909090,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 12),
-                    const SlashText(
-                      'Pocket Engineer Setup',
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      textAlign: TextAlign.center,
-                    ),
+                  
                     const SizedBox(height: 18),
                     _buildGlassCard(
                       context,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _StatusPill(
-                            label:
-                                auth.hasGitHubAuth
-                                    ? 'GitHub connected'
-                                    : 'GitHub sign-in required',
-                            color:
-                                auth.hasGitHubAuth
-                                    ? Colors.green
-                                    : Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(height: 14),
                           if (visibleError != null) ...[
                             SlashText(
                               visibleError,
@@ -533,28 +541,6 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                               hint: 'OpenAI model',
                             ),
                           ],
-                          const SizedBox(height: 18),
-                          const _SectionLabel(
-                            title: 'GitHub',
-                            subtitle:
-                                'Sign in with GitHub. /slash handles the OAuth flow, so users do not need a personal access token or client ID.',
-                          ),
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.04),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.08),
-                              ),
-                            ),
-                            child: SlashText(
-                              'GitHub sign-in uses the OAuth device flow. Tap the button below and approve the request in your browser.',
-                              fontSize: 12,
-                              color: colors.always909090,
-                            ),
-                          ),
                           const SizedBox(height: 12),
                           if (auth.githubUser != null)
                             Container(
@@ -620,30 +606,84 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                               ),
                             ),
                           const SizedBox(height: 12),
-                          SlashButton(
-                            text:
-                                auth.isSigningInWithGitHub
-                                    ? 'Connecting GitHub...'
-                                    : (auth.hasGitHubAuth
-                                        ? 'Reconnect GitHub'
-                                        : 'Sign In With GitHub'),
-                            onPressed:
-                                auth.isSigningInWithGitHub
-                                    ? () {}
-                                    : _startGitHubSignIn,
-                            validator:
-                                () =>
-                                    auth.canSignInWithGitHub &&
-                                    !auth.isSigningInWithGitHub,
-                          ),
-                          const SizedBox(height: 18),
-                          SlashButton(
-                            text: 'Continue',
-                            onPressed:
-                                auth.isSigningInWithGitHub
-                                    ? () {}
-                                    : _saveAndContinue,
-                          ),
+                          if (!auth.hasGitHubAuth) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SlashButton(
+                                    text:
+                                        auth.isSigningInWithGitHub
+                                            ? 'Connecting GitHub...'
+                                            : 'Connect GitHub',
+                                    onPressed:
+                                        auth.isSigningInWithGitHub
+                                            ? () {}
+                                            : _startGitHubSignIn,
+                                    validator:
+                                        () =>
+                                            auth.canSignInWithGitHub &&
+                                            !auth.isSigningInWithGitHub,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                _QuickActionButton(
+                                  icon: Icons.terminal_rounded,
+                                  tooltip: 'Explore Ops',
+                                  onTap:
+                                      auth.isSigningInWithGitHub
+                                          ? null
+                                          : _continueOpsFirst,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            SlashText(
+                              'Use Ops without GitHub.',
+                              fontSize: 12,
+                              color: colors.always909090,
+                              textAlign: TextAlign.center,
+                            ),
+                          ] else ...[
+                            SlashButton(
+                              text: 'Continue',
+                              onPressed:
+                                  auth.isSigningInWithGitHub
+                                      ? () {}
+                                      : _saveAndContinue,
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        auth.isSigningInWithGitHub
+                                            ? null
+                                            : _startGitHubSignIn,
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(48),
+                                      side: BorderSide(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.14,
+                                        ),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.login_rounded),
+                                    label: const Text('Reconnect GitHub'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                _QuickActionButton(
+                                  icon: Icons.terminal_rounded,
+                                  tooltip: 'Open Ops Layout',
+                                  onTap:
+                                      auth.isSigningInWithGitHub
+                                          ? null
+                                          : _continueOpsFirst,
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -670,6 +710,55 @@ class _AuthPageState extends ConsumerState<AuthPage> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = onTap != null;
+
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color:
+                enabled
+                    ? theme.colorScheme.surface.withValues(alpha: 0.72)
+                    : theme.colorScheme.surface.withValues(alpha: 0.32),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(
+                alpha: enabled ? 0.18 : 0.08,
+              ),
+            ),
+          ),
+          child: Icon(
+            icon,
+            color:
+                enabled
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.35),
+          ),
         ),
       ),
     );
@@ -785,66 +874,6 @@ class _ProviderSegment extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _StatusPill({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.center,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.verified_user_outlined, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _SectionLabel({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SlashText(title, fontWeight: FontWeight.w700),
-        const SizedBox(height: 4),
-        SlashText(
-          subtitle,
-          fontSize: 12,
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-        ),
-      ],
-    );
-  }
-}
-
 class _GitHubDeviceFlowDialog extends StatefulWidget {
   final GitHubDeviceCodeSession session;
   final Future<GitHubUser> signInFuture;
@@ -899,10 +928,10 @@ class _GitHubDeviceFlowDialogState extends State<_GitHubDeviceFlowDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SlashText(
-                  'Approve the request in your browser using this code. You do not need to paste a GitHub token back into /slash.',
-                  fontSize: 13,
-                ),
+                // const SlashText(
+                //   'Approve the request in your browser using this code. You do not need to paste a GitHub token back into /slash.',
+                //   fontSize: 13,
+                // ),
                 const SizedBox(height: 14),
                 Container(
                   width: double.infinity,

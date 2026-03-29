@@ -12,6 +12,7 @@ class StoredKeys {
   static const String githubUserName = 'github_user_name';
   static const String githubUserAvatarUrl = 'github_user_avatar_url';
   static const String githubUserHtmlUrl = 'github_user_html_url';
+  static const String guestModeEnabled = 'guest_mode_enabled';
   static const String vpsHost = 'vps_host';
   static const String vpsPort = 'vps_port';
   static const String vpsUsername = 'vps_username';

@@ -551,13 +551,7 @@ class _ProjectOverviewContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _StartHereCard(overview: overview),
-        const SizedBox(height: 16),
-        _StatusStrip(overview: overview),
-        const SizedBox(height: 16),
-        _MetricGrid(overview: overview),
-        const SizedBox(height: 16),
-        _SectionCard(
+          _SectionCard(
           title: 'Executive Brief',
           trailing: Wrap(
             spacing: 8,
@@ -571,18 +565,18 @@ class _ProjectOverviewContent extends StatelessWidget {
                     isGeneratingExecutiveSummary
                         ? null
                         : onGenerateExecutiveSummary,
-                icon:
-                    isGeneratingExecutiveSummary
-                        ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                        : Icon(
-                          overview.summaryUsedAI
-                              ? Icons.refresh_rounded
-                              : Icons.auto_awesome_rounded,
-                        ),
+                // icon:
+                //     isGeneratingExecutiveSummary
+                //         ? const SizedBox(
+                //           width: 14,
+                //           height: 14,
+                //           // child: CircularProgressIndicator(strokeWidth: 2),
+                //         )
+                //         : Icon(
+                //           overview.summaryUsedAI
+                //               ? Icons.refresh_rounded
+                //               : Icons.auto_awesome_rounded,
+                //         ),
                 label: Text(overview.summaryUsedAI ? 'Regenerate' : 'Generate'),
               ),
             ],
@@ -659,6 +653,13 @@ class _ProjectOverviewContent extends StatelessWidget {
             ],
           ),
         ),
+        _StartHereCard(overview: overview),
+        const SizedBox(height: 16),
+        _StatusStrip(overview: overview),
+        const SizedBox(height: 16),
+        // _MetricGrid(overview: overview),
+        const SizedBox(height: 16),
+      
         const SizedBox(height: 16),
         _SectionCard(
           title: 'Engineering Lens',
@@ -845,13 +846,7 @@ class _StartHereCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SlashText('Start Here', fontWeight: FontWeight.w700),
-          const SizedBox(height: 6),
-          Text(
-            'The most important updates are surfaced first so you do not have to hunt for them.',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 14),
+   
           LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;
@@ -945,86 +940,86 @@ class _StatusStrip extends StatelessWidget {
   }
 }
 
-class _MetricGrid extends StatelessWidget {
-  final ProjectOverview overview;
+// class _MetricGrid extends StatelessWidget {
+//   final ProjectOverview overview;
 
-  const _MetricGrid({required this.overview});
+//   const _MetricGrid({required this.overview});
 
-  @override
-  Widget build(BuildContext context) {
-    final items = <_MetricCardData>[
-      _MetricCardData(
-        label: 'Commits',
-        value: overview.stats.commitCount.toString(),
-        icon: Icons.commit_rounded,
-      ),
-      _MetricCardData(
-        label: 'Merged PRs',
-        value: overview.stats.mergedPrCount.toString(),
-        icon: Icons.merge_type_rounded,
-      ),
-      _MetricCardData(
-        label: 'Open PRs',
-        value: overview.stats.openPrCount.toString(),
-        icon: Icons.call_split_rounded,
-      ),
-      _MetricCardData(
-        label: 'Issues Opened',
-        value: overview.stats.openedIssueCount.toString(),
-        icon: Icons.bug_report_outlined,
-      ),
-      _MetricCardData(
-        label: 'Issues Closed',
-        value: overview.stats.closedIssueCount.toString(),
-        icon: Icons.check_circle_outline_rounded,
-      ),
-      _MetricCardData(
-        label: 'Failed Runs',
-        value: overview.stats.failedRunCount.toString(),
-        icon: Icons.error_outline_rounded,
-        accent: const Color(0xFFB91C1C),
-      ),
-      _MetricCardData(
-        label: 'Draft PRs',
-        value: overview.stats.draftPrCount.toString(),
-        icon: Icons.edit_note_rounded,
-      ),
-      _MetricCardData(
-        label: 'Releases',
-        value: overview.stats.releaseCount.toString(),
-        icon: Icons.rocket_launch_rounded,
-      ),
-    ];
+//   @override
+//   Widget build(BuildContext context) {
+//     final items = <_MetricCardData>[
+//       _MetricCardData(
+//         label: 'Commits',
+//         value: overview.stats.commitCount.toString(),
+//         icon: Icons.commit_rounded,
+//       ),
+//       _MetricCardData(
+//         label: 'Merged PRs',
+//         value: overview.stats.mergedPrCount.toString(),
+//         icon: Icons.merge_type_rounded,
+//       ),
+//       _MetricCardData(
+//         label: 'Open PRs',
+//         value: overview.stats.openPrCount.toString(),
+//         icon: Icons.call_split_rounded,
+//       ),
+//       // _MetricCardData(
+//       //   label: 'Issues Opened',
+//       //   value: overview.stats.openedIssueCount.toString(),
+//       //   icon: Icons.bug_report_outlined,
+//       // ),
+//       _MetricCardData(
+//         label: 'Issues Closed',
+//         value: overview.stats.closedIssueCount.toString(),
+//         icon: Icons.check_circle_outline_rounded,
+//       ),
+//       _MetricCardData(
+//         label: 'Failed Runs',
+//         value: overview.stats.failedRunCount.toString(),
+//         icon: Icons.error_outline_rounded,
+//         accent: const Color(0xFFB91C1C),
+//       ),
+//       _MetricCardData(
+//         label: 'Draft PRs',
+//         value: overview.stats.draftPrCount.toString(),
+//         icon: Icons.edit_note_rounded,
+//       ),
+//       _MetricCardData(
+//         label: 'Releases',
+//         value: overview.stats.releaseCount.toString(),
+//         icon: Icons.rocket_launch_rounded,
+//       ),
+//     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final columns =
-            width >= 900
-                ? 4
-                : width >= 640
-                ? 3
-                : width >= 420
-                ? 2
-                : 1;
-        final totalSpacing = 12.0 * (columns - 1);
-        final cardWidth = (width - totalSpacing) / columns;
+//     return LayoutBuilder(
+//       builder: (context, constraints) {
+//         final width = constraints.maxWidth;
+//         final columns =
+//             width >= 900
+//                 ? 4
+//                 : width >= 640
+//                 ? 3
+//                 : width >= 420
+//                 ? 2
+//                 : 1;
+//         final totalSpacing = 12.0 * (columns - 1);
+//         final cardWidth = (width - totalSpacing) / columns;
 
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children:
-              items.map((item) {
-                return SizedBox(
-                  width: cardWidth.clamp(0.0, width),
-                  child: _MetricCard(data: item),
-                );
-              }).toList(),
-        );
-      },
-    );
-  }
-}
+//         return Wrap(
+//           spacing: 12,
+//           runSpacing: 12,
+//           children:
+//               items.map((item) {
+//                 return SizedBox(
+//                   width: cardWidth.clamp(0.0, width),
+//                   child: _MetricCard(data: item),
+//                 );
+//               }).toList(),
+//         );
+//       },
+//     );
+//   }
+// }
 
 class _SectionCard extends StatelessWidget {
   final String title;

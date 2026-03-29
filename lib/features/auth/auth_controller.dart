@@ -18,6 +18,7 @@ class AuthState {
   final String? githubOAuthClientId;
   final GitHubUser? githubUser;
   final GitHubDeviceCodeSession? pendingGitHubSession;
+  final bool guestModeEnabled;
   final String model; // 'openai' | 'openrouter'
 
   const AuthState({
@@ -32,6 +33,7 @@ class AuthState {
     this.githubOAuthClientId,
     this.githubUser,
     this.pendingGitHubSession,
+    this.guestModeEnabled = false,
     this.model = 'openai',
   });
 
@@ -52,6 +54,8 @@ class AuthState {
 
   bool get isReady => hasGitHubAuth && hasAiCredentials;
 
+  bool get canAccessWorkspace => guestModeEnabled || isReady;
+
   String? get githubPat => githubAccessToken;
 
   AuthState copyWith({
@@ -66,6 +70,7 @@ class AuthState {
     Object? githubOAuthClientId = _unset,
     Object? githubUser = _unset,
     Object? pendingGitHubSession = _unset,
+    bool? guestModeEnabled,
     String? model,
   }) {
     return AuthState(
@@ -105,6 +110,7 @@ class AuthState {
           identical(pendingGitHubSession, _unset)
               ? this.pendingGitHubSession
               : pendingGitHubSession as GitHubDeviceCodeSession?,
+      guestModeEnabled: guestModeEnabled ?? this.guestModeEnabled,
       model: model ?? this.model,
     );
   }
@@ -135,6 +141,8 @@ class AuthController extends StateNotifier<AuthState> {
           await _storage.readString(StoredKeys.openRouterModel) ??
           AppConfig.defaultOpenRouterModel;
       final githubAccessToken = await _storage.getGitHubAccessToken();
+      final guestModeEnabled =
+          await _storage.readString(StoredKeys.guestModeEnabled) == 'true';
       final storedClientId = await _storage.readString(
         StoredKeys.githubOAuthClientId,
       );
@@ -167,6 +175,7 @@ class AuthController extends StateNotifier<AuthState> {
         githubAccessToken: githubAccessToken,
         githubOAuthClientId: githubOAuthClientId,
         githubUser: githubUser,
+        guestModeEnabled: guestModeEnabled,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -331,6 +340,16 @@ class AuthController extends StateNotifier<AuthState> {
       pendingGitHubSession: null,
       error: null,
     );
+  }
+
+  Future<void> enableGuestMode() async {
+    await _storage.saveString(StoredKeys.guestModeEnabled, 'true');
+    state = state.copyWith(guestModeEnabled: true, error: null);
+  }
+
+  Future<void> disableGuestMode() async {
+    await _storage.deleteApiKey(StoredKeys.guestModeEnabled);
+    state = state.copyWith(guestModeEnabled: false, error: null);
   }
 
   Future<void> resetAll() async {

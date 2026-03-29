@@ -6,6 +6,7 @@ import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
 import 'package:slash_flutter/ui/components/cool_background.dart';
 import 'package:toastification/toastification.dart';
 import 'features/auth/auth_page.dart';
+import 'features/onboarding/onboarding_page.dart';
 import 'home_shell.dart';
 import 'services/cache_storage_service.dart';
 import 'services/secure_storage_service.dart';
@@ -116,7 +117,8 @@ class SplashGate extends StatefulWidget {
 }
 
 class _SplashGateState extends State<SplashGate> {
-  bool? _hasTokens;
+  bool? _canAccessWorkspace;
+  bool _hasSeenOnboarding = true;
   bool _isLoading = true;
 
   @override
@@ -128,6 +130,10 @@ class _SplashGateState extends State<SplashGate> {
   Future<void> _init() async {
     await Future.delayed(const Duration(seconds: 1));
     final tokens = await widget.hasTokens();
+    final guestMode =
+        await SecureStorageService().readString(StoredKeys.guestModeEnabled) ==
+        'true';
+    final canAccessWorkspace = guestMode || tokens;
     if (tokens && mounted) {
       final container = ProviderScope.containerOf(context, listen: false);
       final repoController = container.read(repoControllerProvider.notifier);
@@ -135,7 +141,8 @@ class _SplashGateState extends State<SplashGate> {
     }
     if (mounted) {
       setState(() {
-        _hasTokens = tokens;
+        _canAccessWorkspace = canAccessWorkspace;
+        _hasSeenOnboarding = OnboardingPage.hasSeen;
         _isLoading = false;
       });
     }
@@ -146,7 +153,10 @@ class _SplashGateState extends State<SplashGate> {
     if (_isLoading) {
       return const SplashScreen(showLoader: true);
     }
-    return _hasTokens! ? const HomeShell() : const AuthPage();
+    if (!_hasSeenOnboarding) {
+      return OnboardingPage(canAccessWorkspace: _canAccessWorkspace!);
+    }
+    return _canAccessWorkspace! ? const HomeShell() : const AuthPage();
   }
 }
 

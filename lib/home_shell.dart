@@ -35,7 +35,7 @@ class HomeShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
-    if (!auth.isLoading && !auth.isReady) {
+    if (!auth.isLoading && !auth.canAccessWorkspace) {
       return const AuthPage();
     }
 
@@ -83,9 +83,8 @@ class HomeShell extends ConsumerWidget {
                       selected: safeFeature == feature,
                       onTap:
                           () =>
-                              ref
-                                  .read(selectedFeatureProvider.notifier)
-                                  .state = feature,
+                              ref.read(selectedFeatureProvider.notifier).state =
+                                  feature,
                       theme: theme,
                     ),
                 ],
