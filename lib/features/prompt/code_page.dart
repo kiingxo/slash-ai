@@ -1833,55 +1833,55 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  _iconForPath(filePath),
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compactHeader = constraints.maxWidth < 430;
+
+          Widget buildSyncPill() {
+            return _MetaPill(
+              label: snapshot.isDirty ? 'Modified' : 'Synced',
+              color:
+                  snapshot.isDirty
+                      ? const Color(0xFFF59E0B).withValues(alpha: 0.14)
+                      : const Color(0xFF10B981).withValues(alpha: 0.14),
+              foregroundColor:
+                  snapshot.isDirty
+                      ? const Color(0xFFB45309)
+                      : const Color(0xFF047857),
+            );
+          }
+
+          Widget buildHeaderSummary({required bool compact}) {
+            return LayoutBuilder(
+              builder: (context, summaryConstraints) {
+                final stackSyncPill =
+                    compact || summaryConstraints.maxWidth < 180;
+
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SlashText(
-                            fileName,
-                            fontWeight: FontWeight.w700,
-                            overflow: TextOverflow.ellipsis,
+                    if (stackSyncPill) ...[
+                      SlashText(
+                        fileName,
+                        fontWeight: FontWeight.w700,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      buildSyncPill(),
+                    ] else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SlashText(
+                              fileName,
+                              fontWeight: FontWeight.w700,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        _MetaPill(
-                          label: snapshot.isDirty ? 'Modified' : 'Synced',
-                          color:
-                              snapshot.isDirty
-                                  ? const Color(
-                                    0xFFF59E0B,
-                                  ).withValues(alpha: 0.14)
-                                  : const Color(
-                                    0xFF10B981,
-                                  ).withValues(alpha: 0.14),
-                          foregroundColor:
-                              snapshot.isDirty
-                                  ? const Color(0xFFB45309)
-                                  : const Color(0xFF047857),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: 12),
+                          Flexible(child: buildSyncPill()),
+                        ],
+                      ),
                     const SizedBox(height: 4),
                     SlashText(
                       filePath,
@@ -1890,65 +1890,117 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                ),
+                );
+              },
+            );
+          }
+
+          final headerIcon = Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              _iconForPath(filePath),
+              color: theme.colorScheme.primary,
+            ),
+          );
+
+          final actionButtons = <Widget>[
+            IconButton(
+              tooltip: 'Copy file path',
+              onPressed: () => _copyPathToClipboard(filePath),
+              icon: const Icon(Icons.content_copy_rounded),
+            ),
+            IconButton(
+              tooltip: _showFindBar ? 'Hide find' : 'Find in file',
+              onPressed: _toggleFindBar,
+              icon: const Icon(Icons.search_rounded),
+            ),
+            IconButton(
+              tooltip: _wrapLines ? 'Disable wrap' : 'Enable wrap',
+              onPressed: () => setState(() => _wrapLines = !_wrapLines),
+              icon: Icon(
+                _wrapLines ? Icons.wrap_text_rounded : Icons.segment_rounded,
               ),
+            ),
+            if (params != null)
               IconButton(
-                tooltip: 'Copy file path',
-                onPressed: () => _copyPathToClipboard(filePath),
-                icon: const Icon(Icons.content_copy_rounded),
+                tooltip: 'Quick open',
+                onPressed: () => _openQuickOpenSheet(params, codeState),
+                icon: const Icon(Icons.travel_explore_rounded),
               ),
-              IconButton(
-                tooltip: _showFindBar ? 'Hide find' : 'Find in file',
-                onPressed: _toggleFindBar,
-                icon: const Icon(Icons.search_rounded),
-              ),
-              IconButton(
-                tooltip: _wrapLines ? 'Disable wrap' : 'Enable wrap',
-                onPressed: () => setState(() => _wrapLines = !_wrapLines),
-                icon: Icon(
-                  _wrapLines ? Icons.wrap_text_rounded : Icons.segment_rounded,
-                ),
-              ),
-              if (params != null)
-                IconButton(
-                  tooltip: 'Quick open',
-                  onPressed: () => _openQuickOpenSheet(params, codeState),
-                  icon: const Icon(Icons.travel_explore_rounded),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          ];
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _MetaPill(
-                label: _languageLabel(_activeLanguageId),
-                color: theme.colorScheme.primary.withValues(alpha: 0.10),
-                foregroundColor: theme.colorScheme.primary,
+              if (compactHeader) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    headerIcon,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: buildHeaderSummary(compact: true),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: actionButtons,
+                ),
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    headerIcon,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: buildHeaderSummary(compact: false),
+                    ),
+                    ...actionButtons,
+                  ],
+                ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _MetaPill(
+                    label: _languageLabel(_activeLanguageId),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.10),
+                    foregroundColor: theme.colorScheme.primary,
+                  ),
+                  if ((codeState.selectedBranch ?? '').isNotEmpty)
+                    _MetaPill(
+                      label: codeState.selectedBranch!,
+                      color:
+                          theme.colorScheme.secondary.withValues(alpha: 0.12),
+                      foregroundColor: theme.colorScheme.secondary,
+                    ),
+                  if (codeState.pendingEdit != null)
+                    _MetaPill(
+                      label: 'AI draft ready',
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                      foregroundColor: const Color(0xFF1D4ED8),
+                    ),
+                  if (codeState.lastSyncedAt != null)
+                    _MetaPill(
+                      label:
+                          'Updated ${_formatRelativeTime(codeState.lastSyncedAt!)}',
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      foregroundColor: theme.colorScheme.onSurfaceVariant,
+                    ),
+                ],
               ),
-              if ((codeState.selectedBranch ?? '').isNotEmpty)
-                _MetaPill(
-                  label: codeState.selectedBranch!,
-                  color: theme.colorScheme.secondary.withValues(alpha: 0.12),
-                  foregroundColor: theme.colorScheme.secondary,
-                ),
-              if (codeState.pendingEdit != null)
-                _MetaPill(
-                  label: 'AI draft ready',
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                  foregroundColor: const Color(0xFF1D4ED8),
-                ),
-              if (codeState.lastSyncedAt != null)
-                _MetaPill(
-                  label:
-                      'Updated ${_formatRelativeTime(codeState.lastSyncedAt!)}',
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  foregroundColor: theme.colorScheme.onSurfaceVariant,
-                ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1966,46 +2018,75 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _findController,
-              autofocus: true,
-              onSubmitted: (_) => _jumpToFindMatch(1),
-              decoration: InputDecoration(
-                hintText: 'Find in file',
-                prefixIcon: const Icon(Icons.search_rounded),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compactFindBar = constraints.maxWidth < 420;
+
+          final findField = TextField(
+            controller: _findController,
+            autofocus: true,
+            onSubmitted: (_) => _jumpToFindMatch(1),
+            decoration: InputDecoration(
+              hintText: 'Find in file',
+              prefixIcon: const Icon(Icons.search_rounded),
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          _MetaPill(
-            label: '$activeMatch/$matchCount',
-            color: theme.colorScheme.surfaceContainerHighest,
-            foregroundColor: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'Previous match',
-            onPressed: matchCount == 0 ? null : () => _jumpToFindMatch(-1),
-            icon: const Icon(Icons.keyboard_arrow_up_rounded),
-          ),
-          IconButton(
-            tooltip: 'Next match',
-            onPressed: matchCount == 0 ? null : () => _jumpToFindMatch(1),
-            icon: const Icon(Icons.keyboard_arrow_down_rounded),
-          ),
-          IconButton(
-            tooltip: 'Close find',
-            onPressed: _toggleFindBar,
-            icon: const Icon(Icons.close_rounded),
-          ),
-        ],
+          );
+
+          final findActions = <Widget>[
+            _MetaPill(
+              label: '$activeMatch/$matchCount',
+              color: theme.colorScheme.surfaceContainerHighest,
+              foregroundColor: theme.colorScheme.onSurfaceVariant,
+            ),
+            IconButton(
+              tooltip: 'Previous match',
+              onPressed: matchCount == 0 ? null : () => _jumpToFindMatch(-1),
+              icon: const Icon(Icons.keyboard_arrow_up_rounded),
+            ),
+            IconButton(
+              tooltip: 'Next match',
+              onPressed: matchCount == 0 ? null : () => _jumpToFindMatch(1),
+              icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            ),
+            IconButton(
+              tooltip: 'Close find',
+              onPressed: _toggleFindBar,
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ];
+
+          if (compactFindBar) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                findField,
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: findActions,
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: findField),
+              const SizedBox(width: 12),
+              ...[
+                findActions.first,
+                const SizedBox(width: 8),
+                ...findActions.skip(1),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -2083,38 +2164,37 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFF93C5FD)),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.auto_fix_high_rounded, color: Color(0xFF1D4ED8)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SlashText(
-                  'Assistant draft ready to apply',
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1D4ED8),
-                ),
-                const SizedBox(height: 4),
-                SlashText(
-                  '${summary.lineDeltaLabel}  •  ${summary.characterDeltaLabel}',
-                  fontSize: 12,
-                  color: const Color(0xFF1E3A8A),
-                ),
-              ],
-            ),
-          ),
-          TextButton(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compactBanner = constraints.maxWidth < 480;
+
+          final bannerSummary = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SlashText(
+                'Assistant draft ready to apply',
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1D4ED8),
+              ),
+              const SizedBox(height: 4),
+              SlashText(
+                '${summary.lineDeltaLabel}  •  ${summary.characterDeltaLabel}',
+                fontSize: 12,
+                color: const Color(0xFF1E3A8A),
+              ),
+            ],
+          );
+
+          final dismissButton = TextButton(
             onPressed:
                 () =>
                     ref
                         .read(codeEditorControllerProvider.notifier)
                         .discardPendingEdit(),
             child: const SlashText('Dismiss'),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
+          );
+
+          final applyButton = ElevatedButton.icon(
             onPressed: () {
               ref
                   .read(codeEditorControllerProvider.notifier)
@@ -2123,8 +2203,53 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
             },
             icon: const Icon(Icons.check_rounded),
             label: const SlashText('Apply'),
-          ),
-        ],
+          );
+
+          if (compactBanner) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(
+                        Icons.auto_fix_high_rounded,
+                        color: Color(0xFF1D4ED8),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: bannerSummary),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    dismissButton,
+                    applyButton,
+                  ],
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              const Icon(
+                Icons.auto_fix_high_rounded,
+                color: Color(0xFF1D4ED8),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: bannerSummary),
+              dismissButton,
+              const SizedBox(width: 8),
+              applyButton,
+            ],
+          );
+        },
       ),
     );
   }

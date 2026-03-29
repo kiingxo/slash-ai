@@ -1,4 +1,4 @@
-package com.example.slash_flutter
+package com.blueprintlabs.slash
 
 import io.flutter.embedding.android.FlutterActivity
 
