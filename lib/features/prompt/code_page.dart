@@ -7,6 +7,7 @@ import 'package:slash_flutter/ui/components/slash_text.dart';
 
 import '../file_browser/file_browser_controller.dart';
 import '../repo/repo_controller.dart';
+import '../../home_shell.dart';
 import 'code_editor_controller.dart';
 
 class CodeScreen extends ConsumerStatefulWidget {
@@ -1171,6 +1172,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
               : Colors.white,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
+      leading: const SidebarMenuButton(),
       titleSpacing: 12,
       title: Row(
         children: [

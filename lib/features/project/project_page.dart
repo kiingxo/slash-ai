@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../ui/components/slash_text.dart';
+import '../../home_shell.dart';
 import '../auth/auth_controller.dart';
 import '../prompt/prompt_service.dart';
 import '../repo/repo_controller.dart';
@@ -203,6 +204,7 @@ class _ProjectPageState extends ConsumerState<ProjectPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
+        leading: const SidebarMenuButton(),
         title: const Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
