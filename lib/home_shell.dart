@@ -67,7 +67,7 @@ class _HomeShellState extends ConsumerState<HomeShell>
       case SlashFeature.reviews:
         return const PRsPage();
       case SlashFeature.settings:
-        return const SettingsScreen();
+        return const SizedBox.shrink(); // Settings shown as bottom sheet
     }
   }
 
@@ -104,6 +104,15 @@ class _HomeShellState extends ConsumerState<HomeShell>
     _ctrl.reverse().then((_) {
       if (mounted) setState(() => _isOpen = false);
     });
+  }
+
+  void _showSettingsBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => const SettingsBottomSheet(),
+    );
   }
 
   @override
@@ -164,8 +173,13 @@ class _HomeShellState extends ConsumerState<HomeShell>
                 activeFeatures: activeFeatures,
                 selectedFeature: safeFeature,
                 onSelect: (f) {
-                  ref.read(selectedFeatureProvider.notifier).state = f;
-                  _close();
+                  if (f == SlashFeature.settings) {
+                    _close();
+                    _showSettingsBottomSheet();
+                  } else {
+                    ref.read(selectedFeatureProvider.notifier).state = f;
+                    _close();
+                  }
                 },
                 onClose: _close,
               ),

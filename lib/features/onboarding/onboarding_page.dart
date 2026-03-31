@@ -33,7 +33,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       eyebrow: 'slash',
       title: 'Built by engineers,\nfor engineers.',
       body:
-          'Your mobile command center for the entire dev lifecycle — AI coding, repo intelligence, and production ops.',
+          'Your mobile command center for the entire dev lifecycle  AI coding, repo intelligence, and production ops.',
       accent: Color(0xFF8B5CF6),
       secondary: Color(0xFF3B82F6),
       chips: [],

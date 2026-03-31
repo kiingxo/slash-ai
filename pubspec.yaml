@@ -18,7 +18,7 @@ dependencies:
   flutter_riverpod: any
   flutter_secure_storage: ^9.2.4
   flutter_svg: ^2.2.0
-  google_fonts: ^6.1.0
+  google_fonts: ^8.0.2
   highlight: ^0.7.0
   hooks_riverpod: ^2.6.1
   http: ^1.4.0
