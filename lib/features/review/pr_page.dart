@@ -7,6 +7,7 @@ import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/secure_storage_service.dart';
+import '../../home_shell.dart';
 import '../repo/repo_controller.dart';
 import 'pr_service.dart';
 import 'pr_widgets.dart';
@@ -80,6 +81,7 @@ class PRsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const SidebarMenuButton(),
         title: const SlashText('Pull Requests', fontWeight: FontWeight.bold),
         centerTitle: false,
         actions: [

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ui/components/slash_text.dart';
+import '../../home_shell.dart';
 import 'ops_controller.dart';
 import 'ops_feature_pages.dart';
 import 'ops_models.dart';
@@ -31,6 +32,7 @@ class OpsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
+        leading: const SidebarMenuButton(),
         title: const SlashText('Ops', fontWeight: FontWeight.w700),
         actions: [
           IconButton(

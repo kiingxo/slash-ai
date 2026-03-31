@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../common/nav_preferences.dart';
 import '../../features/auth/auth_controller.dart';
+import '../../home_shell.dart';
 import '../../features/auth/auth_page.dart';
 import '../../features/repo/repo_controller.dart';
 import '../../services/app_config.dart';
@@ -158,21 +159,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF23232A) : Colors.white,
-        elevation: 1,
-        title: Row(
-          children: [
-            Image.asset('assets/slash2.png', height: 36),
-            const SizedBox(width: 12),
-            const SlashText('Settings', fontWeight: FontWeight.bold),
-          ],
-        ),
+        leading: const SidebarMenuButton(),
+        title: const SlashText('Settings', fontWeight: FontWeight.bold),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -390,10 +381,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required String title,
     required Widget child,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Card(
-      color: isDark ? const Color(0xFF23232A) : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -572,7 +561,6 @@ class _NavFeaturesCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final prefs = ref.watch(navPreferencesProvider);
     final pickable =
         SlashFeature.values
@@ -580,8 +568,7 @@ class _NavFeaturesCard extends ConsumerWidget {
             .toList();
 
     return Card(
-      color: isDark ? const Color(0xFF23232A) : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -600,7 +587,7 @@ class _NavFeaturesCard extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             SlashText(
-              'Choose which features appear on your bottom nav bar.',
+              'Choose which features appear in the sidebar.',
               fontSize: 12,
               color: Theme.of(
                 context,

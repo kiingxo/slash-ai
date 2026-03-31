@@ -8,6 +8,7 @@ import 'package:slash_flutter/ui/components/slash_toast.dart';
 import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
 import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
+import '../../home_shell.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
 import 'prompt_controller.dart';
@@ -131,6 +132,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         return Scaffold(
           appBar: AppBar(
             backgroundColor: colors.always8B5CF6.withValues(alpha: 0.1),
+            leading: const SidebarMenuButton(),
             title: Image.asset('assets/slash2.png', height: 100),
             centerTitle: false,
             toolbarHeight: 80,
