@@ -22,10 +22,19 @@ class _FeaturePickerPageState extends ConsumerState<FeaturePickerPage> {
   @override
   void initState() {
     super.initState();
-    // Default: everything enabled.
-    _selected = SlashFeature.values
-        .where((f) => kFeatureMeta[f]?.showInPicker == true)
-        .toSet();
+    final pickable =
+        SlashFeature.values.where((f) => kFeatureMeta[f]?.showInPicker == true);
+    if (NavPreferencesNotifier.isSetupDone) {
+      // Returning user — pre-populate with their saved choices.
+      final saved = ref.read(navPreferencesProvider);
+      _selected = pickable.where((f) => saved.contains(f)).toSet();
+      if (_selected.isEmpty) {
+        _selected = pickable.toSet();
+      }
+    } else {
+      // New user — default to everything enabled.
+      _selected = pickable.toSet();
+    }
   }
 
   void _toggle(SlashFeature feature) {

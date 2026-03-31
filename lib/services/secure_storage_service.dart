@@ -6,6 +6,8 @@ class StoredKeys {
   static const String openAIModel = 'openai_model';
   static const String openRouterApiKey = 'openrouter_api_key';
   static const String openRouterModel = 'openrouter_model';
+  static const String anthropicApiKey = 'anthropic_api_key';
+  static const String anthropicModel = 'anthropic_model';
   static const String githubAccessToken = 'github_access_token';
   static const String githubOAuthClientId = 'github_oauth_client_id';
   static const String githubUserLogin = 'github_user_login';

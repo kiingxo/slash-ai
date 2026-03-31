@@ -133,9 +133,9 @@ class _PromptPageState extends ConsumerState<PromptPage> {
           appBar: AppBar(
             backgroundColor: colors.always8B5CF6.withValues(alpha: 0.1),
             leading: const SidebarMenuButton(),
-            title: Image.asset('assets/slash2.png', height: 100),
+            title: Image.asset('assets/slash2.png', height: 34),
             centerTitle: false,
-            toolbarHeight: 80,
+            toolbarHeight: kToolbarHeight,
             actions: [
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),

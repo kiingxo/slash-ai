@@ -13,6 +13,11 @@ class AppConfig {
     defaultValue: 'openai/gpt-4o-mini',
   );
 
+  static const String defaultAnthropicModel = String.fromEnvironment(
+    'ANTHROPIC_MODEL',
+    defaultValue: 'claude-sonnet-4-6',
+  );
+
   static bool get hasBundledGitHubClientId =>
       githubOAuthClientId.trim().isNotEmpty;
 

@@ -211,7 +211,7 @@ class _ProjectPageState extends ConsumerState<ProjectPage> {
           children: [
             SlashText('Project', fontWeight: FontWeight.w700),
             SlashText(
-              'Repo summary, risk radar, and action queue',
+              'Delivery signals, risks, and action queue',
               fontSize: 12,
             ),
           ],
@@ -225,7 +225,7 @@ class _ProjectPageState extends ConsumerState<ProjectPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    'Select a repository to generate a project report.',
+                    'Select a repository to load the project report.',
                     style: theme.textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -390,7 +390,7 @@ class _ProjectHeaderCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Leadership summary and delivery radar for the selected repository.',
+                      'Delivery signals, risk radar, and action queue.',
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -603,16 +603,14 @@ class _ProjectOverviewContent extends StatelessWidget {
                       ),
                       SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          'Generating executive summary and code analysis...',
-                        ),
+                        child: Text('Generating summary...'),
                       ),
                     ],
                   ),
                 )
               else
                 Text(
-                  'Generate a detailed executive summary when you want a deeper leadership readout. It will not auto-run every time this screen opens.',
+                  'Tap Generate for an AI-powered summary of delivery, risks, and next steps.',
                   style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
                 ),
               if (overview.summaryUsedAI &&

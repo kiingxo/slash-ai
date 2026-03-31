@@ -126,14 +126,9 @@ class _AuthPageState extends ConsumerState<AuthPage> {
       return;
     }
 
-    final destination =
-        NavPreferencesNotifier.isSetupDone
-            ? const HomeShell()
-            : const FeaturePickerPage();
-
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => destination));
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const FeaturePickerPage()),
+    );
   }
 
   Future<void> _continueOpsFirst() async {

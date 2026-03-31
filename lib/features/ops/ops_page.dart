@@ -191,52 +191,51 @@ class _StatusCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
         color: theme.colorScheme.surface,
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+          color: theme.colorScheme.outline.withValues(alpha: 0.14),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.cloud_outlined, color: accent),
+                  child: Icon(Icons.cloud_outlined, color: accent, size: 16),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         connected ? 'Connected' : 'Not connected',
-                        style: theme.textTheme.titleMedium?.copyWith(
+                        style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 2),
                       Text(
                         snapshot?.endpointLabel ?? state.profile.endpointLabel,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.68,
+                            alpha: 0.55,
                           ),
                         ),
                       ),
@@ -246,10 +245,10 @@ class _StatusCard extends StatelessWidget {
                 _StatusPill(label: connected ? 'LIVE' : 'IDLE', color: accent),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: 12,
-              runSpacing: 12,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _InlineStat(
                   label: 'Host',
@@ -258,7 +257,7 @@ class _StatusCard extends StatelessWidget {
                       state.profile.host.ifBlank('Not set'),
                 ),
                 _InlineStat(
-                  label: 'Last sync',
+                  label: 'Sync',
                   value:
                       snapshot == null
                           ? 'Waiting'
@@ -271,32 +270,86 @@ class _StatusCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: 10,
-              runSpacing: 10,
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                FilledButton.icon(
+                _CompactButton(
                   onPressed: onOpenConnection,
-                  icon: const Icon(Icons.dns_rounded),
-                  label: const Text('Connection'),
+                  icon: Icons.dns_rounded,
+                  label: 'Connection',
+                  filled: true,
                 ),
                 if (onRefresh != null)
-                  OutlinedButton.icon(
-                    onPressed: onRefresh,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: Text(connected ? 'Refresh' : 'Connect'),
+                  _CompactButton(
+                    onPressed: onRefresh!,
+                    icon: Icons.refresh_rounded,
+                    label: connected ? 'Refresh' : 'Connect',
                   ),
                 if (onDisconnect != null)
-                  TextButton.icon(
-                    onPressed: onDisconnect,
-                    icon: const Icon(Icons.link_off_rounded),
-                    label: const Text('Disconnect'),
+                  _CompactButton(
+                    onPressed: onDisconnect!,
+                    icon: Icons.link_off_rounded,
+                    label: 'Disconnect',
+                    destructive: true,
                   ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CompactButton extends StatelessWidget {
+  const _CompactButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    this.filled = false,
+    this.destructive = false,
+  });
+
+  final VoidCallback onPressed;
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color =
+        destructive
+            ? theme.colorScheme.error
+            : theme.colorScheme.primary;
+
+    if (filled) {
+      return FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 14),
+        label: Text(label),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 14, color: color),
+      label: Text(label, style: TextStyle(color: color)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        side: BorderSide(color: color.withValues(alpha: 0.35)),
       ),
     );
   }
@@ -312,16 +365,16 @@ class _MenuPanel extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
         color: theme.colorScheme.surface,
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+          color: theme.colorScheme.outline.withValues(alpha: 0.14),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -351,55 +404,59 @@ class _MenuTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: theme.colorScheme.primary),
+                child: Icon(icon, color: theme.colorScheme.primary, size: 16),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: theme.textTheme.titleSmall?.copyWith(
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.66,
+                          alpha: 0.55,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Text(
                 trailing,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.56),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                  letterSpacing: 0.4,
                 ),
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+              ),
             ],
           ),
         ),
@@ -418,27 +475,31 @@ class _InlineStat extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.26,
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.08),
         ),
-        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
+            label.toUpperCase(),
             style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.56),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+              fontSize: 9,
+              letterSpacing: 0.6,
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 2),
           Text(
             value,
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: theme.textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],
@@ -456,18 +517,18 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.24)),
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: color,
-          fontWeight: FontWeight.w800,
-          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          fontSize: 10,
           letterSpacing: 0.8,
         ),
       ),

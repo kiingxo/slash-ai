@@ -1786,8 +1786,8 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                 const SizedBox(height: 10),
                 SlashText(
                   selectedRepo == null
-                      ? 'Pick a repository, then open a file. Quick open searches the whole branch, and the assistant will work with repo-aware context instead of a single isolated file.'
-                      : 'Open a file from ${selectedRepo['full_name'] ?? selectedRepo['name']} and the editor will track unsaved changes, quick-open matches, AI drafts, and branch-aware pull/push actions.',
+                      ? 'Select a repo and open a file to start editing with AI assistance.'
+                      : 'Open a file from ${selectedRepo['full_name'] ?? selectedRepo['name']} to start editing.',
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(height: 18),
