@@ -9,6 +9,7 @@ import '../file_browser/file_browser_controller.dart';
 import '../repo/repo_controller.dart';
 import '../../home_shell.dart';
 import 'code_editor_controller.dart';
+import '../auth/auth_controller.dart';
 
 class CodeScreen extends ConsumerStatefulWidget {
   const CodeScreen({super.key});
@@ -289,6 +290,7 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
         String query = '';
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final auth = ref.watch(authControllerProvider);
             final filtered =
                 repos.where((repo) {
                   final label =
@@ -349,8 +351,12 @@ class _CodeScreenState extends ConsumerState<CodeScreen> {
                       Expanded(
                         child:
                             filtered.isEmpty
-                                ? const Center(
-                                  child: SlashText('No repositories found.'),
+                                ? Center(
+                                  child: SlashText(
+                                    auth.hasGitHubAuth
+                                        ? 'No repositories found.'
+                                        : 'Sign in with GitHub to access your repositories.',
+                                  ),
                                 )
                                 : ListView.separated(
                                   itemCount: filtered.length,

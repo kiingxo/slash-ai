@@ -9,6 +9,7 @@ import 'package:slash_flutter/ui/theme/app_theme_builder.dart';
 import '../../ui/components/slash_text_field.dart';
 import '../../ui/components/slash_button.dart';
 import '../../home_shell.dart';
+import '../../ui/screens/settings_screen.dart';
 import '../repo/repo_controller.dart';
 import '../file_browser/file_browser_controller.dart';
 import 'prompt_controller.dart';
@@ -42,6 +43,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  void _showSettings(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => const SettingsBottomSheet(),
+    );
   }
 
   @override
@@ -106,6 +116,7 @@ class _PromptPageState extends ConsumerState<PromptPage> {
   Widget build(BuildContext context) {
     final repoState = ref.watch(repoControllerProvider);
     final promptState = ref.watch(promptControllerProvider);
+    final auth = ref.watch(authControllerProvider);
     final repoController = ref.read(repoControllerProvider.notifier);
     final promptController = ref.read(promptControllerProvider.notifier);
     final errorDetails =
@@ -124,7 +135,40 @@ class _PromptPageState extends ConsumerState<PromptPage> {
     }
 
     if (repos.isEmpty) {
-      return const Center(child: SlashText('No repositories found.'));
+      return ThemeBuilder(
+        builder: (context, colors, ref) {
+          return Scaffold(
+            appBar: AppBar(
+              backgroundColor: colors.always8B5CF6.withValues(alpha: 0.1),
+              leading: const SidebarMenuButton(),
+              title: Image.asset('assets/slash2.png', height: 34),
+              centerTitle: false,
+              toolbarHeight: kToolbarHeight,
+              actions: [
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: colors.alwaysEDEDED.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.settings),
+                    onPressed: () => _showSettings(context),
+                    tooltip: 'Settings',
+                  ),
+                ),
+              ],
+            ),
+            body: Center(
+              child: SlashText(
+                auth.hasGitHubAuth
+                    ? 'No repositories found.'
+                    : 'Sign in with GitHub to access your repositories.',
+              ),
+            ),
+          );
+        },
+      );
     }
 
     return ThemeBuilder(

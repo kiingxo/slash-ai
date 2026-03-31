@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import '../../ui/components/slash_button.dart';
 import '../../ui/components/slash_diff_viewer.dart';
+import '../../home_shell.dart';
 
 class FileDiff {
   final String fileName;
@@ -32,6 +33,7 @@ class ReviewPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const SidebarMenuButton(),
         title: const SlashText("Review Slash's Changes"),
         centerTitle: true,
       ),

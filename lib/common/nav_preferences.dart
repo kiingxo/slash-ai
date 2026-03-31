@@ -22,6 +22,9 @@ class SlashFeatureMeta {
   /// If false the feature is not shown in the feature picker (e.g. Settings).
   final bool showInPicker;
 
+  /// If true, shows a "BETA" tag next to the feature name.
+  final bool isBeta;
+
   const SlashFeatureMeta({
     required this.feature,
     required this.label,
@@ -30,6 +33,7 @@ class SlashFeatureMeta {
     required this.description,
     this.required = false,
     this.showInPicker = true,
+    this.isBeta = false,
   });
 }
 
@@ -47,6 +51,7 @@ const Map<SlashFeature, SlashFeatureMeta> kFeatureMeta = {
     icon: Icons.code,
     description:
         'Syntax-highlighted editor with AI-assisted edits and a built-in file browser.',
+    isBeta: true,
   ),
   SlashFeature.project: SlashFeatureMeta(
     feature: SlashFeature.project,

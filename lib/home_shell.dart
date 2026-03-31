@@ -413,16 +413,40 @@ class _SidebarItem extends StatelessWidget {
                 const SizedBox(width: 12),
                 // Label
                 Expanded(
-                  child: Text(
-                    meta.label,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 14,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.w400,
-                      color: textColor,
-                      letterSpacing: -0.1,
-                    ),
+                  child: Row(
+                    children: [
+                      Text(
+                        meta.label,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 14,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w400,
+                          color: textColor,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                      if (meta.isBeta) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'BETA',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: primary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

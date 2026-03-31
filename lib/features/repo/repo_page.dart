@@ -4,6 +4,7 @@ import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'repo_controller.dart';
 import '../file_browser/file_browser_page.dart';
 import '../../common/widgets/widgets.dart';
+import '../../home_shell.dart';
 
 class RepoPage extends ConsumerWidget {
   const RepoPage({super.key});
@@ -34,7 +35,10 @@ class RepoPage extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const SlashText('Your Git Repositories')),
+      appBar: AppBar(
+        leading: const SidebarMenuButton(),
+        title: const SlashText('Your Git Repositories'),
+      ),
       body:
           repoState.isLoading
               ? const Center(child: CircularProgressIndicator())

@@ -1171,11 +1171,11 @@ class _HeroChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 120),
-      padding: const EdgeInsets.all(14),
+      constraints: const BoxConstraints(minWidth: 100),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
@@ -1185,15 +1185,18 @@ class _HeroChip extends StatelessWidget {
             label,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.54),
-              fontSize: 12,
+              fontSize: 10,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,
+              fontSize: 12,
             ),
           ),
         ],
@@ -1249,13 +1252,13 @@ class _MetricsGrid extends StatelessWidget {
         children: [
           const _SectionHeading(
             icon: Icons.speed_rounded,
-            title: 'Operational Snapshot',
-            subtitle: 'Latest poll',
+            title: 'System Metrics',
+            subtitle: 'Real-time snapshot',
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: 10,
+            runSpacing: 10,
             children: [
               _MetricTile(
                 title: 'CPU',
@@ -1420,78 +1423,131 @@ class _ProcessPanel extends StatelessWidget {
             title: 'Top Processes',
             subtitle: 'Latest CPU sample',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           if (snapshot.topProcesses.isEmpty)
             const _EmptyStateCopy(message: 'No process data.')
           else
             Column(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Text('PID', style: theme.textTheme.labelMedium),
-                    ),
-                    Expanded(
-                      flex: 4,
-                      child: Text(
-                        'Command',
-                        style: theme.textTheme.labelMedium,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 1,
+                        child: Text(
+                          'PID',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        'CPU',
-                        textAlign: TextAlign.right,
-                        style: theme.textTheme.labelMedium,
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          'Command',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        'MEM',
-                        textAlign: TextAlign.right,
-                        style: theme.textTheme.labelMedium,
+                      Expanded(
+                        flex: 1,
+                        child: Text(
+                          'CPU',
+                          textAlign: TextAlign.right,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        flex: 1,
+                        child: Text(
+                          'MEM',
+                          textAlign: TextAlign.right,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 ...snapshot.topProcesses.map(
                   (process) => Container(
-                    margin: const EdgeInsets.only(bottom: 8),
+                    margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 12,
+                      vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(10),
                       color: theme.colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.32),
+                          .withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.05),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Expanded(flex: 2, child: Text('${process.pid}')),
                         Expanded(
-                          flex: 4,
+                          flex: 1,
                           child: Text(
-                            process.command,
-                            overflow: TextOverflow.ellipsis,
+                            '${process.pid}',
+                            style: theme.textTheme.bodySmall,
                           ),
                         ),
                         Expanded(
                           flex: 2,
+                          child: Text(
+                            process.command,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
                           child: Text(
                             '${process.cpuPercent.toStringAsFixed(1)}%',
                             textAlign: TextAlign.right,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFFB7185),
+                            ),
                           ),
                         ),
                         Expanded(
-                          flex: 2,
+                          flex: 1,
                           child: Text(
                             '${process.memoryPercent.toStringAsFixed(1)}%',
                             textAlign: TextAlign.right,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF22C55E),
+                            ),
                           ),
                         ),
                       ],
@@ -1525,182 +1581,225 @@ class _TerminalPanel extends StatelessWidget {
     final latest =
         state.terminalHistory.isNotEmpty ? state.terminalHistory.first : null;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFF27272A)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _TerminalHeader(),
-            const SizedBox(height: 14),
+    return _Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _TerminalHeader(),
+          const SizedBox(height: 12),
+          if (opsCommandPresets.isNotEmpty) ...[
+            Text(
+              'Quick Commands',
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: opsCommandPresets
                   .map(
                     (preset) => ActionChip(
-                      avatar: const Icon(Icons.flash_on_rounded, size: 16),
-                      label: Text(preset.label),
+                      avatar: Icon(
+                        Icons.flash_on_rounded,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                      label: Text(
+                        preset.label,
+                        style: theme.textTheme.labelSmall,
+                      ),
                       onPressed: () => onPresetSelected(preset.command),
+                      backgroundColor: theme.colorScheme.primaryContainer
+                          .withValues(alpha: 0.3),
+                      side: BorderSide(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                      ),
                     ),
                   )
                   .toList(growable: false),
             ),
             const SizedBox(height: 14),
-            TextField(
-              controller: commandController,
-              minLines: 2,
-              maxLines: 5,
-              style: const TextStyle(
-                color: Colors.white,
+          ],
+          Text(
+            'Command',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: commandController,
+            minLines: 2,
+            maxLines: 4,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontFamily: 'monospace',
+            ),
+            decoration: InputDecoration(
+              hintText: 'Type your SSH command...',
+              hintStyle: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                 fontFamily: 'monospace',
-                fontSize: 13,
               ),
-              decoration: InputDecoration(
-                hintText: 'Run SSH command',
-                hintStyle: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.36),
-                  fontFamily: 'monospace',
+              filled: true,
+              fillColor: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.3),
+              prefixIcon: const Icon(Icons.keyboard_command_key_rounded),
+              prefixIconColor: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.1),
                 ),
-                filled: true,
-                fillColor: const Color(0xFF18181B),
-                prefixIcon: const Icon(Icons.keyboard_command_key_rounded),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: const BorderSide(color: Color(0xFF27272A)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.1),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: const BorderSide(color: Color(0xFF27272A)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                  width: 1.5,
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.8),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: state.isRunningCommand ? null : onRun,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF22C55E),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+                icon:
+                    state.isRunningCommand
+                        ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.black),
+                          ),
+                        )
+                        : const Icon(Icons.play_arrow_rounded, size: 18),
+                label: Text(
+                  state.isConnected ? 'Run' : 'Connect & Run',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  state.isConnected
+                      ? 'Session is live'
+                      : 'Will connect on first run',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
               ),
+            ],
+          ),
+          if (latest != null) ...[
+            const SizedBox(height: 16),
+            Divider(
+              color: theme.colorScheme.outline.withValues(alpha: 0.1),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                FilledButton.icon(
-                  onPressed: state.isRunningCommand ? null : onRun,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF22C55E),
-                    foregroundColor: Colors.black,
-                  ),
-                  icon:
-                      state.isRunningCommand
-                          ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : const Icon(Icons.play_arrow_rounded),
-                  label: Text(
-                    state.isConnected ? 'Run command' : 'Connect & run',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    state.isConnected ? 'Live session' : 'Connects on run',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.64),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            if (latest == null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF111827),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Output appears here.',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.72),
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              )
-            else
-              _TerminalOutput(entry: latest),
-            if (state.terminalHistory.length > 1) ...[
-              const SizedBox(height: 14),
-              Text(
-                'Recent runs',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: Colors.white,
-                ),
+            Text(
+              'Output',
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               ),
-              const SizedBox(height: 8),
-              ...state.terminalHistory
-                  .skip(1)
-                  .take(3)
-                  .map(
-                    (entry) => Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF111827),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF1F2937)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            entry.isError
-                                ? Icons.error_outline
-                                : Icons.check_circle_outline,
-                            color:
-                                entry.isError
-                                    ? const Color(0xFFFB7185)
-                                    : const Color(0xFF34D399),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  entry.command,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontFamily: 'monospace',
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${formatOpsClock(entry.ranAt)} • exit ${entry.exitCode ?? 'unknown'}',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.54),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+            ),
+            const SizedBox(height: 8),
+            _TerminalOutput(entry: latest),
+          ],
+          if (state.terminalHistory.length > 1) ...[
+            const SizedBox(height: 16),
+            Divider(
+              color: theme.colorScheme.outline.withValues(alpha: 0.1),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Recent Runs',
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...state.terminalHistory
+                .skip(1)
+                .take(3)
+                .map(
+                  (entry) => Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.2),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.08),
                       ),
                     ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          entry.isError
+                              ? Icons.error_outline_rounded
+                              : Icons.check_circle_outline_rounded,
+                          size: 16,
+                          color:
+                              entry.isError
+                                  ? const Color(0xFFFB7185)
+                                  : const Color(0xFF34D399),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.command,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${formatOpsClock(entry.ranAt)} • exit ${entry.exitCode ?? 'unknown'}',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurface
+                                      .withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-            ],
+                ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -1808,42 +1907,60 @@ class _TrendCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
-            ),
-          ),
-          const SizedBox(height: 14),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                valueLabel,
-                style: theme.textTheme.displaySmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: color,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
-              Text(
-                '${values.length} samples',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.58),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: color.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      valueLabel,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                    Text(
+                      '${values.length}s',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SizedBox(
-            height: 92,
+            height: 72,
             child: CustomPaint(
               painter: _SparklinePainter(
                 values: values,
@@ -1853,22 +1970,24 @@ class _TrendCard extends StatelessWidget {
               child: Container(),
             ),
           ),
-          const SizedBox(height: 10),
-          LinearProgressIndicator(
-            value:
-                values.isEmpty
-                    ? 0
-                    : (values.last / math.max(1, maxY)).clamp(0.0, 1.0),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(999),
-            backgroundColor: color.withValues(alpha: 0.12),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value:
+                  values.isEmpty
+                      ? 0
+                      : (values.last / math.max(1, maxY)).clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: color.withValues(alpha: 0.1),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
           ),
           const SizedBox(height: 10),
           Text(
             footer,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.68),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
         ],
@@ -1887,20 +2006,20 @@ class _Panel extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         color: theme.colorScheme.surface,
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Padding(padding: const EdgeInsets.all(18), child: child),
+      child: Padding(padding: const EdgeInsets.all(16), child: child),
     );
   }
 }
@@ -1974,25 +2093,36 @@ class _MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      constraints: const BoxConstraints(minWidth: 150, maxWidth: 220),
-      padding: const EdgeInsets.all(16),
+      constraints: const BoxConstraints(minWidth: 140, maxWidth: 200),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         gradient: LinearGradient(
           colors: [
-            color.withValues(alpha: 0.12),
-            color.withValues(alpha: 0.03),
+            color.withValues(alpha: 0.14),
+            color.withValues(alpha: 0.04),
           ],
         ),
+        border: Border.all(
+          color: color.withValues(alpha: 0.15),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title,
-            style: theme.textTheme.labelLarge?.copyWith(
+            title.toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
               color: color,
               fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
             ),
           ),
           const SizedBox(height: 8),
@@ -2002,11 +2132,14 @@ class _MetricTile extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.68),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+              fontSize: 12,
             ),
           ),
         ],

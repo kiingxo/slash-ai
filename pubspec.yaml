@@ -15,6 +15,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_code_editor: ^0.3.3
+  flutter_phoenix: ^1.1.1
   flutter_riverpod: any
   flutter_secure_storage: ^9.2.4
   flutter_svg: ^2.2.0

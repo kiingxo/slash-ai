@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'file_browser_controller.dart';
 import '../../common/widgets/widgets.dart';
+import '../../home_shell.dart';
 
 class FileBrowserPage extends ConsumerWidget {
   final String owner;
@@ -23,14 +24,16 @@ class FileBrowserPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const SidebarMenuButton(),
         title: SlashText('Browse: $repo'),
-        leading:
-            state.pathStack.isNotEmpty
-                ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: controller.goUp,
-                )
-                : null,
+        actions: [
+          if (state.pathStack.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Go up',
+              onPressed: controller.goUp,
+            ),
+        ],
       ),
       body:
           state.isLoading

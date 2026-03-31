@@ -11,6 +11,7 @@ import 'package:slash_flutter/ui/components/slash_loading.dart';
 import 'package:slash_flutter/ui/components/slash_text.dart';
 import 'package:slash_flutter/ui/components/slash_button.dart';
 import 'package:slash_flutter/ui/components/slash_diff_viewer.dart';
+import 'package:slash_flutter/home_shell.dart';
 
 // Intent tag widget
 class IntentTag extends StatelessWidget {
@@ -745,6 +746,7 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       appBar: AppBar(
         backgroundColor: editorBg,
         elevation: 1,
+        leading: const SidebarMenuButton(),
         title: Row(
           children: [
             const Icon(Icons.code, color: Color(0xFF8B5CF6)),

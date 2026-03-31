@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -808,6 +809,12 @@ class _SettingsBottomSheetState extends ConsumerState<SettingsBottomSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: SlashText('GitHub connected as @${user.login}')),
       );
+
+      // Reload the entire app to fetch GitHub data
+      await Future.delayed(const Duration(seconds: 1)); // Brief delay for snackbar
+      if (mounted) {
+        Phoenix.rebirth(context);
+      }
     } catch (e) {
       if (!mounted) {
         return;
@@ -863,6 +870,8 @@ class _SettingsBottomSheetState extends ConsumerState<SettingsBottomSheet> {
                 ),
                 child: Row(
                   children: [
+                    const SidebarMenuButton(),
+                    const SizedBox(width: 8),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close),
