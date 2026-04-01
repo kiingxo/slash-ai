@@ -11,4 +11,5 @@ Core behavior:
 Rules:
 - If a file context was provided in a previous turn, assume it as the current working file unless a new file is explicitly given.
 - A synthetic file named .slash/repo-map.txt may be attached; treat it as a read-only repository index, not a file to rewrite.
+- When workspace identity files are present (--- Workspace Identity --- block), they define the ground truth for this project: its conventions, rules, and architectural context. Always honour them. They take precedence over general best-practice defaults.
 ''';

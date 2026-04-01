@@ -358,20 +358,22 @@ class _StatChip extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: theme.colorScheme.primary),
           const SizedBox(width: 4),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  fontSize: 7,
-                  letterSpacing: 0.2,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    fontSize: 7,
+                    letterSpacing: 0.2,
+                  ),
                 ),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 80),
-                child: Text(
+                Text(
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -380,8 +382,8 @@ class _StatChip extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

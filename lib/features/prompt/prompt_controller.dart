@@ -379,6 +379,8 @@ class PromptController extends StateNotifier<PromptState> {
     String response;
     ReviewData? review;
 
+    final workspace = repoContext.workspace;
+
     switch (intent) {
       case 'code_edit':
         final editPackage = await PromptService.processCodeEditPackage(
@@ -386,6 +388,7 @@ class PromptController extends StateNotifier<PromptState> {
           prompt: prompt,
           files: contextFiles,
           toolSummary: toolSummary,
+          workspace: workspace,
         );
         response = editPackage.summary;
 
@@ -409,6 +412,7 @@ class PromptController extends StateNotifier<PromptState> {
             repo: repo,
             contextFiles: contextFiles,
             toolSummary: toolSummary,
+            workspace: workspace,
           );
         }
         break;
@@ -418,6 +422,7 @@ class PromptController extends StateNotifier<PromptState> {
           prompt: prompt,
           contextFiles: contextFiles,
           toolSummary: toolSummary,
+          workspace: workspace,
         );
         break;
     }
@@ -467,6 +472,7 @@ class PromptController extends StateNotifier<PromptState> {
             prompt: prompt,
             files: context.files,
             toolSummary: context.toolSummary,
+            workspace: context.workspace,
           );
         })();
 

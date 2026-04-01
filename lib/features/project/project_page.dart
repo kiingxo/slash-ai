@@ -498,25 +498,19 @@ class _ProjectHeroCard extends StatelessWidget {
                 child: Row(
                   children: [
                     _StatChip(
-                      label: 'Branch',
-                      value: overview!.branch,
-                      icon: Icons.call_split_rounded,
-                    ),
-                    const SizedBox(width: 8),
-                    _StatChip(
-                      label: 'Momentum',
+                      label: 'Pace',
                       value: overview!.momentumLabel,
                       icon: Icons.trending_up_rounded,
                     ),
                     const SizedBox(width: 8),
                     _StatChip(
-                      label: 'Window',
+                      label: 'Period',
                       value: overview!.window.longLabel,
                       icon: Icons.date_range_rounded,
                     ),
                     const SizedBox(width: 8),
                     _StatChip(
-                      label: 'Updated',
+                      label: 'Last Refreshed',
                       value: _formatRelative(overview!.generatedAt.toLocal()),
                       icon: Icons.schedule_rounded,
                     ),
@@ -600,8 +594,8 @@ class _ProjectQuickStats extends StatelessWidget {
       children: [
         Expanded(
           child: _StatCard(
-            icon: Icons.commit_rounded,
-            label: 'Commits',
+            icon: Icons.bolt_rounded,
+            label: 'Updates',
             value: overview.stats.commitCount.toString(),
             color: const Color(0xFF3B82F6),
           ),
@@ -609,8 +603,8 @@ class _ProjectQuickStats extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _StatCard(
-            icon: Icons.call_split_rounded,
-            label: 'Open PRs',
+            icon: Icons.pending_actions_rounded,
+            label: 'In Review',
             value: overview.stats.openPrCount.toString(),
             color: const Color(0xFFEC4899),
           ),
@@ -618,8 +612,8 @@ class _ProjectQuickStats extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _StatCard(
-            icon: Icons.merge_type_rounded,
-            label: 'Merged',
+            icon: Icons.check_circle_rounded,
+            label: 'Shipped',
             value: overview.stats.mergedPrCount.toString(),
             color: const Color(0xFF22C55E),
           ),
@@ -734,7 +728,7 @@ class _ProjectFeatureGrid extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
-            'Dashboard',
+            'Overview',
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -749,12 +743,12 @@ class _ProjectFeatureGrid extends StatelessWidget {
                 Expanded(
                   child: _ProjectFeatureCard(
                     icon: Icons.auto_awesome_rounded,
-                    title: 'AI Brief',
+                    title: 'Executive Summary',
                     description: overview.summaryUsedAI
-                        ? 'AI summary ready'
+                        ? 'Summary ready'
                         : isGeneratingBrief
                         ? 'Generating…'
-                        : 'On demand',
+                        : 'AI-powered brief',
                     accentColor: const Color(0xFF8B5CF6),
                     onTap: onBriefTap,
                   ),
@@ -763,7 +757,7 @@ class _ProjectFeatureGrid extends StatelessWidget {
                 Expanded(
                   child: _ProjectFeatureCard(
                     icon: Icons.flag_rounded,
-                    title: 'Start Here',
+                    title: 'Priorities',
                     description:
                         '${overview.highlights.length + overview.risks.length + overview.nextActions.length} signals',
                     accentColor: const Color(0xFF0F766E),
@@ -777,10 +771,10 @@ class _ProjectFeatureGrid extends StatelessWidget {
               children: [
                 Expanded(
                   child: _ProjectFeatureCard(
-                    icon: Icons.call_merge_rounded,
-                    title: 'PR Queue',
+                    icon: Icons.work_outline_rounded,
+                    title: 'Active Work',
                     description:
-                        '${overview.openPullRequests.length} open · ${overview.mergedPullRequests.length} merged',
+                        '${overview.openPullRequests.length} in progress · ${overview.mergedPullRequests.length} done',
                     accentColor: const Color(0xFF3B82F6),
                     onTap: onPRsTap,
                   ),
@@ -788,10 +782,10 @@ class _ProjectFeatureGrid extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _ProjectFeatureCard(
-                    icon: Icons.bug_report_rounded,
-                    title: 'Issues',
+                    icon: Icons.warning_amber_rounded,
+                    title: 'Blockers',
                     description:
-                        '${overview.openedIssues.length} opened · ${overview.closedIssues.length} closed',
+                        '${overview.openedIssues.length} open · ${overview.closedIssues.length} resolved',
                     accentColor: const Color(0xFFB45309),
                     onTap: onIssuesTap,
                   ),
@@ -804,9 +798,9 @@ class _ProjectFeatureGrid extends StatelessWidget {
                 Expanded(
                   child: _ProjectFeatureCard(
                     icon: Icons.people_rounded,
-                    title: 'Team',
+                    title: 'Team Activity',
                     description:
-                        '${overview.contributors.length} contributor${overview.contributors.length == 1 ? '' : 's'}',
+                        '${overview.contributors.length} contributor${overview.contributors.length == 1 ? '' : 's'} active',
                     accentColor: const Color(0xFF06B6D4),
                     onTap: onTeamTap,
                   ),
@@ -815,10 +809,10 @@ class _ProjectFeatureGrid extends StatelessWidget {
                 Expanded(
                   child: _ProjectFeatureCard(
                     icon: Icons.rocket_launch_rounded,
-                    title: 'Releases',
+                    title: 'Deliveries',
                     description: overview.releases.isNotEmpty
-                        ? '${overview.releases.length} recent'
-                        : 'Failures & exports',
+                        ? '${overview.releases.length} recent releases'
+                        : 'Milestones & exports',
                     accentColor: const Color(0xFF6366F1),
                     onTap: onReleasesTap,
                   ),
@@ -948,6 +942,7 @@ class _ProjectFeatureCardState extends State<_ProjectFeatureCard> {
   }
 }
 
+
 // ── Sub-pages ─────────────────────────────────────────────────────────────────
 
 class _ProjectBriefPage extends StatelessWidget {
@@ -968,13 +963,13 @@ class _ProjectBriefPage extends StatelessWidget {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const SlashText('AI Brief', fontWeight: FontWeight.w700),
+        title: const SlashText('Executive Summary', fontWeight: FontWeight.w700),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
           _SectionCard(
-            title: 'Executive Brief',
+            title: 'Project Brief',
             trailing: Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -1058,7 +1053,7 @@ class _ProjectBriefPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _SectionCard(
-            title: 'Engineering Lens',
+            title: 'Technical Overview',
             child: Text(
               overview.engineeringSummary,
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
@@ -1079,7 +1074,7 @@ class _ProjectStartHerePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const SlashText('Start Here', fontWeight: FontWeight.w700),
+        title: const SlashText('Priorities', fontWeight: FontWeight.w700),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
@@ -1087,7 +1082,7 @@ class _ProjectStartHerePage extends StatelessWidget {
           _StartHereCard(overview: overview),
           const SizedBox(height: 16),
           _SectionCard(
-            title: 'Highlights',
+            title: 'Wins & Progress',
             child: _BulletList(
               items: overview.highlights,
               icon: Icons.north_east_rounded,
@@ -1096,7 +1091,7 @@ class _ProjectStartHerePage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _SectionCard(
-            title: 'Risk Radar',
+            title: 'Risks to Watch',
             child: _BulletList(
               items: overview.risks,
               icon: Icons.warning_amber_rounded,
@@ -1105,7 +1100,7 @@ class _ProjectStartHerePage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _SectionCard(
-            title: 'Next Actions',
+            title: 'Recommended Next Steps',
             child: _BulletList(
               items: overview.nextActions,
               icon: Icons.task_alt_rounded,
@@ -1131,29 +1126,29 @@ class _ProjectPRPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const SlashText('PR Queue', fontWeight: FontWeight.w700),
+        title: const SlashText('Active Work', fontWeight: FontWeight.w700),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
           _SectionCard(
-            title: 'Pull Request Queue',
+            title: 'Work in Progress',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _MiniSectionTitle('Open PRs'),
+                const _MiniSectionTitle('Currently In Progress'),
                 const SizedBox(height: 8),
                 _ReportList(
                   items: overview.openPullRequests,
-                  emptyLabel: 'No open pull requests.',
+                  emptyLabel: 'Nothing currently in progress.',
                   onOpenLink: onOpenLink,
                 ),
                 const SizedBox(height: 16),
-                const _MiniSectionTitle('Recent Merges'),
+                const _MiniSectionTitle('Recently Completed'),
                 const SizedBox(height: 8),
                 _ReportList(
                   items: overview.mergedPullRequests,
-                  emptyLabel: 'No merged PRs in this window.',
+                  emptyLabel: 'No completed work in this period.',
                   onOpenLink: onOpenLink,
                 ),
               ],
@@ -1178,29 +1173,29 @@ class _ProjectIssuePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const SlashText('Issues', fontWeight: FontWeight.w700),
+        title: const SlashText('Blockers', fontWeight: FontWeight.w700),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
           _SectionCard(
-            title: 'Issue Flow',
+            title: 'Open Blockers & Issues',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _MiniSectionTitle('Opened'),
+                const _MiniSectionTitle('Raised This Period'),
                 const SizedBox(height: 8),
                 _ReportList(
                   items: overview.openedIssues,
-                  emptyLabel: 'No new issues in this window.',
+                  emptyLabel: 'No new blockers raised this period.',
                   onOpenLink: onOpenLink,
                 ),
                 const SizedBox(height: 16),
-                const _MiniSectionTitle('Closed'),
+                const _MiniSectionTitle('Resolved'),
                 const SizedBox(height: 8),
                 _ReportList(
                   items: overview.closedIssues,
-                  emptyLabel: 'No closed issues in this window.',
+                  emptyLabel: 'No resolved issues this period.',
                   onOpenLink: onOpenLink,
                 ),
               ],
@@ -1225,14 +1220,14 @@ class _ProjectTeamPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const SlashText('Team', fontWeight: FontWeight.w700),
+        title: const SlashText('Team Activity', fontWeight: FontWeight.w700),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
           if (overview.contributors.isNotEmpty) ...[
             _SectionCard(
-              title: 'Team Activity',
+              title: 'Who\'s Doing What',
               child: Column(
                 children: overview.contributors
                     .map((item) =>
@@ -1243,7 +1238,7 @@ class _ProjectTeamPage extends StatelessWidget {
             const SizedBox(height: 16),
           ],
           _SectionCard(
-            title: 'Timeline',
+            title: 'Activity Timeline',
             child: _TimelineList(
               items: overview.timeline,
               onOpenLink: onOpenLink,
@@ -1274,7 +1269,7 @@ class _ProjectReleasesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const SlashText('Releases', fontWeight: FontWeight.w700),
+        title: const SlashText('Deliveries', fontWeight: FontWeight.w700),
         actions: [
           if (onPreviewPdf != null || onSharePdf != null)
             PopupMenuButton<String>(
@@ -1313,20 +1308,20 @@ class _ProjectReleasesPage extends StatelessWidget {
         children: [
           if (overview.releases.isNotEmpty) ...[
             _SectionCard(
-              title: 'Recent Releases',
+              title: 'Recent Deliveries',
               child: _ReportList(
                 items: overview.releases,
-                emptyLabel: 'No recent releases.',
+                emptyLabel: 'No releases shipped this period.',
                 onOpenLink: onOpenLink,
               ),
             ),
             const SizedBox(height: 16),
           ],
           _SectionCard(
-            title: 'Workflow Failures',
+            title: 'Pipeline Issues',
             child: _ReportList(
               items: overview.workflowFailures,
-              emptyLabel: 'No failed workflow runs in this window.',
+              emptyLabel: 'All pipelines are running cleanly.',
               onOpenLink: onOpenLink,
             ),
           ),
@@ -1348,28 +1343,28 @@ class _StartHereCard extends StatelessWidget {
     final theme = Theme.of(context);
     final buckets = <_PriorityBucketData>[
       _PriorityBucketData(
-        title: 'What Changed',
+        title: 'Progress',
         icon: Icons.auto_awesome_rounded,
         color: const Color(0xFF0F766E),
         items: overview.highlights.isNotEmpty
             ? overview.highlights.take(2).toList()
-            : ['Recent delivery signals will surface here.'],
+            : ['No major progress signals yet for this period.'],
       ),
       _PriorityBucketData(
-        title: 'Watch Closely',
+        title: 'Risks',
         icon: Icons.warning_amber_rounded,
         color: const Color(0xFFB45309),
         items: overview.risks.isNotEmpty
             ? overview.risks.take(2).toList()
-            : ['No major risks were flagged in this window.'],
+            : ['No major risks flagged this period.'],
       ),
       _PriorityBucketData(
-        title: 'Do Next',
+        title: 'Next Steps',
         icon: Icons.task_alt_rounded,
         color: theme.colorScheme.primary,
         items: overview.nextActions.isNotEmpty
             ? overview.nextActions.take(2).toList()
-            : ['No immediate follow-up actions are suggested right now.'],
+            : ['No immediate actions recommended right now.'],
       ),
     ];
 
@@ -1905,20 +1900,22 @@ class _StatChip extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: theme.colorScheme.primary),
           const SizedBox(width: 4),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  fontSize: 7,
-                  letterSpacing: 0.2,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    fontSize: 7,
+                    letterSpacing: 0.2,
+                  ),
                 ),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 100),
-                child: Text(
+                Text(
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1927,8 +1924,8 @@ class _StatChip extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

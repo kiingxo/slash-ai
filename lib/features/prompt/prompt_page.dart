@@ -15,6 +15,7 @@ import '../file_browser/file_browser_controller.dart';
 import 'prompt_controller.dart';
 import 'prompt_service.dart';
 import '../auth/auth_controller.dart';
+import '../project/workspace_setup_page.dart';
 
 class PromptPage extends ConsumerStatefulWidget {
   const PromptPage({super.key});
@@ -181,6 +182,15 @@ class _PromptPageState extends ConsumerState<PromptPage> {
             centerTitle: false,
             toolbarHeight: kToolbarHeight,
             actions: [
+              IconButton(
+                icon: const Icon(Icons.tune_rounded),
+                tooltip: 'Workspace Identity',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const WorkspaceSetupPage(),
+                  ),
+                ),
+              ),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(

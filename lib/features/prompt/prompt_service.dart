@@ -18,15 +18,40 @@ const String _repoDigestFileName = '.slash/repo-map.txt';
 const int _maxRepoIndexPaths = 5000;
 const int _repoDigestCharBudget = 10000;
 
+// Workspace identity files — fetched from .slash/ in the repo root.
+const String _workspaceIdentityFile = '.slash/identity.md';
+const String _workspaceRulesFile = '.slash/rules.md';
+const String _workspaceContextFile = '.slash/context.md';
+const int _workspaceFileMaxChars = 4000;
+
+class WorkspaceContext {
+  final String? identity;
+  final String? rules;
+  final String? context;
+
+  const WorkspaceContext({this.identity, this.rules, this.context});
+
+  bool get isEmpty => identity == null && rules == null && context == null;
+  bool get isNotEmpty => !isEmpty;
+
+  List<String> get presentFiles => [
+    if (identity != null) _workspaceIdentityFile,
+    if (rules != null) _workspaceRulesFile,
+    if (context != null) _workspaceContextFile,
+  ];
+}
+
 class PromptContextResult {
   final FileContents files;
   final List<String> toolSummary;
   final bool autoDiscovered;
+  final WorkspaceContext workspace;
 
   const PromptContextResult({
     required this.files,
     required this.toolSummary,
     required this.autoDiscovered,
+    this.workspace = const WorkspaceContext(),
   });
 }
 
@@ -87,6 +112,70 @@ class RepoIndexLookupResult {
 
 class PromptService {
   static final Map<String, RepoIndexSnapshot> _repoIndexMemoryCache = {};
+  static final Map<String, WorkspaceContext> _workspaceContextCache = {};
+
+  /// Fetches .slash/identity.md, rules.md, context.md from the repo root.
+  /// Results are cached per owner/repo/branch for the session.
+  static Future<WorkspaceContext> fetchWorkspaceContext({
+    required GitHubService github,
+    required String owner,
+    required String repo,
+    required String branch,
+  }) async {
+    final cacheKey = 'workspace::$owner/$repo@$branch';
+    if (_workspaceContextCache.containsKey(cacheKey)) {
+      return _workspaceContextCache[cacheKey]!;
+    }
+
+    Future<String?> tryFetch(String path) async {
+      try {
+        final file = await github.fetchFileContent(
+          owner: owner,
+          repo: repo,
+          path: path,
+          branch: branch,
+        );
+        final content = file.content.trim();
+        if (content.isEmpty) return null;
+        return content.length > _workspaceFileMaxChars
+            ? '${content.substring(0, _workspaceFileMaxChars)}\n...<truncated>'
+            : content;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final results = await Future.wait([
+      tryFetch(_workspaceIdentityFile),
+      tryFetch(_workspaceRulesFile),
+      tryFetch(_workspaceContextFile),
+    ]);
+
+    final ctx = WorkspaceContext(
+      identity: results[0],
+      rules: results[1],
+      context: results[2],
+    );
+    _workspaceContextCache[cacheKey] = ctx;
+    return ctx;
+  }
+
+  /// Builds the workspace identity block to prepend to every prompt.
+  static String buildWorkspaceBlock(WorkspaceContext ctx) {
+    if (ctx.isEmpty) return '';
+    final buf = StringBuffer()..writeln('--- Workspace Identity ---');
+    if (ctx.identity != null) {
+      buf..writeln('# Project Identity')..writeln(ctx.identity)..writeln();
+    }
+    if (ctx.rules != null) {
+      buf..writeln('# Coding Rules')..writeln(ctx.rules)..writeln();
+    }
+    if (ctx.context != null) {
+      buf..writeln('# Architecture Context')..writeln(ctx.context)..writeln();
+    }
+    buf.writeln('--- End Workspace Identity ---');
+    return buf.toString();
+  }
 
   static Future<FileContents> fetchFiles({
     required String owner,
@@ -232,6 +321,19 @@ class PromptService {
     final contextFiles = <Map<String, String>>[];
     final includedPaths = <String>{};
 
+    // Fetch workspace identity files (.slash/identity.md, rules.md, context.md)
+    final workspace = await fetchWorkspaceContext(
+      github: github,
+      owner: owner,
+      repo: repoName,
+      branch: selectedBranch,
+    );
+    if (workspace.isNotEmpty) {
+      toolSummary.add(
+        'workspace:${workspace.presentFiles.map((f) => f.split('/').last).join('+')}',
+      );
+    }
+
     final selectedContextFiles = await _materializeSelectedFiles(
       selectedFiles: filteredSelections.take(maxFiles).toList(),
       github: github,
@@ -332,6 +434,7 @@ class PromptService {
       files: contextFiles,
       toolSummary: toolSummary,
       autoDiscovered: rankedPaths.isNotEmpty,
+      workspace: workspace,
     );
   }
 
@@ -400,11 +503,15 @@ class PromptService {
     required String prompt,
     required FileContents files,
     List<String> toolSummary = const [],
+    WorkspaceContext? workspace,
   }) async {
     final planPrompt =
         StringBuffer()
           ..writeln(systemPrompt())
-          ..writeln()
+          ..writeln();
+    final wsBlock = buildWorkspaceBlock(workspace ?? const WorkspaceContext());
+    if (wsBlock.isNotEmpty) planPrompt..writeln(wsBlock)..writeln();
+    planPrompt
           ..writeln('Mode: plan')
           ..writeln('User request: "$prompt"')
           ..writeln(
@@ -426,15 +533,16 @@ class PromptService {
     required String prompt,
     required FileContents files,
     List<String> toolSummary = const [],
+    WorkspaceContext? workspace,
   }) async {
     final primaryFile = _primaryContextFile(files);
     final oldContent = primaryFile?['content'] ?? '';
     final fileName = primaryFile?['name'] ?? 'unknown';
 
-    final codePrompt =
-        StringBuffer()
-          ..writeln(systemPrompt())
-          ..writeln()
+    final codePrompt = StringBuffer()..writeln(systemPrompt())..writeln();
+    final wsBlock = buildWorkspaceBlock(workspace ?? const WorkspaceContext());
+    if (wsBlock.isNotEmpty) codePrompt..writeln(wsBlock)..writeln();
+    codePrompt
           ..writeln('Mode: rewrite')
           ..writeln('Target file: $fileName')
           ..writeln('User request: $prompt')
@@ -462,15 +570,16 @@ class PromptService {
     required String prompt,
     required FileContents files,
     List<String> toolSummary = const [],
+    WorkspaceContext? workspace,
   }) async {
     final primaryFile = _primaryContextFile(files);
     final oldContent = primaryFile?['content'] ?? '';
     final fileName = primaryFile?['name'] ?? 'unknown';
 
-    final packagePrompt =
-        StringBuffer()
-          ..writeln(systemPrompt())
-          ..writeln()
+    final packagePrompt = StringBuffer()..writeln(systemPrompt())..writeln();
+    final wsBlock = buildWorkspaceBlock(workspace ?? const WorkspaceContext());
+    if (wsBlock.isNotEmpty) packagePrompt..writeln(wsBlock)..writeln();
+    packagePrompt
           ..writeln('Mode: rewrite_with_summary')
           ..writeln('Target file: $fileName')
           ..writeln('User request: $prompt')
@@ -532,16 +641,17 @@ class PromptService {
     required RepoInfo repo,
     required FileContents contextFiles,
     List<String> toolSummary = const [],
+    WorkspaceContext? workspace,
   }) async {
     final repoInfo =
         'Repository: ${repo['full_name'] ?? repo['name']}\n'
         'Description: ${repo['description'] ?? 'No description'}\n'
         'Default branch: ${repo['default_branch'] ?? 'main'}';
 
-    final questionPrompt =
-        StringBuffer()
-          ..writeln(systemPrompt())
-          ..writeln()
+    final questionPrompt = StringBuffer()..writeln(systemPrompt())..writeln();
+    final wsBlock = buildWorkspaceBlock(workspace ?? const WorkspaceContext());
+    if (wsBlock.isNotEmpty) questionPrompt..writeln(wsBlock)..writeln();
+    questionPrompt
           ..writeln(repoInfo)
           ..writeln('User question: $prompt')
           ..writeln(
@@ -565,12 +675,12 @@ class PromptService {
     required String prompt,
     required FileContents contextFiles,
     List<String> toolSummary = const [],
+    WorkspaceContext? workspace,
   }) async {
-    final userPrompt =
-        StringBuffer()
-          ..writeln(systemPrompt())
-          ..writeln()
-          ..writeln('User: $prompt');
+    final userPrompt = StringBuffer()..writeln(systemPrompt())..writeln();
+    final wsBlock = buildWorkspaceBlock(workspace ?? const WorkspaceContext());
+    if (wsBlock.isNotEmpty) userPrompt..writeln(wsBlock)..writeln();
+    userPrompt.writeln('User: $prompt');
 
     if (toolSummary.isNotEmpty) {
       userPrompt.writeln('Context tools used: ${toolSummary.join(', ')}');
